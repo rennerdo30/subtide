@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Video Translate</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
+          <path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
+        </svg>
+        <span class="logo-text">Video Translate</span>
+      </div>
+      <div class="status-badge" id="statusBadge">
+        <span class="status-dot"></span>
+        <span class="status-text">Not Configured</span>
+      </div>
+    </header>
+
+    <!-- Main content -->
+    <main class="content">
+      <!-- API Configuration -->
+      <section class="section">
+        <h2 class="section-title">API Configuration</h2>
+        
+        <div class="form-group">
+          <label for="apiUrl">API URL</label>
+          <input type="url" id="apiUrl" placeholder="https://api.openai.com/v1" />
+          <span class="hint">OpenAI-compatible API endpoint</span>
+        </div>
+
+        <div class="form-group">
+          <label for="apiKey">API Key</label>
+          <div class="input-with-toggle">
+            <input type="password" id="apiKey" placeholder="sk-..." />
+            <button type="button" class="toggle-visibility" id="toggleApiKey" title="Show/Hide">
+              <svg class="icon-eye" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+              </svg>
+              <svg class="icon-eye-off" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display: none;">
+                <path d="M12 7c2.76 0 5 2.24 5 5 0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.43-4.75-1.73-4.39-6-7.5-11-7.5-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28.46.46A11.804 11.804 0 001 12c1.73 4.39 6 7.5 11 7.5 1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22 21 20.73 3.27 3 2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65 0 1.66 1.34 3 3 3 .22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53-2.76 0-5-2.24-5-5 0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15.02-.16c0-1.66-1.34-3-3-3l-.17.01z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="model">Model</label>
+          <input type="text" id="model" placeholder="gpt-4o-mini" />
+          <span class="hint">Model identifier (e.g., gpt-4o-mini, llama3.2)</span>
+        </div>
+      </section>
+
+      <!-- Default Language -->
+      <section class="section">
+        <h2 class="section-title">Default Language</h2>
+        
+        <div class="form-group">
+          <label for="defaultLanguage">Translate to</label>
+          <select id="defaultLanguage">
+            <option value="en">🇬🇧 English</option>
+            <option value="ja">🇯🇵 日本語</option>
+            <option value="ko">🇰🇷 한국어</option>
+            <option value="zh-CN">🇨🇳 简体中文</option>
+            <option value="zh-TW">🇹🇼 繁體中文</option>
+            <option value="es">🇪🇸 Español</option>
+            <option value="fr">🇫🇷 Français</option>
+            <option value="de">🇩🇪 Deutsch</option>
+            <option value="pt">🇵🇹 Português</option>
+            <option value="ru">🇷🇺 Русский</option>
+            <option value="ar">🇸🇦 العربية</option>
+            <option value="hi">🇮🇳 हिन्दी</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Cache Management -->
+      <section class="section">
+        <h2 class="section-title">Cache</h2>
+        <div class="cache-info">
+          <span id="cacheCount">0 translations cached</span>
+          <button type="button" class="btn-secondary" id="clearCache">Clear Cache</button>
+        </div>
+      </section>
+
+      <!-- Save Button -->
+      <div class="actions">
+        <button type="button" class="btn-primary" id="saveConfig">
+          <span class="btn-text">Save Configuration</span>
+          <span class="btn-saving" style="display: none;">Saving...</span>
+          <span class="btn-saved" style="display: none;">✓ Saved!</span>
+        </button>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span>v1.0.0</span>
+      <a href="https://github.com" target="_blank">GitHub</a>
+    </footer>
+  </div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
