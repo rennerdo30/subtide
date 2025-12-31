@@ -23,11 +23,6 @@ const elements = {
     forceGenGroup: document.getElementById('forceGenGroup'),
     apiUrlGroup: document.getElementById('apiUrlGroup'),
     backendUrl: document.getElementById('backendUrl'),
-    // Subtitle appearance
-    subtitleSize: document.getElementById('subtitleSize'),
-    subtitlePosition: document.getElementById('subtitlePosition'),
-    subtitleBackground: document.getElementById('subtitleBackground'),
-    subtitleColor: document.getElementById('subtitleColor'),
 };
 
 // Tier descriptions
@@ -110,12 +105,6 @@ async function loadConfig() {
         elements.defaultLanguage.value = config.defaultLanguage || 'en';
         elements.tier.value = config.tier || 'tier1';
         elements.backendUrl.value = config.backendUrl || 'http://localhost:5001';
-
-        // Subtitle appearance
-        elements.subtitleSize.value = config.subtitleSize || 'medium';
-        elements.subtitlePosition.value = config.subtitlePosition || 'bottom';
-        elements.subtitleBackground.value = config.subtitleBackground || 'dark';
-        elements.subtitleColor.value = config.subtitleColor || 'white';
 
         // Apply tier-based UI
         updateUIForTier(config.tier || 'tier1');
@@ -263,11 +252,6 @@ async function saveConfiguration() {
             defaultLanguage: elements.defaultLanguage.value,
             tier: elements.tier.value,
             backendUrl: elements.backendUrl.value.trim() || 'http://localhost:5001',
-            // Subtitle appearance
-            subtitleSize: elements.subtitleSize.value,
-            subtitlePosition: elements.subtitlePosition.value,
-            subtitleBackground: elements.subtitleBackground.value,
-            subtitleColor: elements.subtitleColor.value,
         };
 
         await sendMessage({ action: 'saveConfig', config });

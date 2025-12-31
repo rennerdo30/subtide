@@ -379,15 +379,19 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
 
                             // Progress update
                             if (data.stage && data.message) {
-                                console.log(`[VideoTranslate] Progress: ${data.stage} - ${data.message} (${data.percent || 0}%)`);
-                                // Send progress to content script
+                                console.log(`[VideoTranslate] Progress: ${data.stage} - ${data.message} (${data.percent || 0}%) Step ${data.step || '?'}/${data.totalSteps || '?'}`);
+                                // Send progress to content script with all details
                                 if (tabId) {
                                     chrome.tabs.sendMessage(tabId, {
                                         action: 'progress',
                                         stage: data.stage,
                                         message: data.message,
                                         percent: data.percent,
-                                    }).catch(() => {});
+                                        step: data.step,
+                                        totalSteps: data.totalSteps,
+                                        eta: data.eta,
+                                        batchInfo: data.batchInfo,
+                                    }).catch(() => { });
                                 }
                                 if (onProgress) {
                                     onProgress(data);

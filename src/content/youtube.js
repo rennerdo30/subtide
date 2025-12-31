@@ -246,15 +246,116 @@ function injectUI() {
         statusPanel.className = 'vt-status-panel';
         statusPanel.innerHTML = `
             <div class="vt-status-content">
+                <div class="vt-step-indicator"></div>
                 <span class="vt-status-text"></span>
                 <div class="vt-progress-bar">
                     <div class="vt-progress-fill"></div>
                 </div>
-                <span class="vt-status-detail"></span>
+                <div class="vt-status-details">
+                    <span class="vt-batch-info"></span>
+                    <span class="vt-eta"></span>
+                </div>
             </div>
         `;
         player.appendChild(statusPanel);
     }
+
+    // Add settings panel for subtitle appearance (floating, instant-apply)
+    if (player && !player.querySelector('.vt-settings-panel')) {
+        const settingsPanel = document.createElement('div');
+        settingsPanel.className = 'vt-settings-panel';
+        settingsPanel.innerHTML = `
+            <div class="vt-settings-header">
+                <span>Subtitle Style</span>
+                <button class="vt-settings-close">×</button>
+            </div>
+            <div class="vt-settings-body">
+                <div class="vt-setting-row">
+                    <label>Size</label>
+                    <select data-setting="size">
+                        <option value="small">S</option>
+                        <option value="medium" selected>M</option>
+                        <option value="large">L</option>
+                        <option value="xlarge">XL</option>
+                    </select>
+                </div>
+                <div class="vt-setting-row">
+                    <label>Position</label>
+                    <select data-setting="position">
+                        <option value="bottom" selected>Bottom</option>
+                        <option value="top">Top</option>
+                    </select>
+                </div>
+                <div class="vt-setting-row">
+                    <label>Background</label>
+                    <select data-setting="background">
+                        <option value="dark" selected>Dark</option>
+                        <option value="darker">Darker</option>
+                        <option value="transparent">Light</option>
+                        <option value="none">None</option>
+                    </select>
+                </div>
+                <div class="vt-setting-row">
+                    <label>Color</label>
+                    <select data-setting="color">
+                        <option value="white" selected>White</option>
+                        <option value="yellow">Yellow</option>
+                        <option value="cyan">Cyan</option>
+                    </select>
+                </div>
+            </div>
+        `;
+        player.appendChild(settingsPanel);
+
+        // Load saved settings
+        settingsPanel.querySelector(`[data-setting="size"]`).value = subtitleSettings.size;
+        settingsPanel.querySelector(`[data-setting="position"]`).value = subtitleSettings.position;
+        settingsPanel.querySelector(`[data-setting="background"]`).value = subtitleSettings.background;
+        settingsPanel.querySelector(`[data-setting="color"]`).value = subtitleSettings.color;
+
+        // Instant apply on change
+        settingsPanel.querySelectorAll('select').forEach(select => {
+            select.addEventListener('change', () => {
+                subtitleSettings[select.dataset.setting] = select.value;
+                addStyles(); // Re-apply styles instantly
+                // Save to storage
+                sendMessage({
+                    action: 'saveConfig',
+                    config: {
+                        subtitleSize: subtitleSettings.size,
+                        subtitlePosition: subtitleSettings.position,
+                        subtitleBackground: subtitleSettings.background,
+                        subtitleColor: subtitleSettings.color,
+                    }
+                });
+            });
+        });
+
+        // Close button
+        settingsPanel.querySelector('.vt-settings-close').addEventListener('click', () => {
+            settingsPanel.classList.remove('show');
+        });
+    }
+
+    // Add settings button to controls
+    const settingsBtn = document.createElement('button');
+    settingsBtn.className = 'vt-settings-btn ytp-button';
+    settingsBtn.title = 'Subtitle Settings';
+    settingsBtn.innerHTML = `
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+            <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+        </svg>
+    `;
+    container.appendChild(settingsBtn);
+
+    // Settings button click
+    settingsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const panel = player.querySelector('.vt-settings-panel');
+        if (panel) {
+            panel.classList.toggle('show');
+        }
+    });
 
     const btn = container.querySelector('.vt-btn');
     const badge = container.querySelector('.vt-badge');
@@ -373,14 +474,38 @@ async function translateVideo(targetLang) {
 /**
  * Update status display - shows in overlay panel on video
  */
-function updateStatus(text, type = '', percent = null, detail = '') {
+/**
+ * Update status display with enhanced progress information
+ * @param {string} text - Main status message
+ * @param {string} type - Status type: 'loading', 'success', 'error'
+ * @param {number|null} percent - Progress percentage (0-100)
+ * @param {object|null} options - Extended options
+ * @param {number} options.step - Current step number
+ * @param {number} options.totalSteps - Total number of steps
+ * @param {string} options.eta - Estimated time remaining
+ * @param {object} options.batchInfo - Batch progress info {current, total}
+ */
+function updateStatus(text, type = '', percent = null, options = {}) {
     const panel = document.querySelector('.vt-status-panel');
+    const stepIndicator = panel?.querySelector('.vt-step-indicator');
     const textEl = panel?.querySelector('.vt-status-text');
     const progressBar = panel?.querySelector('.vt-progress-bar');
     const progressFill = panel?.querySelector('.vt-progress-fill');
-    const detailEl = panel?.querySelector('.vt-status-detail');
+    const batchInfoEl = panel?.querySelector('.vt-batch-info');
+    const etaEl = panel?.querySelector('.vt-eta');
 
     if (panel && textEl) {
+        // Update step indicator (e.g., "Step 2/4")
+        if (stepIndicator) {
+            if (options.step && options.totalSteps) {
+                stepIndicator.textContent = `Step ${options.step}/${options.totalSteps}`;
+                stepIndicator.style.display = 'block';
+            } else {
+                stepIndicator.style.display = 'none';
+            }
+        }
+
+        // Update main status text
         textEl.textContent = text;
         panel.className = 'vt-status-panel ' + type;
 
@@ -394,13 +519,23 @@ function updateStatus(text, type = '', percent = null, detail = '') {
             }
         }
 
-        // Update detail text (ETA, percentage)
-        if (detailEl) {
-            if (percent !== null && type === 'loading') {
-                detailEl.textContent = detail || `${percent}%`;
-                detailEl.style.display = 'block';
+        // Update batch info (e.g., "Batch 3/10")
+        if (batchInfoEl) {
+            if (options.batchInfo && options.batchInfo.current && options.batchInfo.total) {
+                batchInfoEl.textContent = `Batch ${options.batchInfo.current}/${options.batchInfo.total}`;
+                batchInfoEl.style.display = 'inline';
             } else {
-                detailEl.style.display = 'none';
+                batchInfoEl.style.display = 'none';
+            }
+        }
+
+        // Update ETA
+        if (etaEl) {
+            if (options.eta && type === 'loading') {
+                etaEl.textContent = `ETA: ${options.eta}`;
+                etaEl.style.display = 'inline';
+            } else {
+                etaEl.style.display = 'none';
             }
         }
 
@@ -410,7 +545,9 @@ function updateStatus(text, type = '', percent = null, detail = '') {
         } else if (type === 'success') {
             panel.style.display = 'block';
             if (progressBar) progressBar.style.display = 'none';
-            if (detailEl) detailEl.style.display = 'none';
+            if (stepIndicator) stepIndicator.style.display = 'none';
+            if (batchInfoEl) batchInfoEl.style.display = 'none';
+            if (etaEl) etaEl.style.display = 'none';
             setTimeout(() => {
                 if (panel.classList.contains('success')) {
                     panel.style.display = 'none';
@@ -612,12 +749,31 @@ function addStyles() {
             transition: width 0.3s ease !important;
             width: 0%;
         }
-        .vt-status-detail {
+        .vt-step-indicator {
+            color: rgba(255,255,255,0.6) !important;
+            font-size: 10px !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            margin-bottom: 4px !important;
+            display: none;
+        }
+        .vt-status-details {
+            display: flex !important;
+            gap: 12px !important;
+            justify-content: center !important;
+            margin-top: 6px !important;
+        }
+        .vt-batch-info, .vt-eta {
             color: rgba(255,255,255,0.7) !important;
             font-size: 11px !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-            margin-top: 6px !important;
             display: none;
+        }
+        .vt-eta {
+            color: #8bc34a !important;
+            font-weight: 500 !important;
         }
         .vt-status-panel.loading .vt-status-text {
             color: #ffc107 !important;
@@ -651,6 +807,94 @@ function addStyles() {
             line-height: 1.4 !important;
             text-shadow: ${subtitleSettings.background === 'none' ? '1px 1px 2px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.8)' : 'none'} !important;
         }
+        .vt-settings-btn {
+            opacity: 0.9 !important;
+            margin-left: 4px !important;
+        }
+        .vt-settings-btn:hover {
+            opacity: 1 !important;
+        }
+        .vt-settings-panel {
+            display: none;
+            position: absolute !important;
+            top: 50px !important;
+            right: 12px !important;
+            background: rgba(20, 20, 20, 0.95) !important;
+            border: 1px solid rgba(255,255,255,0.15) !important;
+            border-radius: 8px !important;
+            padding: 0 !important;
+            min-width: 180px !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+            z-index: 9999 !important;
+            backdrop-filter: blur(10px) !important;
+        }
+        .vt-settings-panel.show {
+            display: block !important;
+        }
+        .vt-settings-header {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            padding: 10px 12px !important;
+            border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+            color: #fff !important;
+            font-size: 13px !important;
+            font-weight: 600 !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        }
+        .vt-settings-close {
+            background: none !important;
+            border: none !important;
+            color: rgba(255,255,255,0.6) !important;
+            font-size: 18px !important;
+            cursor: pointer !important;
+            padding: 0 !important;
+            width: 24px !important;
+            height: 24px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            border-radius: 4px !important;
+        }
+        .vt-settings-close:hover {
+            background: rgba(255,255,255,0.1) !important;
+            color: #fff !important;
+        }
+        .vt-settings-body {
+            padding: 8px 12px 12px !important;
+        }
+        .vt-setting-row {
+            display: flex !important;
+            justify-content: space-between !important;
+            align-items: center !important;
+            margin-bottom: 8px !important;
+        }
+        .vt-setting-row:last-child {
+            margin-bottom: 0 !important;
+        }
+        .vt-setting-row label {
+            color: rgba(255,255,255,0.8) !important;
+            font-size: 12px !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        }
+        .vt-setting-row select {
+            background: rgba(255,255,255,0.1) !important;
+            border: 1px solid rgba(255,255,255,0.2) !important;
+            border-radius: 4px !important;
+            color: #fff !important;
+            padding: 4px 8px !important;
+            font-size: 12px !important;
+            cursor: pointer !important;
+            min-width: 80px !important;
+        }
+        .vt-setting-row select:focus {
+            outline: none !important;
+            border-color: #00d9ff !important;
+        }
+        .vt-setting-row select option {
+            background: #222 !important;
+            color: #fff !important;
+        }
     `;
     document.head.appendChild(style);
 }
@@ -675,7 +919,7 @@ function sendMessage(msg) {
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.action === 'progress') {
-        const { stage, message: msg, percent } = message;
+        const { stage, message: msg, percent, step, totalSteps, eta, batchInfo } = message;
 
         // Map stages to status types
         const stageTypes = {
@@ -686,13 +930,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             'complete': 'success',
         };
 
-        // Build detail string with percentage
-        let detail = '';
-        if (percent !== undefined && percent !== null) {
-            detail = `${percent}%`;
-        }
+        // Build options object with all progress details
+        const options = {};
+        if (step !== undefined) options.step = step;
+        if (totalSteps !== undefined) options.totalSteps = totalSteps;
+        if (eta) options.eta = eta;
+        if (batchInfo) options.batchInfo = batchInfo;
 
-        updateStatus(msg, stageTypes[stage] || 'loading', percent, detail);
+        updateStatus(msg, stageTypes[stage] || 'loading', percent, options);
         sendResponse({ received: true });
     }
     return true;

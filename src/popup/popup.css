@@ -1,5 +1,5 @@
 /* Video Translate - Popup Styles */
-/* Premium Dark Theme with Gradients */
+/* Modern Teal/Cyan Dark Theme */
 
 * {
     margin: 0;
@@ -8,25 +8,26 @@
 }
 
 :root {
-    --bg-primary: #0a0a0f;
-    --bg-secondary: #12121a;
-    --bg-tertiary: #1a1a25;
-    --bg-card: linear-gradient(145deg, #15151f 0%, #1a1a28 100%);
-    --text-primary: #ffffff;
-    --text-secondary: #b0b0c0;
-    --text-muted: #6a6a7a;
-    --accent: #6366f1;
-    --accent-hover: #818cf8;
-    --accent-glow: rgba(99, 102, 241, 0.3);
-    --success: #10b981;
-    --warning: #f59e0b;
-    --error: #ef4444;
-    --border: rgba(255, 255, 255, 0.08);
-    --border-focus: rgba(99, 102, 241, 0.5);
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #21262d;
+    --bg-card: linear-gradient(145deg, #1c2128 0%, #21262d 100%);
+    --text-primary: #f0f6fc;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --accent: #00d9ff;
+    --accent-hover: #33e3ff;
+    --accent-glow: rgba(0, 217, 255, 0.25);
+    --accent-secondary: #10b981;
+    --success: #3fb950;
+    --warning: #d29922;
+    --error: #f85149;
+    --border: rgba(240, 246, 252, 0.1);
+    --border-focus: rgba(0, 217, 255, 0.5);
     --radius: 12px;
-    --radius-sm: 6px;
-    --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05);
-    --shadow-input: 0 2px 8px rgba(0, 0, 0, 0.2);
+    --radius-sm: 8px;
+    --shadow-card: 0 8px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(240, 246, 252, 0.05);
+    --shadow-input: 0 2px 8px rgba(0, 0, 0, 0.3);
 }
 
 body {
@@ -52,7 +53,7 @@ body {
     align-items: center;
     justify-content: space-between;
     padding: 18px 20px;
-    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.05) 100%);
+    background: linear-gradient(135deg, rgba(0, 217, 255, 0.08) 0%, rgba(16, 185, 129, 0.04) 100%);
     border-bottom: 1px solid var(--border);
     position: relative;
     overflow: hidden;
@@ -65,7 +66,7 @@ body {
     left: 0;
     right: 0;
     height: 2px;
-    background: linear-gradient(90deg, var(--accent), #a855f7, var(--accent));
+    background: linear-gradient(90deg, var(--accent), var(--accent-secondary), var(--accent));
 }
 
 .logo {
@@ -373,7 +374,7 @@ body {
 
 .btn-primary {
     width: 100%;
-    background: linear-gradient(135deg, var(--accent) 0%, #8b5cf6 100%);
+    background: linear-gradient(135deg, var(--accent) 0%, var(--accent-secondary) 100%);
     color: white;
     box-shadow: 0 4px 15px var(--accent-glow);
 }

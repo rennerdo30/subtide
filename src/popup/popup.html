@@ -16,21 +16,22 @@
     <!-- Header -->
     <header class="header">
       <div class="logo">
-        <svg viewBox="0 0 128 128" width="28" height="28" fill="none">
+        <svg viewBox="0 0 128 128" width="28" height="28">
           <defs>
-            <linearGradient id="logoGrad" x1="10%" y1="10%" x2="90%" y2="90%">
-              <stop offset="0%" stop-color="#6366f1" />
-              <stop offset="100%" stop-color="#a855f7" />
+            <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#00d9ff" />
+              <stop offset="100%" stop-color="#10b981" />
             </linearGradient>
           </defs>
-          <path d="M 28 24 Q 20 20 20 32 L 20 96 Q 20 108 28 104 L 98 68 Q 108 64 98 60 L 28 24 Z"
-            fill="url(#logoGrad)" />
-          <g transform="translate(35, 45) scale(0.6)">
-            <path d="M 15 40 L 25 10 L 35 40 M 18 30 L 32 30" stroke="white" stroke-width="6" stroke-linecap="round"
-              stroke-linejoin="round" />
-            <path d="M 50 15 L 70 15 M 60 18 L 60 25 M 60 25 Q 50 35 45 40 M 60 25 Q 70 35 75 40" stroke="white"
-              stroke-width="5" stroke-linecap="round" />
-          </g>
+          <rect x="8" y="8" width="112" height="112" rx="24" ry="24" fill="url(#logoGrad)" />
+          <rect x="24" y="32" width="80" height="52" rx="6" ry="6" fill="none" stroke="white" stroke-width="4"
+            opacity="0.9" />
+          <polygon points="52,46 52,72 72,59" fill="white" />
+          <rect x="32" y="72" width="64" height="8" rx="2" fill="white" opacity="0.85" />
+          <text x="38" y="106" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="white">A</text>
+          <path d="M58 98 L68 98 M64 94 L68 98 L64 102" stroke="white" stroke-width="3" stroke-linecap="round"
+            stroke-linejoin="round" fill="none" />
+          <text x="74" y="106" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="white">文</text>
         </svg>
         <span class="logo-text">Video Translate</span>
       </div>
@@ -189,55 +190,7 @@
         </div>
       </section>
 
-      <!-- Subtitle Appearance -->
-      <section class="section">
-        <h2 class="section-title">
-          <svg class="section-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="4 7 4 4 20 4 20 7" />
-            <line x1="9" x2="15" y1="20" y2="20" />
-            <line x1="12" x2="12" y1="4" y2="20" />
-          </svg>
-          Subtitle Appearance
-        </h2>
 
-        <div class="form-group">
-          <label for="subtitleSize">Font Size</label>
-          <select id="subtitleSize">
-            <option value="small">Small (16px)</option>
-            <option value="medium" selected>Medium (20px)</option>
-            <option value="large">Large (24px)</option>
-            <option value="xlarge">Extra Large (28px)</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="subtitlePosition">Position</label>
-          <select id="subtitlePosition">
-            <option value="bottom" selected>Bottom</option>
-            <option value="top">Top</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="subtitleBackground">Background</label>
-          <select id="subtitleBackground">
-            <option value="dark" selected>Dark (85%)</option>
-            <option value="darker">Darker (95%)</option>
-            <option value="transparent">Semi-transparent (50%)</option>
-            <option value="none">None</option>
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label for="subtitleColor">Text Color</label>
-          <select id="subtitleColor">
-            <option value="white" selected>White</option>
-            <option value="yellow">Yellow</option>
-            <option value="cyan">Cyan</option>
-          </select>
-        </div>
-      </section>
 
       <!-- Cache Management -->
       <section class="section">

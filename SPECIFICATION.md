@@ -134,6 +134,8 @@ Combined subtitle fetch + translation. Used by **Tier 3 only**.
 
 Single endpoint that fetches subtitles (or generates via Whisper) and translates them in one call. Server uses its own managed API key.
 
+Uses **Server-Sent Events (SSE)** for real-time progress updates.
+
 **Body:**
 ```json
 {
@@ -143,7 +145,29 @@ Single endpoint that fetches subtitles (or generates via Whisper) and translates
 }
 ```
 
-**Response:**
+**SSE Progress Events:**
+```json
+{
+  "stage": "translating",
+  "message": "Translating subtitles...",
+  "percent": 65,
+  "step": 3,
+  "totalSteps": 4,
+  "eta": "45s",
+  "batchInfo": {"current": 3, "total": 10}
+}
+```
+
+**Progress Stages:**
+| Stage | Step | Description |
+|-------|------|-------------|
+| `checking` | 1 | Checking available subtitles |
+| `downloading` | 2 | Downloading existing subtitles |
+| `whisper` | 2 | Transcribing with Whisper |
+| `translating` | 3 | Translating with LLM |
+| `complete` | 4 | Processing finished |
+
+**Final Response:**
 ```json
 {
   "subtitles": [

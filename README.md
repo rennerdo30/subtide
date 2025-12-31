@@ -27,6 +27,25 @@
 
 ### 1. Start the Backend
 
+**Option A: Download Binary (Recommended)**
+
+Download the latest backend binary for your OS from the [Releases](https://github.com/rennerdo30/video-translate/releases) page:
+- `video-translate-backend-linux`
+- `video-translate-backend-macos`
+- `video-translate-backend-windows.exe`
+
+> **Prerequisite**: [FFmpeg](https://ffmpeg.org/download.html) must be installed.
+
+```bash
+# Make executable (Linux/macOS only)
+chmod +x video-translate-backend-macos
+
+# Run
+./video-translate-backend-macos
+```
+
+**Option B: Run from Source**
+
 ```bash
 cd backend
 python -m venv venv

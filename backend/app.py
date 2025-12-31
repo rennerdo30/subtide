@@ -632,11 +632,19 @@ def process_video():
         # Queue for progress messages
         progress_queue = queue.Queue()
 
-        def send_sse(stage, message, percent=None):
-            """Queue a progress message."""
+        def send_sse(stage, message, percent=None, step=None, total_steps=None, eta=None, batch_info=None):
+            """Queue a progress message with step and ETA information."""
             data = {'stage': stage, 'message': message}
             if percent is not None:
                 data['percent'] = percent
+            if step is not None:
+                data['step'] = step
+            if total_steps is not None:
+                data['totalSteps'] = total_steps
+            if eta is not None:
+                data['eta'] = eta
+            if batch_info is not None:
+                data['batchInfo'] = batch_info
             progress_queue.put(('progress', data))
 
         def send_result(result):
@@ -665,8 +673,12 @@ def process_video():
                 source_type = None
                 needs_translation = True
 
+                # Define total steps based on whether translation will be needed
+                # We'll update this later if we know translation is needed
+                # Steps: 1-Checking, 2-Downloading/Whisper, 3-Translating (optional), 4-Complete
+                
                 # Step 1: Check available subtitles
-                send_sse('checking', 'Checking available subtitles...')
+                send_sse('checking', 'Checking available subtitles...', 5, step=1, total_steps=4)
                 logger.info(f"[PROCESS] Starting: video={video_id}, target={target_lang}")
 
                 ydl_opts = {
@@ -686,7 +698,7 @@ def process_video():
 
                 # Priority 1: Target language MANUAL subs exist
                 if target_lang in manual_subs:
-                    send_sse('downloading', f'Found {target_lang} subtitles!', 20)
+                    send_sse('downloading', f'Found {target_lang} subtitles!', 20, step=2, total_steps=3)
                     source_type = 'youtube_direct'
                     needs_translation = False
                     subtitles = await_download_subtitles(video_id, target_lang, manual_subs[target_lang])
@@ -694,19 +706,19 @@ def process_video():
                 # Priority 2: Manual subtitles in another language
                 elif manual_subs and not force_whisper:
                     source_lang = 'en' if 'en' in manual_subs else list(manual_subs.keys())[0]
-                    send_sse('downloading', f'Downloading {source_lang} subtitles...', 20)
+                    send_sse('downloading', f'Downloading {source_lang} subtitles...', 20, step=2, total_steps=4)
                     source_type = 'youtube_manual'
                     subtitles = await_download_subtitles(video_id, source_lang, manual_subs[source_lang])
 
                 # Priority 3: Use Whisper
                 elif ENABLE_WHISPER:
-                    send_sse('whisper', 'Downloading audio...', 10)
+                    send_sse('whisper', 'Downloading audio...', 10, step=2, total_steps=4)
                     source_type = 'whisper'
 
                     # Check cache first
                     cache_path = get_cache_path(video_id, 'whisper')
                     if os.path.exists(cache_path):
-                        send_sse('whisper', 'Using cached transcription', 50)
+                        send_sse('whisper', 'Using cached transcription', 50, step=2, total_steps=4)
                         with open(cache_path, 'r', encoding='utf-8') as f:
                             whisper_result = json.load(f)
                     else:
@@ -739,14 +751,14 @@ def process_video():
                                 send_error('Audio download failed')
                                 return
 
-                            send_sse('whisper', 'Transcribing with Whisper...', 30)
+                            send_sse('whisper', 'Transcribing with Whisper...', 30, step=2, total_steps=4)
                             model = get_whisper_model()
                             whisper_result = model.transcribe(audio_file, fp16=get_whisper_fp16())
 
                             with open(cache_path, 'w', encoding='utf-8') as f:
                                 json.dump(whisper_result, f, indent=2)
 
-                    send_sse('whisper', 'Transcription complete', 50)
+                    send_sse('whisper', 'Transcription complete', 50, step=2, total_steps=4)
 
                     # Convert to subtitle format
                     for seg in whisper_result.get('segments', []):
@@ -759,7 +771,7 @@ def process_video():
                 # Fallback: YouTube auto
                 elif auto_subs:
                     source_lang = list(auto_subs.keys())[0]
-                    send_sse('downloading', f'Using auto-captions ({source_lang})...', 20)
+                    send_sse('downloading', f'Using auto-captions ({source_lang})...', 20, step=2, total_steps=4)
                     source_type = 'youtube_auto'
                     subtitles = await_download_subtitles(video_id, source_lang, auto_subs[source_lang])
 
@@ -775,14 +787,16 @@ def process_video():
 
                 # Step 2: Translate if needed
                 if needs_translation:
-                    send_sse('translating', f'Translating {len(subtitles)} subtitles...', 60)
+                    send_sse('translating', f'Translating {len(subtitles)} subtitles...', 55, step=3, total_steps=4)
 
                     def on_translate_progress(done, total, pct, eta=""):
-                        eta_msg = f" • ETA: {eta}" if eta else ""
-                        send_sse('translating', f'Batch {done}/{total}{eta_msg}', 60 + int(pct * 0.35))
+                        # Calculate overall percent: translation is 55-95% of total progress
+                        overall_pct = 55 + int(pct * 0.4)
+                        batch_info = {'current': done, 'total': total}
+                        send_sse('translating', f'Translating subtitles...', overall_pct, step=3, total_steps=4, eta=eta if eta else None, batch_info=batch_info)
 
                     subtitles = await_translate_subtitles(subtitles, target_lang, on_translate_progress)
-                    send_sse('translating', 'Translation complete', 95)
+                    send_sse('translating', 'Translation complete', 95, step=3, total_steps=4)
                 else:
                     for sub in subtitles:
                         sub['translatedText'] = sub['text']
@@ -808,7 +822,7 @@ def process_video():
                         json.dump(final_result, f, indent=2)
                     logger.info(f"[PROCESS] Cached translation to {translation_cache_path}")
 
-                send_sse('complete', 'Done!', 100)
+                send_sse('complete', 'Subtitles ready!', 100, step=4, total_steps=4)
                 send_result(final_result)
 
             except Exception as e:
