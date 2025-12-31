@@ -1,6 +1,7 @@
 /**
  * Video Translate - Popup Script
  * Handles configuration UI and settings management
+ * Internationalization enabled
  */
 
 const elements = {
@@ -26,10 +27,11 @@ const elements = {
 };
 
 // Tier descriptions
-const TIER_HINTS = {
-    tier1: 'Uses YouTube\'s auto-generated captions. Requires your own API key for translation.',
-    tier2: 'Uses Whisper AI for transcription. Requires your own API key.',
-    tier3: 'Fully managed service. No API key needed — we handle everything!',
+// Tier descriptions keys (mapped to messages.json)
+const TIER_HINTS_KEYS = {
+    tier1: 'tierHint1',
+    tier2: 'tierHint2',
+    tier3: 'tierHint3',
 };
 
 /**
@@ -37,6 +39,9 @@ const TIER_HINTS = {
  */
 async function init() {
     console.log('[VideoTranslate] Popup initialized');
+
+    // Localize page
+    localizePage();
 
     // Load configuration
     await loadConfig();
@@ -52,13 +57,31 @@ async function init() {
 }
 
 /**
+ * Localize all elements with data-i18n attribute
+ */
+function localizePage() {
+    document.querySelectorAll('[data-i18n]').forEach(element => {
+        const key = element.getAttribute('data-i18n');
+        const message = chrome.i18n.getMessage(key);
+        if (message) {
+            // Special handling for elements that need HTML (like the backend instruction)
+            if (key === 'backendInstructionHelp') {
+                element.innerHTML = message;
+                return;
+            }
+            element.textContent = message;
+        }
+    });
+}
+
+/**
  * Check Backend Status
  */
 async function checkBackendStatus() {
     const statusText = elements.backendStatusBadge.querySelector('.status-text');
     const statusDot = elements.backendStatusBadge.querySelector('.status-dot');
 
-    statusText.textContent = 'Checking...';
+    statusText.textContent = chrome.i18n.getMessage('statusChecking');
     statusDot.style.background = 'var(--text-muted)';
     statusDot.style.boxShadow = 'none';
     elements.backendWarning.style.display = 'none';
@@ -74,7 +97,7 @@ async function checkBackendStatus() {
         if (response.ok) {
             const data = await response.json();
             if (data.status === 'ok') {
-                statusText.textContent = 'Connected';
+                statusText.textContent = chrome.i18n.getMessage('statusConnected');
                 statusDot.style.background = 'var(--success)';
                 statusDot.style.boxShadow = '0 0 8px var(--success)';
                 elements.backendWarning.style.display = 'none';
@@ -83,7 +106,7 @@ async function checkBackendStatus() {
         }
         throw new Error('Invalid response');
     } catch (e) {
-        statusText.textContent = 'Offline';
+        statusText.textContent = chrome.i18n.getMessage('statusOffline');
         statusDot.style.background = 'var(--error)';
         statusDot.style.boxShadow = '0 0 8px var(--error)';
         elements.backendWarning.style.display = 'flex';
@@ -121,10 +144,15 @@ async function loadConfig() {
 async function loadCacheStats() {
     try {
         const stats = await sendMessage({ action: 'getCacheStats' });
-        elements.cacheCount.textContent = `${stats.entries} translation${stats.entries !== 1 ? 's' : ''} cached`;
+        const count = stats.entries || 0;
+        let msg = '';
+        if (count === 0) msg = chrome.i18n.getMessage('cacheCountZero');
+        else if (count === 1) msg = chrome.i18n.getMessage('cacheCountOne');
+        else msg = chrome.i18n.getMessage('cacheCountSome', [count.toString()]);
+        elements.cacheCount.textContent = msg;
     } catch (error) {
         console.error('[VideoTranslate] Failed to load cache stats:', error);
-        elements.cacheCount.textContent = '0 cached';
+        elements.cacheCount.textContent = chrome.i18n.getMessage('cacheCountZero');
     }
 }
 
@@ -197,7 +225,10 @@ function updateProviderUI(provider) {
  */
 function updateUIForTier(tier) {
     // Update hint
-    elements.tierHint.textContent = TIER_HINTS[tier] || '';
+    const hintKey = TIER_HINTS_KEYS[tier];
+    if (hintKey) {
+        elements.tierHint.textContent = chrome.i18n.getMessage(hintKey);
+    }
 
     if (tier === 'tier3') {
         // Pro tier: Hide API config, it's managed
@@ -219,7 +250,7 @@ function updateUIForTier(tier) {
             elements.forceGen.checked = false;
             elements.forceGen.disabled = true;
             elements.forceGenGroup.style.opacity = '0.5';
-            elements.forceGenGroup.title = 'Requires Tier 2 or higher';
+            elements.forceGenGroup.title = chrome.i18n.getMessage('reqTier2');
         } else {
             // Basic tier
             elements.forceGen.disabled = false;
@@ -270,12 +301,12 @@ async function saveConfiguration() {
     } catch (error) {
         console.error('[VideoTranslate] Failed to save config:', error);
         btnSaving.style.display = 'none';
-        btnText.textContent = 'Error!';
+        btnText.textContent = chrome.i18n.getMessage('saveError');
         btnText.style.display = 'inline';
         elements.saveConfig.disabled = false;
 
         setTimeout(() => {
-            btnText.textContent = 'Save Configuration';
+            btnText.textContent = chrome.i18n.getMessage('saveConfig');
         }, 2000);
     }
 }
@@ -291,20 +322,21 @@ async function clearCache() {
 
         await sendMessage({ action: 'clearCache' });
 
-        elements.cacheCount.textContent = '0 cached';
-        btnText.textContent = 'Done';
+        const zeroMsg = chrome.i18n.getMessage('cacheCountZero');
+        elements.cacheCount.textContent = zeroMsg;
+        btnText.textContent = chrome.i18n.getMessage('clearDone');
 
         setTimeout(() => {
-            btnText.textContent = 'Clear';
+            btnText.textContent = chrome.i18n.getMessage('clear');
             elements.clearCache.disabled = false;
         }, 1500);
 
     } catch (error) {
         console.error('[VideoTranslate] Failed to clear cache:', error);
-        btnText.textContent = 'Error';
+        btnText.textContent = chrome.i18n.getMessage('clearError');
 
         setTimeout(() => {
-            btnText.textContent = 'Clear';
+            btnText.textContent = chrome.i18n.getMessage('clear');
             elements.clearCache.disabled = false;
         }, 1500);
     }

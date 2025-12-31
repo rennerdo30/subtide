@@ -8,6 +8,10 @@ import time
 from openai import OpenAI
 import os
 import json
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from logging_config import setup_logging
 

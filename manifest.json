@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Video Translate",
+  "default_locale": "en",
+  "name": "__MSG_extensionName__",
   "version": "1.0.0",
-  "description": "Translate video subtitles using AI. Supports any OpenAI-compatible API.",
+  "description": "__MSG_extensionDescription__",
   "permissions": [
     "storage",
     "activeTab",

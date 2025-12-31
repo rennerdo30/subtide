@@ -1,0 +1,264 @@
+{
+    "extensionName": {
+        "message": "Video Translate"
+    },
+    "extensionDescription": {
+        "message": "Translate video subtitles using AI. Supports any OpenAI-compatible API."
+    },
+    "backendStatusTitle": {
+        "message": "Backend Server Status"
+    },
+    "statusChecking": {
+        "message": "Checking..."
+    },
+    "statusConnected": {
+        "message": "Connected"
+    },
+    "statusOffline": {
+        "message": "Offline"
+    },
+    "backendDisconnected": {
+        "message": "Backend Disconnected"
+    },
+    "backendInstructionHelp": {
+        "message": "Run python app.py in the backend folder."
+    },
+    "retry": {
+        "message": "Retry"
+    },
+    "serviceTier": {
+        "message": "Service Tier"
+    },
+    "subscriptionPlan": {
+        "message": "Subscription Plan"
+    },
+    "tierFree": {
+        "message": "🆓 Free — YouTube Captions Only"
+    },
+    "tierBasic": {
+        "message": "⚡ Basic — AI Generation (Own Key)"
+    },
+    "tierPro": {
+        "message": "👑 Pro — Fully Managed"
+    },
+    "tierHint1": {
+        "message": "Uses YouTube's auto-generated captions. Requires your own API key for translation."
+    },
+    "tierHint2": {
+        "message": "Uses Whisper AI for transcription. Requires your own API key."
+    },
+    "tierHint3": {
+        "message": "Fully managed service. No API key needed — we handle everything!"
+    },
+    "backendUrl": {
+        "message": "Backend URL"
+    },
+    "backendUrlHint": {
+        "message": "URL of the translation backend server"
+    },
+    "apiConfiguration": {
+        "message": "API Configuration"
+    },
+    "provider": {
+        "message": "Provider"
+    },
+    "customEndpoint": {
+        "message": "Custom Endpoint"
+    },
+    "apiUrl": {
+        "message": "API URL"
+    },
+    "apiUrlHint": {
+        "message": "OpenAI-compatible API endpoint"
+    },
+    "apiKey": {
+        "message": "API Key"
+    },
+    "model": {
+        "message": "Model"
+    },
+    "modelHint": {
+        "message": "e.g., gpt-4o-mini, claude-3-haiku, llama-3.1-70b"
+    },
+    "forceGen": {
+        "message": "Force AI Transcription"
+    },
+    "forceGenHint": {
+        "message": "Use Whisper to generate subtitles instead of YouTube captions"
+    },
+    "translation": {
+        "message": "Translation"
+    },
+    "targetLanguage": {
+        "message": "Target Language"
+    },
+    "cache": {
+        "message": "Cache"
+    },
+    "cacheCountZero": {
+        "message": "0 translations cached"
+    },
+    "cacheCountOne": {
+        "message": "1 translation cached"
+    },
+    "cacheCountSome": {
+        "message": "$COUNT$ translations cached",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "clear": {
+        "message": "Clear"
+    },
+    "clearDone": {
+        "message": "Done"
+    },
+    "clearError": {
+        "message": "Error"
+    },
+    "saveConfig": {
+        "message": "Save Configuration"
+    },
+    "saving": {
+        "message": "Saving..."
+    },
+    "saved": {
+        "message": "Saved!"
+    },
+    "saveError": {
+        "message": "Error!"
+    },
+    "translateVideo": {
+        "message": "Translate Video"
+    },
+    "subtitleStyle": {
+        "message": "Subtitle Style"
+    },
+    "size": {
+        "message": "Size"
+    },
+    "position": {
+        "message": "Position"
+    },
+    "background": {
+        "message": "Background"
+    },
+    "textColor": {
+        "message": "Text Color"
+    },
+    "sizeSmall": {
+        "message": "Small"
+    },
+    "sizeMedium": {
+        "message": "Medium"
+    },
+    "sizeLarge": {
+        "message": "Large"
+    },
+    "sizeExtraLarge": {
+        "message": "Extra Large"
+    },
+    "posBottom": {
+        "message": "Bottom"
+    },
+    "posTop": {
+        "message": "Top"
+    },
+    "bgDark": {
+        "message": "Dark"
+    },
+    "bgDarker": {
+        "message": "Darker"
+    },
+    "bgTransparent": {
+        "message": "Semi-transparent"
+    },
+    "bgNone": {
+        "message": "None"
+    },
+    "colorWhite": {
+        "message": "White"
+    },
+    "colorYellow": {
+        "message": "Yellow"
+    },
+    "colorCyan": {
+        "message": "Cyan"
+    },
+    "reqTier2": {
+        "message": "Requires Tier 2 or higher"
+    },
+    "loading": {
+        "message": "Loading..."
+    },
+    "processing": {
+        "message": "Processing..."
+    },
+    "translating": {
+        "message": "Translating..."
+    },
+    "working": {
+        "message": "Working..."
+    },
+    "success": {
+        "message": "Success"
+    },
+    "failed": {
+        "message": "Failed"
+    },
+    "noSubtitles": {
+        "message": "No subtitles available"
+    },
+    "noTranslations": {
+        "message": "No translations received"
+    },
+    "stepProgress": {
+        "message": "Step $CURRENT$/$TOTAL$",
+        "placeholders": {
+            "current": {
+                "content": "$1"
+            },
+            "total": {
+                "content": "$2"
+            }
+        }
+    },
+    "batchProgress": {
+        "message": "Batch $CURRENT$/$TOTAL$",
+        "placeholders": {
+            "current": {
+                "content": "$1"
+            },
+            "total": {
+                "content": "$2"
+            }
+        }
+    },
+    "eta": {
+        "message": "ETA: $TIME$",
+        "placeholders": {
+            "time": {
+                "content": "$1"
+            }
+        }
+    },
+    "subsCount": {
+        "message": "$COUNT$ subs",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "cachedSuccess": {
+        "message": "Cached ✓"
+    },
+    "doneSuccess": {
+        "message": "Done ✓"
+    },
+    "menuBack": {
+        "message": "Subtitles"
+    }
+}

@@ -6,3 +6,4 @@ openai-whisper
 requests
 gunicorn
 gevent
+python-dotenv

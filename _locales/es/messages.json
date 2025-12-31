@@ -1,0 +1,80 @@
+{
+    "extensionName": {
+        "message": "Traductor de Video"
+    },
+    "extensionDescription": {
+        "message": "Traduce subtítulos de video usando IA."
+    },
+    "backendStatusTitle": {
+        "message": "Estado del Servidor"
+    },
+    "statusChecking": {
+        "message": "Comprobando..."
+    },
+    "statusConnected": {
+        "message": "Conectado"
+    },
+    "statusOffline": {
+        "message": "Desconectado"
+    },
+    "backendDisconnected": {
+        "message": "Backend Desconectado"
+    },
+    "backendInstructionHelp": {
+        "message": "Ejecuta python app.py en la carpeta backend."
+    },
+    "retry": {
+        "message": "Reintentar"
+    },
+    "serviceTier": {
+        "message": "Nivel de Servicio"
+    },
+    "subscriptionPlan": {
+        "message": "Plan de Suscripción"
+    },
+    "translation": {
+        "message": "Traducción"
+    },
+    "targetLanguage": {
+        "message": "Idioma de Destino"
+    },
+    "translateVideo": {
+        "message": "Traducir Video"
+    },
+    "subtitleStyle": {
+        "message": "Estilo de Subtítulos"
+    },
+    "size": {
+        "message": "Tamaño"
+    },
+    "position": {
+        "message": "Posición"
+    },
+    "background": {
+        "message": "Fondo"
+    },
+    "textColor": {
+        "message": "Color del Texto"
+    },
+    "loading": {
+        "message": "Cargando..."
+    },
+    "processing": {
+        "message": "Procesando..."
+    },
+    "translating": {
+        "message": "Traduciendo..."
+    },
+    "working": {
+        "message": "Trabajando..."
+    },
+    "success": {
+        "message": "Éxito"
+    },
+    "failed": {
+        "message": "Falló"
+    },
+    "menuBack": {
+        "message": "Subtítulos"
+    }
+}

@@ -20,6 +20,57 @@ let subtitleSettings = {
     color: 'white',
 };
 
+// Multilingual status messages for cool animation effect
+const STATUS_MESSAGES = {
+    translating: [
+        { lang: 'en', text: 'Translating...' },
+        { lang: 'ja', text: '翻訳中...' },
+        { lang: 'ko', text: '번역 중...' },
+        { lang: 'zh', text: '翻译中...' },
+        { lang: 'es', text: 'Traduciendo...' },
+    ],
+    loading: [
+        { lang: 'en', text: 'Loading...' },
+        { lang: 'ja', text: '読み込み中...' },
+        { lang: 'zh', text: '加载中...' },
+    ],
+    processing: [
+        { lang: 'en', text: 'Processing...' },
+        { lang: 'ja', text: '処理中...' },
+        { lang: 'zh', text: '处理中...' },
+    ],
+    transcribing: [
+        { lang: 'en', text: 'Transcribing...' },
+        { lang: 'ja', text: '文字起こし中...' },
+        { lang: 'ko', text: '기록 중...' },
+        { lang: 'zh', text: '转录中...' },
+        { lang: 'es', text: 'Transcribiendo...' },
+    ],
+    checking: [
+        { lang: 'en', text: 'Checking...' },
+        { lang: 'ja', text: '確認中...' },
+        { lang: 'ko', text: '확인 중...' },
+        { lang: 'zh', text: '检查中...' },
+        { lang: 'es', text: 'Comprobando...' },
+    ],
+    downloading: [
+        { lang: 'en', text: 'Downloading...' },
+        { lang: 'ja', text: 'ダウンロード中...' },
+        { lang: 'ko', text: '다운로드 중...' },
+        { lang: 'zh', text: '下载中...' },
+        { lang: 'es', text: 'Descargando...' },
+    ],
+    generic: [
+        { lang: 'en', text: 'Working...' },
+        { lang: 'ja', text: '作業中...' },
+        { lang: 'ko', text: '작업 중...' },
+        { lang: 'zh', text: '工作中...' },
+        { lang: 'es', text: 'Trabajando...' },
+    ],
+};
+let statusAnimationInterval = null;
+let currentStatusIndex = 0;
+
 /**
  * Initialize on YouTube
  */
@@ -90,7 +141,10 @@ async function setupPage(videoId) {
     console.log('[VideoTranslate] Tier:', userTier);
     console.log('[VideoTranslate] Subtitle settings:', subtitleSettings);
 
-    injectUI();
+    waitForControls().then(controls => {
+        injectUI(controls);
+        watchControls(controls);
+    });
 
     // For Tier 1/2: Pre-fetch subtitles so they're ready when user clicks translate
     // For Tier 3: We'll do everything in one call when user clicks translate
@@ -98,6 +152,20 @@ async function setupPage(videoId) {
         await prefetchSubtitles(videoId);
     }
 }
+
+
+
+function waitForControls() {
+    return new Promise((resolve) => {
+        const check = () => {
+            const controls = document.querySelector('.ytp-right-controls');
+            if (controls) resolve(controls);
+            else setTimeout(check, 500);
+        };
+        check();
+    });
+}
+
 
 function waitForPlayer() {
     return new Promise((resolve) => {
@@ -110,11 +178,41 @@ function waitForPlayer() {
     });
 }
 
+let controlsObserver = null;
+
+function watchControls(controls) {
+    if (controlsObserver) controlsObserver.disconnect();
+
+    controlsObserver = new MutationObserver((mutations) => {
+        if (!document.querySelector('.vt-container')) {
+            console.log('[VideoTranslate] UI missing, re-injecting...');
+            injectUI(controls);
+        }
+    });
+
+    controlsObserver.observe(controls, { childList: true });
+
+    // Also watch parent in case controls itself is replaced
+    const parent = controls.parentElement;
+    if (parent) {
+        const parentObserver = new MutationObserver(() => {
+            const newControls = document.querySelector('.ytp-right-controls');
+            if (newControls && newControls !== controls) {
+                console.log('[VideoTranslate] Controls replaced, re-initializing...');
+                controls = newControls;
+                injectUI(controls);
+                watchControls(controls); // Re-attach observer
+            }
+        });
+        parentObserver.observe(parent, { childList: true });
+    }
+}
+
 /**
  * Pre-fetch subtitles (Tier 1/2)
  */
 async function prefetchSubtitles(videoId) {
-    updateStatus('Loading...', 'loading');
+    updateStatus(chrome.i18n.getMessage('loading'), 'loading', null, { animationKey: 'loading' });
 
     try {
         const data = await sendMessage({ action: 'fetchSubtitles', videoId });
@@ -124,13 +222,13 @@ async function prefetchSubtitles(videoId) {
         sourceSubtitles = parseSubtitles(data);
 
         if (sourceSubtitles.length > 0) {
-            updateStatus(`${sourceSubtitles.length} subs`, 'success');
+            updateStatus(chrome.i18n.getMessage('subsCount', [sourceSubtitles.length.toString()]), 'success');
         } else {
-            updateStatus('No subs', 'error');
+            updateStatus(chrome.i18n.getMessage('noSubtitles'), 'error');
         }
     } catch (error) {
         console.error('[VideoTranslate] Prefetch failed:', error);
-        updateStatus('No subs', 'error');
+        updateStatus(chrome.i18n.getMessage('noSubtitles'), 'error');
     }
 }
 
@@ -200,42 +298,39 @@ function mergeSegments(subs, maxGap = 500, maxDur = 8000) {
 /**
  * Remove UI elements
  */
-function removeUI() {
+// Helper to remove only our buttons, not the whole UI if we are refreshing
+function removeButtonsOnly() {
     document.querySelector('.vt-container')?.remove();
+}
+
+/**
+ * Remove UI elements
+ */
+function removeUI() {
+    removeButtonsOnly();
     document.querySelector('.vt-overlay')?.remove();
     document.querySelector('.vt-status-panel')?.remove();
+    document.querySelector('.vt-settings-panel')?.remove();
+
+    if (controlsObserver) {
+        controlsObserver.disconnect();
+        controlsObserver = null;
+    }
 }
 
 /**
  * Inject translate UI
  */
-function injectUI() {
-    removeUI();
+function injectUI(controlsElement) {
+    // Avoid duplicates
+    if (document.querySelector('.vt-container')) return;
 
-    const controls = document.querySelector('.ytp-right-controls');
+    const controls = controlsElement || document.querySelector('.ytp-right-controls');
     if (!controls) return;
 
     const container = document.createElement('div');
     container.className = 'vt-container';
-    container.innerHTML = `
-        <button class="vt-btn ytp-button" title="Click to translate, right-click for language">
-            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                <path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
-            </svg>
-            <span class="vt-badge"></span>
-        </button>
-        <div class="vt-menu">
-            <div class="vt-menu-item" data-lang="en">🇬🇧 English</div>
-            <div class="vt-menu-item" data-lang="ja">🇯🇵 Japanese</div>
-            <div class="vt-menu-item" data-lang="ko">🇰🇷 Korean</div>
-            <div class="vt-menu-item" data-lang="zh-CN">🇨🇳 Chinese</div>
-            <div class="vt-menu-item" data-lang="es">🇪🇸 Spanish</div>
-            <div class="vt-menu-item" data-lang="fr">🇫🇷 French</div>
-            <div class="vt-menu-item" data-lang="de">🇩🇪 German</div>
-            <div class="vt-menu-item" data-lang="pt">🇵🇹 Portuguese</div>
-            <div class="vt-menu-item" data-lang="ru">🇷🇺 Russian</div>
-        </div>
-    `;
+
 
     controls.prepend(container);
 
@@ -260,64 +355,209 @@ function injectUI() {
         player.appendChild(statusPanel);
     }
 
-    // Add settings panel for subtitle appearance (floating, instant-apply)
+    // Add settings panel for subtitle appearance (YouTube-native style)
     if (player && !player.querySelector('.vt-settings-panel')) {
         const settingsPanel = document.createElement('div');
-        settingsPanel.className = 'vt-settings-panel';
+        settingsPanel.className = 'vt-settings-panel ytp-popup ytp-settings-menu';
         settingsPanel.innerHTML = `
-            <div class="vt-settings-header">
-                <span>Subtitle Style</span>
-                <button class="vt-settings-close">×</button>
-            </div>
-            <div class="vt-settings-body">
-                <div class="vt-setting-row">
-                    <label>Size</label>
-                    <select data-setting="size">
-                        <option value="small">S</option>
-                        <option value="medium" selected>M</option>
-                        <option value="large">L</option>
-                        <option value="xlarge">XL</option>
-                    </select>
+            <div class="vt-settings-menu-content">
+                    <div class="vt-settings-back header-hidden">
+                        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                        <span class="vt-back-title">${chrome.i18n.getMessage('menuBack')}</span>
+                    </div>
+                <div class="vt-main-menu">
+                    <div class="vt-menu-section-group">
+                        <div class="vt-menu-option vt-translate-action">
+                            <svg viewBox="0 0 24 24" width="24" height="24" style="color: #fff;"><path fill="currentColor" d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>
+                            <span class="vt-option-label" style="font-weight: 500;">${chrome.i18n.getMessage('translateVideo')}</span>
+                        </div>
+                        <div class="vt-menu-option" data-setting="lang">
+                            <span class="vt-option-label">${chrome.i18n.getMessage('targetLanguage')}</span>
+                            <span class="vt-option-value" data-value="lang">English</span>
+                        </div>
+                    </div>
+                    <div class="vt-menu-separator"></div>
+                    <div class="vt-menu-title">${chrome.i18n.getMessage('subtitleStyle')}</div>
+                    <div class="vt-menu-option" data-setting="size">
+                        <span class="vt-option-label">${chrome.i18n.getMessage('size')}</span>
+                        <span class="vt-option-value" data-value="size">${chrome.i18n.getMessage('sizeMedium')}</span>
+                        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </div>
+                    <div class="vt-menu-option" data-setting="position">
+                        <span class="vt-option-label">${chrome.i18n.getMessage('position')}</span>
+                        <span class="vt-option-value" data-value="position">${chrome.i18n.getMessage('posBottom')}</span>
+                        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </div>
+                    <div class="vt-menu-option" data-setting="background">
+                        <span class="vt-option-label">${chrome.i18n.getMessage('background')}</span>
+                        <span class="vt-option-value" data-value="background">${chrome.i18n.getMessage('bgDark')}</span>
+                        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </div>
+                    <div class="vt-menu-option" data-setting="color">
+                        <span class="vt-option-label">${chrome.i18n.getMessage('textColor')}</span>
+                        <span class="vt-option-value" data-value="color">${chrome.i18n.getMessage('colorWhite')}</span>
+                        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </div>
                 </div>
-                <div class="vt-setting-row">
-                    <label>Position</label>
-                    <select data-setting="position">
-                        <option value="bottom" selected>Bottom</option>
-                        <option value="top">Top</option>
-                    </select>
+                <div class="vt-submenu" data-for="lang" style="display: none;">
+                    <div class="vt-submenu-item" data-val="en">English</div>
+                    <div class="vt-submenu-item" data-val="ja">Japanese</div>
+                    <div class="vt-submenu-item" data-val="ko">Korean</div>
+                    <div class="vt-submenu-item" data-val="zh-CN">Chinese</div>
+                    <div class="vt-submenu-item" data-val="es">Spanish</div>
+                    <div class="vt-submenu-item" data-val="fr">French</div>
+                    <div class="vt-submenu-item" data-val="de">German</div>
+                    <div class="vt-submenu-item" data-val="pt">Portuguese</div>
+                    <div class="vt-submenu-item" data-val="ru">Russian</div>
                 </div>
-                <div class="vt-setting-row">
-                    <label>Background</label>
-                    <select data-setting="background">
-                        <option value="dark" selected>Dark</option>
-                        <option value="darker">Darker</option>
-                        <option value="transparent">Light</option>
-                        <option value="none">None</option>
-                    </select>
+                <div class="vt-submenu" data-for="size" style="display: none;">
+                    <div class="vt-submenu-item" data-val="small">Small</div>
+                    <div class="vt-submenu-item" data-val="medium">Medium</div>
+                    <div class="vt-submenu-item" data-val="large">Large</div>
+                    <div class="vt-submenu-item" data-val="xlarge">Extra Large</div>
                 </div>
-                <div class="vt-setting-row">
-                    <label>Color</label>
-                    <select data-setting="color">
-                        <option value="white" selected>White</option>
-                        <option value="yellow">Yellow</option>
-                        <option value="cyan">Cyan</option>
-                    </select>
+                <div class="vt-submenu" data-for="position" style="display: none;">
+                    <div class="vt-submenu-item" data-val="bottom">Bottom</div>
+                    <div class="vt-submenu-item" data-val="top">Top</div>
+                </div>
+                <div class="vt-submenu" data-for="background" style="display: none;">
+                    <div class="vt-submenu-item" data-val="dark">Dark</div>
+                    <div class="vt-submenu-item" data-val="darker">Darker</div>
+                    <div class="vt-submenu-item" data-val="transparent">Semi-transparent</div>
+                    <div class="vt-submenu-item" data-val="none">None</div>
+                </div>
+                <div class="vt-submenu" data-for="color" style="display: none;">
+                    <div class="vt-submenu-item" data-val="white">White</div>
+                    <div class="vt-submenu-item" data-val="yellow">Yellow</div>
+                    <div class="vt-submenu-item" data-val="cyan">Cyan</div>
                 </div>
             </div>
         `;
         player.appendChild(settingsPanel);
 
-        // Load saved settings
-        settingsPanel.querySelector(`[data-setting="size"]`).value = subtitleSettings.size;
-        settingsPanel.querySelector(`[data-setting="position"]`).value = subtitleSettings.position;
-        settingsPanel.querySelector(`[data-setting="background"]`).value = subtitleSettings.background;
-        settingsPanel.querySelector(`[data-setting="color"]`).value = subtitleSettings.color;
+        const mainMenu = settingsPanel.querySelector('.vt-main-menu');
+        const backBtn = settingsPanel.querySelector('.vt-settings-back');
+        const backTitle = settingsPanel.querySelector('.vt-back-title');
 
-        // Instant apply on change
-        settingsPanel.querySelectorAll('select').forEach(select => {
-            select.addEventListener('change', () => {
-                subtitleSettings[select.dataset.setting] = select.value;
-                addStyles(); // Re-apply styles instantly
+
+
+        // Value display labels
+        const valueLabels = {
+            size: {
+                small: chrome.i18n.getMessage('sizeSmall'),
+                medium: chrome.i18n.getMessage('sizeMedium'),
+                large: chrome.i18n.getMessage('sizeLarge'),
+                xlarge: chrome.i18n.getMessage('sizeExtraLarge')
+            },
+            position: {
+                bottom: chrome.i18n.getMessage('posBottom'),
+                top: chrome.i18n.getMessage('posTop')
+            },
+            background: {
+                dark: chrome.i18n.getMessage('bgDark'),
+                darker: chrome.i18n.getMessage('bgDarker'),
+                transparent: chrome.i18n.getMessage('bgTransparent'),
+                none: chrome.i18n.getMessage('bgNone')
+            },
+            color: {
+                white: chrome.i18n.getMessage('colorWhite'),
+                yellow: chrome.i18n.getMessage('colorYellow'),
+                cyan: chrome.i18n.getMessage('colorCyan')
+            },
+            lang: {
+                'en': 'English', 'ja': 'Japanese', 'ko': 'Korean', 'zh-CN': 'Chinese',
+                'es': 'Spanish', 'fr': 'French', 'de': 'German', 'pt': 'Portuguese', 'ru': 'Russian'
+            }
+        };
+
+        // Update displayed values from saved settings
+        const updateDisplayedValues = () => {
+            // Language
+            const langEl = settingsPanel.querySelector('[data-value="lang"]');
+            if (langEl) {
+                langEl.textContent = valueLabels.lang[selectedLanguage] || selectedLanguage;
+            }
+
+            Object.keys(subtitleSettings).forEach(key => {
+                const el = settingsPanel.querySelector(`[data-value="${key}"]`);
+                if (el && valueLabels[key]) {
+                    el.textContent = valueLabels[key][subtitleSettings[key]] || subtitleSettings[key];
+                }
+            });
+            // Update checkmarks in submenus
+            settingsPanel.querySelectorAll('.vt-submenu-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+
+            // Language checkmark
+            const langSubmenu = settingsPanel.querySelector('[data-for="lang"]');
+            if (langSubmenu) {
+                const selected = langSubmenu.querySelector(`[data-val="${selectedLanguage}"]`);
+                if (selected) selected.classList.add('selected');
+            }
+
+            Object.keys(subtitleSettings).forEach(key => {
+                const submenu = settingsPanel.querySelector(`[data-for="${key}"]`);
+                if (submenu) {
+                    const selected = submenu.querySelector(`[data-val="${subtitleSettings[key]}"]`);
+                    if (selected) selected.classList.add('selected');
+                }
+            });
+        };
+        updateDisplayedValues();
+
+        // Add translate action
+        const translateBtn = settingsPanel.querySelector('.vt-translate-action');
+        translateBtn.addEventListener('click', () => {
+            translateVideo(selectedLanguage);
+            settingsPanel.classList.remove('show');
+        });
+
+        // Main menu option click -> show submenu
+        settingsPanel.querySelectorAll('.vt-menu-option').forEach(option => {
+            option.addEventListener('click', () => {
+                const setting = option.dataset.setting;
+                // Skip if not a setting row (e.g. translate button which we handled above)
+                if (!setting) return;
+
+                const submenu = settingsPanel.querySelector(`[data-for="${setting}"]`);
+                if (submenu) {
+                    mainMenu.style.display = 'none';
+                    submenu.style.display = 'block';
+                    backBtn.classList.remove('header-hidden');
+                    backTitle.textContent = option.querySelector('.vt-option-label').textContent;
+                }
+            });
+        });
+
+        // Back button click -> return to main menu
+        backBtn.addEventListener('click', () => {
+            settingsPanel.querySelectorAll('.vt-submenu').forEach(s => s.style.display = 'none');
+            mainMenu.style.display = 'block';
+            backBtn.classList.add('header-hidden');
+        });
+
+        // Submenu item click -> apply setting
+        settingsPanel.querySelectorAll('.vt-submenu-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const submenu = item.closest('.vt-submenu');
+                const setting = submenu.dataset.for;
+                const value = item.dataset.val;
+
+                if (setting === 'lang') {
+                    selectedLanguage = value;
+                    updateDisplayedValues();
+                    // Save to storage
+                    sendMessage({
+                        action: 'saveConfig',
+                        config: { defaultLanguage: value }
+                    });
+                    return;
+                }
+
+                subtitleSettings[setting] = value;
+                addStyles(); // Instant apply
+
                 // Save to storage
                 sendMessage({
                     action: 'saveConfig',
@@ -328,82 +568,52 @@ function injectUI() {
                         subtitleColor: subtitleSettings.color,
                     }
                 });
-            });
-        });
 
-        // Close button
-        settingsPanel.querySelector('.vt-settings-close').addEventListener('click', () => {
-            settingsPanel.classList.remove('show');
+                // Update display (but stay in submenu for easy switching)
+                updateDisplayedValues();
+
+                // Do NOT go back to main menu automatically
+                // submenu.style.display = 'none';
+                // mainMenu.style.display = 'block';
+                // backBtn.style.display = 'none';
+            });
         });
     }
 
-    // Add settings button to controls
-    const settingsBtn = document.createElement('button');
-    settingsBtn.className = 'vt-settings-btn ytp-button';
-    settingsBtn.title = 'Subtitle Settings';
-    settingsBtn.innerHTML = `
+    // Add main button (now just toggles the native menu)
+    const mainBtn = document.createElement('button');
+    mainBtn.className = 'vt-main-btn ytp-button';
+    mainBtn.title = 'Video Translate';
+    mainBtn.innerHTML = `
         <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-            <path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+            <path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
         </svg>
-    `;
-    container.appendChild(settingsBtn);
+        `;
+    container.appendChild(mainBtn);
 
-    // Settings button click
-    settingsBtn.addEventListener('click', (e) => {
+    mainBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const panel = player.querySelector('.vt-settings-panel');
         if (panel) {
             panel.classList.toggle('show');
+
+            // If opening, ensure main menu is shown
+            if (panel.classList.contains('show')) {
+                const mainMenu = panel.querySelector('.vt-main-menu');
+                const backBtn = panel.querySelector('.vt-settings-back');
+
+                panel.querySelectorAll('.vt-submenu').forEach(s => s.style.display = 'none');
+                if (mainMenu) mainMenu.style.display = 'block';
+                if (backBtn) backBtn.classList.add('header-hidden');
+            }
         }
-    });
-
-    const btn = container.querySelector('.vt-btn');
-    const badge = container.querySelector('.vt-badge');
-    const menu = container.querySelector('.vt-menu');
-    let menuOpen = false;
-
-    // Update badge
-    const updateBadge = () => {
-        badge.textContent = selectedLanguage.split('-')[0].toUpperCase();
-    };
-    updateBadge();
-
-    // Click on badge = show menu, click on button = translate
-    btn.addEventListener('click', (e) => {
-        const clickedBadge = e.target.closest('.vt-badge');
-
-        if (clickedBadge) {
-            // Clicked on badge - toggle menu
-            e.stopPropagation();
-            menuOpen = !menuOpen;
-            menu.classList.toggle('show', menuOpen);
-        } else if (!menuOpen) {
-            // Clicked on button (not badge) and menu closed - translate
-            translateVideo(selectedLanguage);
-        } else {
-            // Menu was open, close it
-            menuOpen = false;
-            menu.classList.remove('show');
-        }
-    });
-
-    // Menu item click
-    menu.querySelectorAll('.vt-menu-item').forEach(item => {
-        item.addEventListener('click', (e) => {
-            e.stopPropagation();
-            selectedLanguage = item.dataset.lang;
-            updateBadge();
-            menuOpen = false;
-            menu.classList.remove('show');
-            translateVideo(selectedLanguage);
-        });
     });
 
     // Close menu on outside click
     document.addEventListener('click', (e) => {
-        if (!container.contains(e.target)) {
-            menuOpen = false;
-            menu.classList.remove('show');
+        const panel = player.querySelector('.vt-settings-panel');
+        if (panel && !container.contains(e.target) && !panel.contains(e.target)) {
+            panel.classList.remove('show');
         }
     });
 
@@ -416,12 +626,12 @@ function injectUI() {
  */
 async function translateVideo(targetLang) {
     if (isProcessing) {
-        updateStatus('Processing...', 'loading');
+        updateStatus(chrome.i18n.getMessage('processing'), 'loading', null, { animationKey: 'processing' });
         return;
     }
 
     isProcessing = true;
-    updateStatus('Translating...', 'loading');
+    updateStatus(chrome.i18n.getMessage('translating'), 'loading', null, { animationKey: 'translating' });
 
     try {
         let result;
@@ -436,7 +646,7 @@ async function translateVideo(targetLang) {
         } else {
             // Tier 1/2: Subtitles already fetched, translate via direct LLM
             if (!sourceSubtitles || sourceSubtitles.length === 0) {
-                throw new Error('No subtitles available');
+                throw new Error(chrome.i18n.getMessage('noSubtitles'));
             }
 
             result = await sendMessage({
@@ -456,16 +666,23 @@ async function translateVideo(targetLang) {
         console.log('[VideoTranslate] Has translatedText:', !!translatedSubtitles?.[0]?.translatedText);
 
         if (!translatedSubtitles || translatedSubtitles.length === 0) {
-            throw new Error('No translations received');
+            throw new Error(chrome.i18n.getMessage('noTranslations'));
         }
 
-        updateStatus(result.cached ? 'Cached ✓' : 'Done ✓', 'success');
+        updateStatus(result.cached ? chrome.i18n.getMessage('cachedSuccess') : chrome.i18n.getMessage('doneSuccess'), 'success');
+
+        // Hide status panel after 2 seconds on success
+        setTimeout(() => {
+            const panel = document.querySelector('.vt-status-panel');
+            if (panel) panel.style.display = 'none';
+        }, 2000);
+
         showOverlay();
         setupSync(); // Re-setup sync to ensure listener is attached
 
     } catch (error) {
         console.error('[VideoTranslate] Translation failed:', error);
-        updateStatus('Failed', 'error');
+        updateStatus(chrome.i18n.getMessage('failed'), 'error');
     } finally {
         isProcessing = false;
     }
@@ -494,19 +711,102 @@ function updateStatus(text, type = '', percent = null, options = {}) {
     const batchInfoEl = panel?.querySelector('.vt-batch-info');
     const etaEl = panel?.querySelector('.vt-eta');
 
+    // Stop any existing language cycling animation
+    if (statusAnimationInterval) {
+        clearInterval(statusAnimationInterval);
+        statusAnimationInterval = null;
+    }
+
     if (panel && textEl) {
         // Update step indicator (e.g., "Step 2/4")
         if (stepIndicator) {
             if (options.step && options.totalSteps) {
-                stepIndicator.textContent = `Step ${options.step}/${options.totalSteps}`;
+                stepIndicator.textContent = chrome.i18n.getMessage('stepProgress', [options.step.toString(), options.totalSteps.toString()]);
                 stepIndicator.style.display = 'block';
             } else {
                 stepIndicator.style.display = 'none';
             }
         }
 
-        // Update main status text
-        textEl.textContent = text;
+        // Determine if we should animate with multilingual text
+        // Animate for any "loading" type status that isn't just a short success message
+        const shouldAnimate = type === 'loading' && text.length > 0;
+
+        if (shouldAnimate) {
+            // Determine which message set to use
+            let messageSet = STATUS_MESSAGES.translating;
+
+            if (options.animationKey && STATUS_MESSAGES[options.animationKey]) {
+                messageSet = STATUS_MESSAGES[options.animationKey];
+            } else if (text.toLowerCase().includes('loading')) {
+                messageSet = STATUS_MESSAGES.loading;
+            } else if (text.toLowerCase().includes('process')) {
+                messageSet = STATUS_MESSAGES.processing;
+            } else {
+                messageSet = STATUS_MESSAGES.generic;
+            }
+
+            // Start with the exact message currently being shown (english usually)
+            // But we actually want to cycle through translations OF that specific message if possible.
+            // Since we only have pre-defined sets, we will use the pre-defined sets but we should try to match the *concept*.
+
+            // If the text is "Transcribing with Whisper...", we don't have exact translations for that.
+            // So relying on the specific 'translating'/'loading'/'processing' sets is safer.
+            // However, the user complained that "Transcribing with whisper..." was just that.
+            // This means `shouldAnimate` was false or it didn't match the sets well.
+
+            // Let's redefine `shouldAnimate` loosely and always use a fallback set if needed.
+
+            textEl.classList.add('vt-text-fade');
+
+            // Start with target language if available, otherwise browser language
+            const browserLang = navigator.language.split('-')[0];
+            const targetLang = (selectedLanguage || browserLang).split('-')[0];
+            const startIndex = messageSet.findIndex(m => m.lang === targetLang) || 0;
+            currentStatusIndex = startIndex;
+
+            // Set initial text
+            textEl.textContent = messageSet[currentStatusIndex].text;
+            textEl.classList.add('vt-text-fade');
+
+            // Cycle through languages
+            // Strategy: Show primary language (target or browser) 75% of the time (3x more than others combined)
+            let cycleCount = 0;
+            statusAnimationInterval = setInterval(() => {
+                cycleCount++;
+
+                // 3x as often = 75% of the time (3 primary : 1 other)
+                const showPrimary = (cycleCount % 4 !== 0);
+
+                let nextIndex;
+                if (showPrimary) {
+                    nextIndex = messageSet.findIndex(m => m.lang === targetLang);
+                    if (nextIndex === -1) nextIndex = 0; // Fallback to EN if primary not in set
+                } else {
+                    // Pick a different language for variety
+                    const others = messageSet.filter(m => m.lang !== targetLang);
+                    if (others.length > 0) {
+                        const randomOther = others[Math.floor(Math.random() * others.length)];
+                        nextIndex = messageSet.indexOf(randomOther);
+                    } else {
+                        nextIndex = (currentStatusIndex + 1) % messageSet.length;
+                    }
+                }
+
+                currentStatusIndex = nextIndex;
+
+                textEl.style.opacity = '0';
+                setTimeout(() => {
+                    textEl.textContent = messageSet[currentStatusIndex].text;
+                    textEl.style.opacity = '1';
+                }, 100); // Fast fade transition
+            }, 800); // Fast cycle speed as requested
+        } else {
+            // Static text
+            textEl.textContent = text;
+            textEl.classList.remove('vt-text-fade');
+        }
+
         panel.className = 'vt-status-panel ' + type;
 
         // Update progress bar
@@ -522,7 +822,7 @@ function updateStatus(text, type = '', percent = null, options = {}) {
         // Update batch info (e.g., "Batch 3/10")
         if (batchInfoEl) {
             if (options.batchInfo && options.batchInfo.current && options.batchInfo.total) {
-                batchInfoEl.textContent = `Batch ${options.batchInfo.current}/${options.batchInfo.total}`;
+                batchInfoEl.textContent = chrome.i18n.getMessage('batchProgress', [options.batchInfo.current.toString(), options.batchInfo.total.toString()]);
                 batchInfoEl.style.display = 'inline';
             } else {
                 batchInfoEl.style.display = 'none';
@@ -532,7 +832,7 @@ function updateStatus(text, type = '', percent = null, options = {}) {
         // Update ETA
         if (etaEl) {
             if (options.eta && type === 'loading') {
-                etaEl.textContent = `ETA: ${options.eta}`;
+                etaEl.textContent = chrome.i18n.getMessage('eta', [options.eta]);
                 etaEl.style.display = 'inline';
             } else {
                 etaEl.style.display = 'none';
@@ -541,16 +841,21 @@ function updateStatus(text, type = '', percent = null, options = {}) {
 
         // Show panel for loading/error, hide on success after delay
         if (type === 'loading' || type === 'error') {
-            panel.style.display = 'block';
+            panel.classList.add('show');
         } else if (type === 'success') {
-            panel.style.display = 'block';
+            // Stop animation on success
+            if (statusAnimationInterval) {
+                clearInterval(statusAnimationInterval);
+                statusAnimationInterval = null;
+            }
+            panel.classList.add('show');
             if (progressBar) progressBar.style.display = 'none';
             if (stepIndicator) stepIndicator.style.display = 'none';
             if (batchInfoEl) batchInfoEl.style.display = 'none';
             if (etaEl) etaEl.style.display = 'none';
             setTimeout(() => {
                 if (panel.classList.contains('success')) {
-                    panel.style.display = 'none';
+                    panel.classList.remove('show');
                 }
             }, 2000);
         }
@@ -718,6 +1023,10 @@ function addStyles() {
             transform: translateX(-50%) !important;
             z-index: 60 !important;
             pointer-events: none !important;
+            display: none;
+        }
+        .vt-status-panel.show {
+            display: block !important;
         }
         .vt-status-content {
             display: flex !important;
@@ -733,6 +1042,12 @@ function addStyles() {
             font-size: 13px !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
             margin-bottom: 6px !important;
+            transition: opacity 0.15s ease !important;
+            opacity: 1 !important;
+        }
+        .vt-text-fade {
+            min-width: 100px !important;
+            text-align: center !important;
         }
         .vt-progress-bar {
             width: 100% !important;
@@ -770,6 +1085,9 @@ function addStyles() {
             font-size: 11px !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
             display: none;
+        }
+        .header-hidden {
+             display: none !important;
         }
         .vt-eta {
             color: #8bc34a !important;
@@ -817,83 +1135,114 @@ function addStyles() {
         .vt-settings-panel {
             display: none;
             position: absolute !important;
-            top: 50px !important;
+            bottom: 60px !important;
             right: 12px !important;
-            background: rgba(20, 20, 20, 0.95) !important;
-            border: 1px solid rgba(255,255,255,0.15) !important;
-            border-radius: 8px !important;
+            background: rgba(28, 28, 28, 0.9) !important;
+            border-radius: 12px !important;
             padding: 0 !important;
-            min-width: 180px !important;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
+            min-width: 250px !important;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5) !important;
             z-index: 9999 !important;
-            backdrop-filter: blur(10px) !important;
+            overflow: hidden !important;
         }
         .vt-settings-panel.show {
             display: block !important;
         }
-        .vt-settings-header {
+        .vt-settings-menu-content {
+            font-family: 'YouTube Noto', Roboto, Arial, sans-serif !important;
+        }
+        .vt-settings-back {
             display: flex !important;
-            justify-content: space-between !important;
             align-items: center !important;
-            padding: 10px 12px !important;
+            padding: 12px 16px !important;
+            cursor: pointer !important;
+            color: #fff !important;
             border-bottom: 1px solid rgba(255,255,255,0.1) !important;
-            color: #fff !important;
-            font-size: 13px !important;
-            font-weight: 600 !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
         }
-        .vt-settings-close {
-            background: none !important;
-            border: none !important;
-            color: rgba(255,255,255,0.6) !important;
-            font-size: 18px !important;
-            cursor: pointer !important;
-            padding: 0 !important;
-            width: 24px !important;
-            height: 24px !important;
+        .vt-settings-back:hover {
+            background: rgba(255,255,255,0.1) !important;
+        }
+        .vt-settings-back svg {
+            margin-right: 16px !important;
+            color: #fff !important;
+        }
+        .vt-back-title {
+            font-size: 14px !important;
+            font-weight: 500 !important;
+        }
+        .vt-menu-title {
+            padding: 12px 16px 8px !important;
+            color: rgba(255,255,255,0.7) !important;
+            font-size: 12px !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+        }
+        .vt-menu-option {
             display: flex !important;
             align-items: center !important;
-            justify-content: center !important;
-            border-radius: 4px !important;
-        }
-        .vt-settings-close:hover {
-            background: rgba(255,255,255,0.1) !important;
-            color: #fff !important;
-        }
-        .vt-settings-body {
-            padding: 8px 12px 12px !important;
-        }
-        .vt-setting-row {
-            display: flex !important;
-            justify-content: space-between !important;
-            align-items: center !important;
-            margin-bottom: 8px !important;
-        }
-        .vt-setting-row:last-child {
-            margin-bottom: 0 !important;
-        }
-        .vt-setting-row label {
-            color: rgba(255,255,255,0.8) !important;
-            font-size: 12px !important;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-        }
-        .vt-setting-row select {
-            background: rgba(255,255,255,0.1) !important;
-            border: 1px solid rgba(255,255,255,0.2) !important;
-            border-radius: 4px !important;
-            color: #fff !important;
-            padding: 4px 8px !important;
-            font-size: 12px !important;
+            padding: 10px 16px !important;
             cursor: pointer !important;
-            min-width: 80px !important;
-        }
-        .vt-setting-row select:focus {
-            outline: none !important;
-            border-color: #00d9ff !important;
-        }
-        .vt-setting-row select option {
-            background: #222 !important;
             color: #fff !important;
+        }
+        .vt-menu-option:hover {
+            background: rgba(255,255,255,0.1) !important;
+        }
+        .vt-option-label {
+            flex: 1 !important;
+            font-size: 14px !important;
+        }
+        .vt-option-value {
+            color: rgba(255,255,255,0.5) !important;
+            font-size: 14px !important;
+            margin-right: 8px !important;
+        }
+        .vt-menu-option svg {
+            color: rgba(255,255,255,0.5) !important;
+        }
+        .vt-submenu {
+            padding: 8px 0 !important;
+        }
+        .vt-submenu-item {
+            display: flex !important;
+            align-items: center !important;
+            padding: 10px 16px 10px 48px !important;
+            cursor: pointer !important;
+            color: #fff !important;
+            font-size: 14px !important;
+            position: relative !important;
+        }
+        .vt-submenu-item:hover {
+            background: rgba(255,255,255,0.1) !important;
+        }
+        .vt-submenu-item.selected::before {
+            content: '' !important;
+            position: absolute !important;
+            left: 16px !important;
+            top: 50% !important;
+            transform: translateY(-50%) !important;
+            width: 16px !important;
+            height: 16px !important;
+            background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z'/%3E%3C/svg%3E") center/contain no-repeat !important;
+        }
+        .vt-menu-separator {
+            height: 1px !important;
+            background: rgba(255,255,255,0.1) !important;
+            margin: 8px 0 !important;
+        }
+        .vt-menu-section-group {
+            padding: 8px 0 !important;
+        }
+        .vt-translate-action {
+            margin-bottom: 4px !important;
+        }
+        .vt-translate-action:hover {
+            background: rgba(255,255,255,0.2) !important;
+        }
+        .vt-main-btn {
+            opacity: 0.9 !important;
+        }
+        .vt-main-btn:hover {
+            opacity: 1 !important;
         }
     `;
     document.head.appendChild(style);
@@ -936,6 +1285,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         if (totalSteps !== undefined) options.totalSteps = totalSteps;
         if (eta) options.eta = eta;
         if (batchInfo) options.batchInfo = batchInfo;
+
+        // Use stage as animation key
+        if (stage === 'whisper') options.animationKey = 'transcribing';
+        else options.animationKey = stage;
 
         updateStatus(msg, stageTypes[stage] || 'loading', percent, options);
         sendResponse({ received: true });
