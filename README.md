@@ -45,11 +45,11 @@ python app.py
 ### 3. Configure
 
 1. Click the extension icon
-2. Select your service tier:
-   - **Free** — YouTube captions + your API key
-   - **Basic** — Whisper transcription + your API key
-   - **Pro** — Fully managed (requires server configuration)
-3. Enter your API key and model
+2. Select your operation mode:
+   - **Tier 1** — Standard (YouTube captions + your API key)
+   - **Tier 2** — Enhanced (Whisper transcription + your API key)
+   - **Tier 3** — Managed (Server handles API keys)
+3. Enter your API key and model (for Tier 1 & 2)
 4. Save configuration
 
 ### 4. Translate!
@@ -59,13 +59,15 @@ python app.py
 3. Select your target language
 4. Enjoy translated subtitles!
 
-## Service Tiers
+## Operation Modes
 
-| Feature | Free | Basic | Pro |
-|---------|------|-------|-----|
+This project is fully open-source with no paid plans. The "Tiers" refer to different technical configurations:
+
+| Feature | Tier 1 (Standard) | Tier 2 (Enhanced) | Tier 3 (Managed) |
+|---------|-------------------|-------------------|------------------|
 | YouTube Captions | ✅ | ✅ | ✅ |
 | Whisper Transcription | ❌ | ✅ | ✅ |
-| Your API Key | Required | Required | Not Needed |
+| API Key Location | Browser (User's) | Browser (User's) | Server (Env Var) |
 | Force AI Generation | ❌ | ✅ | ✅ |
 
 ## Supported Languages
