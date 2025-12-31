@@ -1,159 +1,118 @@
 # Video Translate
+<p align="center">
+  <img src="icons/icon.svg" width="128" height="128" alt="Video Translate Logo">
+</p>
 
-A Chrome extension that translates video subtitles using AI. Works with any OpenAI-compatible API.
+<p align="center">
+  <b>AI-powered YouTube subtitle translation using LLMs and Whisper.</b>
+</p>
 
-![Video Translate](icons/icon128.png)
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+  <img src="https://img.shields.io/badge/python-3.9+-yellow.svg" alt="Python">
+  <img src="https://img.shields.io/badge/chrome-v3-blue.svg" alt="Chrome Extension">
+</p>
 
 ## Features
 
-- 🎬 **YouTube Support** - Extract and translate YouTube captions
-- 🌐 **Any Language** - Translate to 12+ languages
-- 🤖 **AI-Powered** - Uses LLMs for natural, context-aware translations
-- ⚡ **Fast Caching** - Translations are cached locally for instant replay
-- 🎨 **Native Style** - Subtitles look just like YouTube's built-in captions
-- 🔧 **Flexible** - Works with OpenAI, Ollama, or any compatible API
+- 🎬 **Real-time Translation** — Translate YouTube subtitles on the fly
+- 🤖 **AI Transcription** — Generate subtitles with Whisper when none exist
+- 🌍 **12+ Languages** — Support for major world languages
+- 🔑 **Flexible API** — Works with OpenAI, OpenRouter, or any OpenAI-compatible API
+- 💾 **Smart Caching** — Translations are cached for instant replay
+- 🎨 **Beautiful UI** — Clean, modern dark theme interface
 
-## Installation
+## Quick Start
 
-### From Source (Developer Mode)
+### 1. Start the Backend
 
-1. Clone or download this repository
-2. Open Chrome and navigate to `chrome://extensions/`
-3. Enable "Developer mode" (toggle in top-right)
-4. Click "Load unpacked"
-5. Select the `video-translate` folder
-6. The extension icon should appear in your toolbar
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+python app.py
+```
 
-## Troubleshooting
+### 2. Install the Extension
 
-### Subtitles not loading?
-If you see an error about falling to load subtitles or they simply don't appear:
-1. **Disable Adblockers for YouTube**: Extensions like uBlock Origin may block the subtitle API.
-2. **Add an Exception**: If you want to keep your adblocker, add this rule to your filter list:
-   ```
-   @@||youtube.com/api/timedtext$xhr,domain=youtube.com
-   ```
-3. **Check API Key**: Ensure your LLM API details are correct in the popup.
-   - **API URL**: Your OpenAI-compatible endpoint
-     - OpenAI: `https://api.openai.com/v1`
-     - Ollama: `http://localhost:11434/v1`
-     - Other providers: Check their documentation
-   - **API Key**: Your API key (or any value for local models)
-   - **Model**: The model to use (e.g., `gpt-4o-mini`, `llama3.2`)
+1. Open Chrome and go to `chrome://extensions`
+2. Enable "Developer mode"
+3. Click "Load unpacked" and select the project folder
+4. The extension icon will appear in your toolbar
 
-## Configuration
+### 3. Configure
 
-1. Click the Video Translate icon in your Chrome toolbar
-2. Enter your API configuration:
-   - **API URL**: Your OpenAI-compatible endpoint
-     - OpenAI: `https://api.openai.com/v1`
-     - Ollama: `http://localhost:11434/v1`
-     - Other providers: Check their documentation
-   - **API Key**: Your API key (or any value for local models)
-   - **Model**: The model to use (e.g., `gpt-4o-mini`, `llama3.2`)
-3. Select your default target language
-4. Click "Save Configuration"
+1. Click the extension icon
+2. Select your service tier:
+   - **Free** — YouTube captions + your API key
+   - **Basic** — Whisper transcription + your API key
+   - **Pro** — Fully managed (requires server configuration)
+3. Enter your API key and model
+4. Save configuration
 
-## Usage
+### 4. Translate!
 
-1. Navigate to any YouTube video
-2. Look for the translate button (🌐) in the player controls
-3. Click it to open the language selector
-4. Select your desired language
-5. Wait for translation (first time only, then cached)
-6. Watch with translated subtitles!
+1. Go to any YouTube video
+2. Click the translate button in the player
+3. Select your target language
+4. Enjoy translated subtitles!
+
+## Service Tiers
+
+| Feature | Free | Basic | Pro |
+|---------|------|-------|-----|
+| YouTube Captions | ✅ | ✅ | ✅ |
+| Whisper Transcription | ❌ | ✅ | ✅ |
+| Your API Key | Required | Required | Not Needed |
+| Force AI Generation | ❌ | ✅ | ✅ |
 
 ## Supported Languages
 
-| Language | Code |
-|----------|------|
-| English | en |
-| Japanese | ja |
-| Korean | ko |
-| Chinese (Simplified) | zh-CN |
-| Chinese (Traditional) | zh-TW |
-| Spanish | es |
-| French | fr |
-| German | de |
-| Portuguese | pt |
-| Russian | ru |
-| Arabic | ar |
-| Hindi | hi |
+🇬🇧 English • 🇯🇵 Japanese • 🇰🇷 Korean • 🇨🇳 Chinese • 🇪🇸 Spanish • 🇫🇷 French • 🇩🇪 German • 🇵🇹 Portuguese • 🇷🇺 Russian • 🇸🇦 Arabic • 🇮🇳 Hindi • 🇹🇼 Traditional Chinese
 
-## API Providers
+## Docker Deployment
 
-### OpenAI
-```
-API URL: https://api.openai.com/v1
-Model: gpt-4o-mini (recommended) or gpt-4o
+```bash
+cd backend
+
+# Development
+docker-compose up video-translate-tier1
+
+# With Whisper
+docker-compose up video-translate-tier2
+
+# Fully managed (set your API key)
+SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
 ```
 
-### Ollama (Local)
-```
-API URL: http://localhost:11434/v1
-Model: llama3.2, mistral, etc.
-API Key: ollama (any value works)
-```
+## Tech Stack
 
-### Other Providers
-Any OpenAI-compatible API should work. Check your provider's documentation for the correct URL and model names.
+- **Extension**: Chrome Manifest V3, Vanilla JavaScript
+- **Backend**: Python 3.9+, Flask, Gunicorn
+- **AI**: OpenAI Whisper, GPT-4/Claude/Llama via API
+- **Tools**: yt-dlp, Docker
 
-## How It Works
+## Project Structure
 
-1. **Subtitle Extraction**: When you open a YouTube video, the extension extracts available captions
-2. **Translation**: Subtitles are sent to your configured LLM API in batches
-3. **Caching**: Translations are stored locally (up to 100 videos)
-4. **Display**: Translated subtitles are shown in YouTube's native caption style
-
-## Privacy
-
-- ✅ API keys are stored locally in Chrome
-- ✅ Translations are cached on your device only
-- ✅ No analytics or external tracking
-- ✅ Only your chosen LLM API receives subtitle text
-
-## Development
-
-### Project Structure
 ```
 video-translate/
-├── manifest.json           # Extension manifest
+├── backend/
+│   ├── app.py              # Flask API server
+│   ├── requirements.txt    # Python dependencies
+│   ├── Dockerfile          # Container configuration
+│   └── docker-compose.yml  # Multi-tier deployment
 ├── src/
 │   ├── background/         # Service worker
-│   ├── content/            # YouTube content scripts
-│   ├── popup/              # Extension popup UI
-│   └── lib/                # Shared utilities
+│   ├── content/            # YouTube integration
+│   ├── lib/                # Shared utilities
+│   └── popup/              # Extension popup UI
 ├── icons/                  # Extension icons
-└── SPECIFICATION.md        # Detailed specification
+├── manifest.json           # Chrome extension manifest
+└── SPECIFICATION.md        # Detailed documentation
 ```
-
-### Building
-No build step required! The extension runs directly from source.
-
-### Testing
-1. Load the extension in developer mode
-2. Open a YouTube video with captions
-3. Try translating to different languages
-
-## Known Limitations
-
-- Only works on YouTube (for now)
-- Requires videos to have captions (auto-generated or uploaded)
-- Translation quality depends on the LLM model used
-- Large videos may take longer to translate initially
-
-## Roadmap
-
-- [ ] Support for more video platforms
-- [ ] Dual subtitle mode (original + translated)
-- [ ] Subtitle style customization
-- [ ] Export translations to SRT/VTT
-- [ ] Offline translation with local models
 
 ## License
 
-MIT License - feel free to use, modify, and distribute.
-
-## Contributing
-
-Contributions are welcome! Please read the [SPECIFICATION.md](SPECIFICATION.md) for technical details.
+MIT License - See [LICENSE](LICENSE) for details.

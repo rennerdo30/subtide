@@ -1,977 +1,666 @@
 /**
  * YouTube Content Script
- * Main entry point for YouTube integration
+ * Handles UI injection and subtitle synchronization
  */
 
-// Store state
+// State
 let currentVideoId = null;
+let sourceSubtitles = null;
 let translatedSubtitles = null;
 let selectedLanguage = null;
-let sourceSubtitles = null;
-let isTranslating = false;
+let isProcessing = false;
+let userTier = 'tier1';
+let backendUrl = 'http://localhost:5001';
 
-// Import modules (will be bundled for production)
-// For now, we'll use inline implementations
+// Subtitle appearance settings
+let subtitleSettings = {
+    size: 'medium',
+    position: 'bottom',
+    background: 'dark',
+    color: 'white',
+};
 
 /**
- * Initialize the extension on YouTube
+ * Initialize on YouTube
  */
 function init() {
-    console.log('[VideoTranslate] Initializing on YouTube');
-
-    // Watch for navigation changes (YouTube is SPA)
+    console.log('[VideoTranslate] Initializing');
     observeNavigation();
-
-    // Initial check
     checkForVideo();
 }
 
 /**
- * Observe navigation changes in YouTube SPA
+ * Watch for YouTube SPA navigation
  */
 function observeNavigation() {
-    // YouTube uses History API for navigation
     let lastUrl = location.href;
 
     const observer = new MutationObserver(() => {
         if (location.href !== lastUrl) {
             lastUrl = location.href;
-            console.log('[VideoTranslate] Navigation detected:', lastUrl);
             onNavigate();
         }
     });
 
     observer.observe(document.body, { childList: true, subtree: true });
-
-    // Also listen for popstate
     window.addEventListener('popstate', onNavigate);
 }
 
-/**
- * Handle navigation
- */
 function onNavigate() {
-    // Reset state
     translatedSubtitles = null;
-    isTranslating = false;
-
-    // Remove old UI
-    removeTranslateUI();
-
-    // Check for new video
+    sourceSubtitles = null;
+    isProcessing = false;
+    removeUI();
     setTimeout(checkForVideo, 1000);
 }
 
 /**
- * Check if we're on a video page
+ * Check if on video page
  */
 function checkForVideo() {
-    const videoId = getVideoId();
+    const videoId = new URL(location.href).searchParams.get('v');
 
     if (videoId && videoId !== currentVideoId) {
         currentVideoId = videoId;
-        console.log('[VideoTranslate] Video detected:', videoId);
-        setupVideoPage(videoId);
+        console.log('[VideoTranslate] Video:', videoId);
+        setupPage(videoId);
     }
 }
 
 /**
- * Extract video ID from URL
+ * Setup page with UI
  */
-function getVideoId() {
-    const url = new URL(window.location.href);
-    return url.searchParams.get('v');
-}
-
-/**
- * Setup the video page with translation UI
- */
-async function setupVideoPage(videoId) {
-    // Wait for player to be ready
+async function setupPage(videoId) {
     await waitForPlayer();
 
-    // Load default language from storage
+    // Load config
     const config = await sendMessage({ action: 'getConfig' });
     selectedLanguage = config.defaultLanguage || 'en';
+    userTier = config.tier || 'tier1';
+    backendUrl = config.backendUrl || 'http://localhost:5001';
 
-    // Add translate button and language selector to player
-    injectTranslateUI();
+    // Load subtitle appearance settings
+    subtitleSettings = {
+        size: config.subtitleSize || 'medium',
+        position: config.subtitlePosition || 'bottom',
+        background: config.subtitleBackground || 'dark',
+        color: config.subtitleColor || 'white',
+    };
 
-    // Auto-fetch subtitles info
-    await fetchSubtitleTracks(videoId);
+    console.log('[VideoTranslate] Tier:', userTier);
+    console.log('[VideoTranslate] Subtitle settings:', subtitleSettings);
+
+    injectUI();
+
+    // For Tier 1/2: Pre-fetch subtitles so they're ready when user clicks translate
+    // For Tier 3: We'll do everything in one call when user clicks translate
+    if (userTier !== 'tier3') {
+        await prefetchSubtitles(videoId);
+    }
 }
 
-/**
- * Wait for YouTube player to be ready
- */
 function waitForPlayer() {
     return new Promise((resolve) => {
         const check = () => {
             const player = document.querySelector('.html5-video-player');
-            if (player) {
-                resolve(player);
-            } else {
-                setTimeout(check, 500);
-            }
+            if (player) resolve(player);
+            else setTimeout(check, 500);
         };
         check();
     });
 }
 
 /**
- * Remove translate UI elements
+ * Pre-fetch subtitles (Tier 1/2)
  */
-function removeTranslateUI() {
-    const existingUI = document.querySelector('.vt-translate-container');
-    if (existingUI) {
-        existingUI.remove();
-    }
-
-    const existingSubtitles = document.querySelector('.vt-subtitle-overlay');
-    if (existingSubtitles) {
-        existingSubtitles.remove();
-    }
-}
-
-/**
- * Inject translation UI into YouTube player
- */
-function injectTranslateUI() {
-    // Find the right controls container
-    const rightControls = document.querySelector('.ytp-right-controls');
-    if (!rightControls) {
-        console.error('[VideoTranslate] Could not find player controls');
-        return;
-    }
-
-    // Check if already injected
-    if (document.querySelector('.vt-translate-container')) {
-        return;
-    }
-
-    // Create container
-    const container = document.createElement('div');
-    container.className = 'vt-translate-container';
-
-    // Create translate button
-    const button = document.createElement('button');
-    button.className = 'vt-translate-btn ytp-button';
-    button.title = 'Translate Subtitles';
-    button.innerHTML = `
-    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-      <path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
-    </svg>
-  `;
-
-    // Create dropdown menu
-    const dropdown = document.createElement('div');
-    dropdown.className = 'vt-dropdown';
-    dropdown.style.display = 'none';
-
-    // Build dropdown content
-    dropdown.innerHTML = `
-    <div class="vt-dropdown-header">Translate to:</div>
-    <div class="vt-language-list"></div>
-    <div class="vt-dropdown-footer">
-      <div class="vt-status"></div>
-    </div>
-  `;
-
-    // Populate language list
-    populateLanguageList(dropdown.querySelector('.vt-language-list'));
-
-    // Toggle dropdown
-    button.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isVisible = dropdown.style.display !== 'none';
-        dropdown.style.display = isVisible ? 'none' : 'block';
-    });
-
-    // Close dropdown when clicking outside
-    document.addEventListener('click', (e) => {
-        if (!container.contains(e.target)) {
-            dropdown.style.display = 'none';
-        }
-    });
-
-    container.appendChild(button);
-    container.appendChild(dropdown);
-
-
-
-    // Insert at the beginning of right controls (prepend is safer than insertBefore)
-    // This places our button on the left side of the right controls area
-    rightControls.prepend(container);
-
-    // Add subtitle overlay
-    injectSubtitleOverlay();
-}
-
-/**
- * Populate language list in dropdown
- */
-async function populateLanguageList(container) {
-    const languages = [
-        { code: 'en', name: 'English', flag: '🇬🇧' },
-        { code: 'ja', name: '日本語', flag: '🇯🇵' },
-        { code: 'ko', name: '한국어', flag: '🇰🇷' },
-        { code: 'zh-CN', name: '简体中文', flag: '🇨🇳' },
-        { code: 'zh-TW', name: '繁體中文', flag: '🇹🇼' },
-        { code: 'es', name: 'Español', flag: '🇪🇸' },
-        { code: 'fr', name: 'Français', flag: '🇫🇷' },
-        { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
-        { code: 'pt', name: 'Português', flag: '🇵🇹' },
-        { code: 'ru', name: 'Русский', flag: '🇷🇺' },
-        { code: 'ar', name: 'العربية', flag: '🇸🇦' },
-        { code: 'hi', name: 'हिन्दी', flag: '🇮🇳' },
-    ];
-
-    // Add "Off" option
-    const offItem = document.createElement('div');
-    offItem.className = 'vt-language-item';
-    offItem.dataset.code = 'off';
-    offItem.innerHTML = `<span class="vt-flag">❌</span><span class="vt-lang-name">Off</span>`;
-    offItem.addEventListener('click', () => {
-        hideSubtitles();
-        updateSelectedLanguage('off');
-    });
-    container.appendChild(offItem);
-
-    // Add language options
-    for (const lang of languages) {
-        const item = document.createElement('div');
-        item.className = 'vt-language-item';
-        item.dataset.code = lang.code;
-        item.innerHTML = `
-      <span class="vt-flag">${lang.flag}</span>
-      <span class="vt-lang-name">${lang.name}</span>
-      <span class="vt-lang-status"></span>
-    `;
-
-        item.addEventListener('click', () => selectLanguage(lang.code));
-        container.appendChild(item);
-    }
-}
-
-/**
- * Update selected language UI
- */
-function updateSelectedLanguage(code) {
-    const items = document.querySelectorAll('.vt-language-item');
-    items.forEach(item => {
-        item.classList.toggle('vt-selected', item.dataset.code === code);
-    });
-    selectedLanguage = code;
-}
-
-/**
- * Select a language for translation
- */
-async function selectLanguage(languageCode) {
-    if (isTranslating) {
-        console.log('[VideoTranslate] Translation already in progress');
-        return;
-    }
-
-    updateSelectedLanguage(languageCode);
-
-    if (!sourceSubtitles || sourceSubtitles.length === 0) {
-        updateStatus('No subtitles available', 'error');
-        return;
-    }
-
-    // Check if already translated
-    if (translatedSubtitles && translatedSubtitles.targetLanguage === languageCode) {
-        showSubtitles();
-        return;
-    }
-
-    // Start translation
-    await translateAndShow(languageCode);
-}
-
-/**
- * Fetch available subtitle tracks from YouTube
- */
-async function fetchSubtitleTracks(videoId) {
-    updateStatus('Loading subtitles...', 'loading');
+async function prefetchSubtitles(videoId) {
+    updateStatus('Loading...', 'loading');
 
     try {
-        const subtitles = await extractYouTubeSubtitles(videoId);
+        const data = await sendMessage({ action: 'fetchSubtitles', videoId });
 
-        if (subtitles && subtitles.length > 0) {
-            sourceSubtitles = subtitles;
-            updateStatus(`${subtitles.length} subtitles loaded`, 'success');
-            console.log('[VideoTranslate] Loaded subtitles:', subtitles.length);
+        if (data.error) throw new Error(data.error);
+
+        sourceSubtitles = parseSubtitles(data);
+
+        if (sourceSubtitles.length > 0) {
+            updateStatus(`${sourceSubtitles.length} subs`, 'success');
         } else {
-            updateStatus('No subtitles found', 'warning');
+            updateStatus('No subs', 'error');
         }
     } catch (error) {
-        console.error('[VideoTranslate] Failed to fetch subtitles:', error);
-        updateStatus('Failed to load subtitles', 'error');
+        console.error('[VideoTranslate] Prefetch failed:', error);
+        updateStatus('No subs', 'error');
     }
 }
 
 /**
- * Extract subtitles from YouTube
+ * Parse subtitles from backend response
  */
-async function extractYouTubeSubtitles(videoId) {
-    // Try to get player response from window object first (most reliable)
-    let playerResponse = window.ytInitialPlayerResponse;
-
-    // If not available, try to extract from script tags
-    if (!playerResponse) {
-        const scripts = document.querySelectorAll('script');
-
-        for (const script of scripts) {
-            const content = script.textContent || '';
-            if (content.includes('ytInitialPlayerResponse')) {
-                // Use a more robust extraction method
-                const startIndex = content.indexOf('ytInitialPlayerResponse');
-                if (startIndex !== -1) {
-                    // Find the start of the JSON object
-                    const jsonStart = content.indexOf('{', startIndex);
-                    if (jsonStart !== -1) {
-                        // Find the matching closing brace by counting braces
-                        let braceCount = 0;
-                        let jsonEnd = jsonStart;
-                        for (let i = jsonStart; i < content.length; i++) {
-                            if (content[i] === '{') braceCount++;
-                            if (content[i] === '}') braceCount--;
-                            if (braceCount === 0) {
-                                jsonEnd = i + 1;
-                                break;
-                            }
-                        }
-
-                        try {
-                            const jsonStr = content.substring(jsonStart, jsonEnd);
-                            playerResponse = JSON.parse(jsonStr);
-                            console.log('[VideoTranslate] Found player response in script tag');
-                            break;
-                        } catch (e) {
-                            console.warn('[VideoTranslate] Failed to parse player response:', e.message);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if (!playerResponse) {
-        throw new Error('Could not find player response');
-    }
-
-    // Get caption tracks
-    const captions = playerResponse.captions;
-    if (!captions || !captions.playerCaptionsTracklistRenderer) {
-        throw new Error('No captions available for this video');
-    }
-
-    const tracks = captions.playerCaptionsTracklistRenderer.captionTracks;
-    if (!tracks || tracks.length === 0) {
-        throw new Error('No caption tracks found');
-    }
-
-    // Prefer auto-generated or first available track
-    const track = tracks.find(t => t.kind === 'asr') || tracks[0];
-    console.log('[VideoTranslate] Using caption track:', track.languageCode, track.name?.simpleText);
-
-    // Try multiple URL formats
-    const subtitles = await fetchSubtitlesWithFallback(track, videoId);
-
-    if (subtitles.length === 0) {
-        throw new Error('No subtitle content found');
-    }
-
-    // Store source language
-    sourceSubtitles = subtitles;
-    sourceSubtitles.sourceLanguage = track.languageCode;
-
-    return subtitles;
-}
-
-/**
- * Try fetching subtitles with multiple URL formats
- */
-async function fetchSubtitlesWithFallback(track, videoId) {
-    const baseUrl = track.baseUrl;
-
-    // Build different URL variants to try
-    // IMPORTANT: YouTube's baseUrl contains signed parameters - don't remove them!
-    const urlsToTry = [];
-
-    // Method 1: Use baseUrl exactly as provided, just add fmt=json3
-    // This preserves all signature parameters (ei, caps, opi, etc.)
-    if (baseUrl.includes('fmt=')) {
-        urlsToTry.push(baseUrl.replace(/fmt=[^&]+/, 'fmt=json3'));
-    } else {
-        urlsToTry.push(baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'fmt=json3');
-    }
-
-    // Method 2: Original baseUrl as-is (might return XML or other format)
-    urlsToTry.push(baseUrl);
-
-    // Method 3: Try with tlang parameter for translation URLs
-    const url3 = new URL(baseUrl);
-    url3.searchParams.set('fmt', 'json3');
-    urlsToTry.push(url3.toString());
-
-    for (const url of urlsToTry) {
-        console.log('[VideoTranslate] Trying subtitle URL:', url.substring(0, 100) + '...');
-
-        try {
-            // IMPORTANT: Include credentials to send YouTube cookies
-            const response = await fetch(url, {
-                credentials: 'include',
-                headers: {
-                    'Accept': 'application/json, text/plain, */*',
-                }
-            });
-
-            if (!response.ok) {
-                console.warn('[VideoTranslate] HTTP error:', response.status);
-                continue;
-            }
-
-            const text = await response.text();
-
-            if (!text || text.trim() === '' || text.trim() === '{}') {
-                console.warn('[VideoTranslate] Empty response, trying next URL');
-                continue;
-            }
-
-            // Check if it's XML (starts with <transcript> or <?xml)
-            if (text.trim().startsWith('<?xml') || text.trim().startsWith('<transcript')) {
-                console.log('[VideoTranslate] Received XML subtitles, parsing...');
-                const subtitles = parseXMLSubtitles(text);
-                if (subtitles.length > 0) return subtitles;
-            }
-
-            // Try parsing as JSON
-            let data;
-            try {
-                data = JSON.parse(text);
-                const subtitles = parseSubtitleEvents(data);
-                if (subtitles.length > 0) return subtitles;
-            } catch (e) {
-                // Not JSON, and not XML matched above
-                console.warn('[VideoTranslate] Invalid format, trying next URL');
-            }
-        } catch (error) {
-            console.warn('[VideoTranslate] Fetch error:', error.message);
-            continue;
-        }
-    }
-
-
-
-    // Fallback 1: Try the Transcript API (Internal YouTube API)
-    // This is the most robust modern method, bypassing legacy timedtext blocking
-    console.log('[VideoTranslate] Direct fetch failed. Trying Internal Transcript API...');
-    try {
-        // We use the background script to execute this in the MAIN world to access ytcfg
-        const transcriptResult = await sendMessage({
-            action: 'fetchTranscriptMainWorld',
-            videoId: videoId
-        });
-
-        if (transcriptResult && transcriptResult.success && transcriptResult.subtitles) {
-            console.log('[VideoTranslate] Transcript API (Main World) successful:', transcriptResult.subtitles.length, 'subtitles');
-            return transcriptResult.subtitles;
-        } else if (transcriptResult && transcriptResult.error) {
-            console.warn('[VideoTranslate] Transcript API (Main World) error:', transcriptResult.error);
-        }
-    } catch (e) {
-        console.warn('[VideoTranslate] Transcript API fallback failed:', e.message);
-    }
-
-    // Fallback 2: Enable YouTube's native subtitles and read from TextTrack API
-    // This is disruptive (clicks UI), so we try it after the API approach
-    console.log('[VideoTranslate] Trying to enable native subtitles and extract from TextTrack...');
-    try {
-        const textTrackResult = await sendMessage({
-            action: 'enableAndExtractSubtitles'
-        });
-
-        if (textTrackResult && textTrackResult.success && textTrackResult.subtitles) {
-            console.log('[VideoTranslate] TextTrack extraction successful:', textTrackResult.subtitles.length, 'subtitles');
-            return textTrackResult.subtitles;
-        } else if (textTrackResult && textTrackResult.error) {
-            console.warn('[VideoTranslate] TextTrack extraction error:', textTrackResult.error);
-        }
-    } catch (e) {
-        console.warn('[VideoTranslate] TextTrack extraction failed:', e.message);
-    }
-
-    // Fallback 2: Try fetching via MAIN WORLD execution
-    console.log('[VideoTranslate] Trying to fetch via main world execution...');
-    try {
-        const mainWorldResult = await sendMessage({
-            action: 'fetchSubtitlesMainWorld',
-            subtitleUrl: baseUrl
-        });
-
-        if (mainWorldResult && mainWorldResult.success && mainWorldResult.subtitles) {
-            console.log('[VideoTranslate] Main world fetch successful:', mainWorldResult.subtitles.length, 'subtitles');
-            return mainWorldResult.subtitles;
-        } else if (mainWorldResult && mainWorldResult.error) {
-            console.warn('[VideoTranslate] Main world fetch error:', mainWorldResult.error);
-        }
-    } catch (e) {
-        console.warn('[VideoTranslate] Main world fetch failed:', e.message);
-    }
-
-    // Fallback 3: Try fetching via background script
-    console.log('[VideoTranslate] Trying to fetch via background script...');
-    try {
-        const response = await sendMessage({
-            action: 'fetchSubtitles',
-            subtitleUrl: baseUrl,
-            videoId: videoId,
-            languageCode: track.languageCode
-        });
-
-        if (response && response.success && response.subtitles) {
-            console.log('[VideoTranslate] Background fetch successful');
-            return response.subtitles;
-        }
-    } catch (e) {
-        console.warn('[VideoTranslate] Background fetch failed:', e.message);
-    }
-
-    // Fallback 4: Try extracting directly from player state (no network request)
-    console.log('[VideoTranslate] Trying to extract from player state...');
-    try {
-        const playerStateResult = await sendMessage({
-            action: 'extractSubtitlesFromPlayer'
-        });
-
-        if (playerStateResult && playerStateResult.success && playerStateResult.subtitles) {
-            console.log('[VideoTranslate] Player state extraction successful:', playerStateResult.subtitles.length, 'subtitles');
-            return playerStateResult.subtitles;
-        } else if (playerStateResult && playerStateResult.trackUrl) {
-            let trackUrl = playerStateResult.trackUrl;
-            // Force JSON3 format if not present, as it's often more robust against blocking
-            if (!trackUrl.includes('fmt=')) {
-                trackUrl += '&fmt=json3';
-            }
-
-            console.log('[VideoTranslate] Player state found new track URL. Fetching:', trackUrl.substring(0, 50) + '...');
-
-            // Try fetching this specific URL via XHR in main world (most robust)
-            const xhrResult = await sendMessage({
-                action: 'fetchSubtitlesXHR',
-                subtitleUrl: trackUrl
-            });
-
-            if (xhrResult && xhrResult.success && xhrResult.subtitles) {
-                console.log('[VideoTranslate] Fetched subtitles from new track URL:', xhrResult.subtitles.length);
-                return xhrResult.subtitles;
-            } else {
-                console.warn('[VideoTranslate] Failed to fetch new track URL via XHR:', xhrResult?.error || 'Unknown error');
-            }
-        }
-    } catch (e) {
-        console.warn('[VideoTranslate] Player state extraction failed:', e.message);
-    }
-
-    // Fallback 4: Try XMLHttpRequest via main world (some ad blockers only block fetch)
-    console.log('[VideoTranslate] Trying XMLHttpRequest via main world...');
-    try {
-        const xhrResult = await sendMessage({
-            action: 'fetchSubtitlesXHR',
-            subtitleUrl: baseUrl
-        });
-
-        if (xhrResult && xhrResult.success && xhrResult.subtitles) {
-            console.log('[VideoTranslate] XHR fetch successful:', xhrResult.subtitles.length, 'subtitles');
-            return xhrResult.subtitles;
-        }
-    } catch (e) {
-        console.warn('[VideoTranslate] XHR fetch failed:', e.message);
-    }
-
-    // Fallback 5: Try the Transcript API (Internal YouTube API)
-    try {
-        const transcriptSubtitles = await fetchTranscriptApi(videoId);
-        if (transcriptSubtitles && transcriptSubtitles.length > 0) {
-            return transcriptSubtitles;
-        }
-    } catch (e) {
-        console.warn('[VideoTranslate] Transcript API fallback failed:', e);
-    }
-
-    // Fallback 6: Invidious API (Bypass network blocks)
-    console.log('[VideoTranslate] Trying Invidious API fallback...');
-    const invidiousSubtitles = await fetchSubtitlesViaInvidious(videoId);
-    if (invidiousSubtitles) {
-        console.log('[VideoTranslate] Invidious fallback successful:', invidiousSubtitles.length, 'subtitles');
-        return invidiousSubtitles;
-    }
-
-    // Provide a detailed error message
-    throw new Error('Failed to load subtitles. This may be caused by a VPN, proxy, or browser extension interfering with requests. Try: 1) Disabling your VPN/proxy, 2) Disabling ad blockers, 3) Testing in an incognito window with extensions disabled.');
-}
-
-/**
- * Parse subtitle events from JSON data
- */
-function parseSubtitleEvents(data) {
+function parseSubtitles(data) {
     const subtitles = [];
 
+    // Whisper format
+    if (data.segments) {
+        for (const seg of data.segments) {
+            subtitles.push({
+                start: seg.start * 1000,
+                end: seg.end * 1000,
+                text: seg.text.trim()
+            });
+        }
+        return mergeSegments(subtitles);
+    }
+
+    // YouTube JSON3 format
     if (data.events) {
         for (const event of data.events) {
-            if (event.segs) {
-                const text = event.segs.map(s => s.utf8 || '').join('');
-                if (text.trim()) {
-                    subtitles.push({
-                        startMs: event.tStartMs || 0,
-                        durationMs: event.dDurationMs || 3000,
-                        text: text.trim(),
-                    });
-                }
-            }
-        }
-    }
-
-    return subtitles;
-}
-
-/**
- * Parse XML subtitles
- */
-function parseXMLSubtitles(xml) {
-    const subtitles = [];
-    try {
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(xml, "text/xml");
-        const textuals = xmlDoc.getElementsByTagName('text');
-
-        for (let i = 0; i < textuals.length; i++) {
-            const node = textuals[i];
-            const start = parseFloat(node.getAttribute('start')) * 1000;
-            const duration = parseFloat(node.getAttribute('dur')) * 1000;
-            const text = node.textContent;
-
-            if (text && text.trim()) {
+            if (!event.segs) continue;
+            const text = event.segs.map(s => s.utf8 || '').join('').trim();
+            if (text) {
                 subtitles.push({
-                    startMs: start,
-                    durationMs: duration,
-                    text: text.trim()
+                    start: event.tStartMs,
+                    end: event.tStartMs + (event.dDurationMs || 3000),
+                    text
                 });
             }
         }
-        console.log('[VideoTranslate] Parsed', subtitles.length, 'XML subtitles');
-    } catch (e) {
-        console.warn('[VideoTranslate] XML parsing failed:', e.message);
     }
+
     return subtitles;
 }
 
 /**
- * Try to get subtitles directly from the YouTube player
+ * Merge short segments (for Whisper output)
  */
-async function getSubtitlesFromPlayer() {
-    // Try to access YouTube's internal player API
-    const player = document.querySelector('#movie_player');
-    if (!player) {
-        console.warn('[VideoTranslate] Player element not found');
-        return [];
-    }
+function mergeSegments(subs, maxGap = 500, maxDur = 8000) {
+    if (subs.length <= 1) return subs;
 
-    // Check if player has getPlayerResponse
-    if (typeof player.getPlayerResponse === 'function') {
-        try {
-            const playerResponse = player.getPlayerResponse();
-            if (playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks) {
-                const tracks = playerResponse.captions.playerCaptionsTracklistRenderer.captionTracks;
-                const track = tracks.find(t => t.kind === 'asr') || tracks[0];
+    const merged = [];
+    let curr = { ...subs[0] };
 
-                if (track?.baseUrl) {
-                    // Add fmt=json3 while preserving all other parameters
-                    const url = track.baseUrl.includes('fmt=')
-                        ? track.baseUrl.replace(/fmt=[^&]+/, 'fmt=json3')
-                        : track.baseUrl + '&fmt=json3';
+    for (let i = 1; i < subs.length; i++) {
+        const next = subs[i];
+        const gap = next.start - curr.end;
+        const newDur = next.end - curr.start;
 
-                    const response = await fetch(url, {
-                        credentials: 'include',
-                        headers: {
-                            'Accept': 'application/json, text/plain, */*',
-                        }
-                    });
-                    if (response.ok) {
-                        const text = await response.text();
-                        if (text && text.trim() && text.trim() !== '{}') {
-                            try {
-                                const data = JSON.parse(text);
-                                return parseSubtitleEvents(data);
-                            } catch (e) {
-                                console.warn('[VideoTranslate] Player API JSON parse error:', e.message);
-                            }
-                        }
-                    }
-                }
-            }
-        } catch (e) {
-            console.warn('[VideoTranslate] Player API error:', e.message);
-        }
-    }
-
-    return [];
-}
-
-/**
- * Translate and show subtitles
- */
-async function translateAndShow(targetLanguage) {
-    console.log('[VideoTranslate] translateAndShow called for:', targetLanguage);
-
-    if (!sourceSubtitles || sourceSubtitles.length === 0) {
-        updateStatus('No subtitles to translate', 'error');
-        console.error('[VideoTranslate] No source subtitles available');
-        return;
-    }
-
-    console.log('[VideoTranslate] Source subtitles count:', sourceSubtitles.length);
-    isTranslating = true;
-    updateStatus('Checking cache...', 'loading');
-
-    const videoId = getVideoId();
-    const sourceLanguage = sourceSubtitles.sourceLanguage || 'auto';
-    console.log('[VideoTranslate] Video ID:', videoId, 'Source lang:', sourceLanguage);
-
-    try {
-        // Check cache first via background script
-        const cacheResult = await sendMessage({
-            action: 'getCachedTranslation',
-            videoId,
-            sourceLanguage,
-            targetLanguage,
-        });
-
-        console.log('[VideoTranslate] Cache result:', cacheResult);
-
-        if (cacheResult.found) {
-            translatedSubtitles = {
-                subtitles: cacheResult.cached,
-                targetLanguage,
-            };
-            console.log('[VideoTranslate] Loaded from cache:', translatedSubtitles.subtitles.length, 'subtitles');
-            updateStatus('Loaded from cache', 'success');
-            showSubtitles();
-            isTranslating = false;
-            return;
-        }
-
-        // Translate via background script
-        updateStatus('Translating...', 'loading');
-        console.log('[VideoTranslate] Starting translation...');
-
-        const result = await sendMessage({
-            action: 'translate',
-            videoId,
-            subtitles: sourceSubtitles,
-            sourceLanguage,
-            targetLanguage,
-        });
-
-        console.log('[VideoTranslate] Translation result:', result);
-
-        if (result.success) {
-            translatedSubtitles = {
-                subtitles: result.translations,
-                targetLanguage,
-            };
-            console.log('[VideoTranslate] Translation complete:', translatedSubtitles.subtitles.length, 'subtitles');
-            console.log('[VideoTranslate] First subtitle:', translatedSubtitles.subtitles[0]);
-            updateStatus('Translation complete', 'success');
-            showSubtitles();
+        if (gap <= maxGap && newDur <= maxDur) {
+            curr.end = next.end;
+            curr.text += ' ' + next.text;
         } else {
-            throw new Error(result.error || 'Translation failed');
+            merged.push(curr);
+            curr = { ...next };
         }
-    } catch (error) {
-        console.error('[VideoTranslate] Translation error:', error);
-        updateStatus(error.message, 'error');
     }
+    merged.push(curr);
 
-    isTranslating = false;
+    return merged;
 }
 
 /**
- * Update status display
+ * Remove UI elements
  */
-function updateStatus(message, type) {
-    // Update dropdown status
-    const status = document.querySelector('.vt-status');
-    if (status) {
-        status.textContent = message;
-        status.className = `vt-status vt-status-${type}`;
-    }
-
-    // Show status in subtitle overlay
-    const overlay = document.querySelector('.vt-subtitle-overlay');
-    const textDiv = document.querySelector('.vt-subtitle-text');
-
-    if (overlay && textDiv) {
-        textDiv.textContent = message;
-        textDiv.className = `vt-subtitle-text vt-status-${type}`;
-
-        // Show overlay
-        overlay.style.display = 'block';
-
-        // Handle auto-hide for success or long-running errors
-        if (type === 'success') {
-            setTimeout(() => {
-                // Only hide if we haven't started showing subtitles yet (i.e. still has success class)
-                if (textDiv.classList.contains('vt-status-success')) {
-                    // Reset class to default
-                    textDiv.className = 'vt-subtitle-text';
-                    // Check logic will hide it if needed
-                    updateCurrentSubtitle();
-                }
-            }, 3000);
-        }
-    }
+function removeUI() {
+    document.querySelector('.vt-container')?.remove();
+    document.querySelector('.vt-overlay')?.remove();
+    document.querySelector('.vt-status-panel')?.remove();
 }
 
 /**
- * Inject subtitle overlay into player
+ * Inject translate UI
  */
-function injectSubtitleOverlay() {
+function injectUI() {
+    removeUI();
+
+    const controls = document.querySelector('.ytp-right-controls');
+    if (!controls) return;
+
+    const container = document.createElement('div');
+    container.className = 'vt-container';
+    container.innerHTML = `
+        <button class="vt-btn ytp-button" title="Click to translate, right-click for language">
+            <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
+            </svg>
+            <span class="vt-badge"></span>
+        </button>
+        <div class="vt-menu">
+            <div class="vt-menu-item" data-lang="en">🇬🇧 English</div>
+            <div class="vt-menu-item" data-lang="ja">🇯🇵 Japanese</div>
+            <div class="vt-menu-item" data-lang="ko">🇰🇷 Korean</div>
+            <div class="vt-menu-item" data-lang="zh-CN">🇨🇳 Chinese</div>
+            <div class="vt-menu-item" data-lang="es">🇪🇸 Spanish</div>
+            <div class="vt-menu-item" data-lang="fr">🇫🇷 French</div>
+            <div class="vt-menu-item" data-lang="de">🇩🇪 German</div>
+            <div class="vt-menu-item" data-lang="pt">🇵🇹 Portuguese</div>
+            <div class="vt-menu-item" data-lang="ru">🇷🇺 Russian</div>
+        </div>
+    `;
+
+    controls.prepend(container);
+
+    // Status panel overlay on video
     const player = document.querySelector('.html5-video-player');
-    if (!player) return;
-
-    // Check if already exists
-    if (document.querySelector('.vt-subtitle-overlay')) return;
-
-    const overlay = document.createElement('div');
-    overlay.className = 'vt-subtitle-overlay';
-    overlay.innerHTML = `
-    <div class="vt-subtitle-text"></div>
-  `;
-
-    player.appendChild(overlay);
-
-    // Setup subtitle sync
-    setupSubtitleSync();
-}
-
-/**
- * Setup subtitle synchronization with video
- */
-function setupSubtitleSync() {
-    const video = document.querySelector('video');
-    if (!video) {
-        console.error('[VideoTranslate] No video element found for sync');
-        return;
+    if (player && !player.querySelector('.vt-status-panel')) {
+        const statusPanel = document.createElement('div');
+        statusPanel.className = 'vt-status-panel';
+        statusPanel.innerHTML = `
+            <div class="vt-status-content">
+                <span class="vt-status-text"></span>
+                <div class="vt-progress-bar">
+                    <div class="vt-progress-fill"></div>
+                </div>
+                <span class="vt-status-detail"></span>
+            </div>
+        `;
+        player.appendChild(statusPanel);
     }
 
-    console.log('[VideoTranslate] Setting up subtitle sync');
+    const btn = container.querySelector('.vt-btn');
+    const badge = container.querySelector('.vt-badge');
+    const menu = container.querySelector('.vt-menu');
+    let menuOpen = false;
 
-    // Remove any existing listeners to avoid duplicates
-    video.removeEventListener('timeupdate', onTimeUpdate);
-    video.addEventListener('timeupdate', onTimeUpdate);
-}
+    // Update badge
+    const updateBadge = () => {
+        badge.textContent = selectedLanguage.split('-')[0].toUpperCase();
+    };
+    updateBadge();
 
-/**
- * Time update handler
- */
-function onTimeUpdate(e) {
-    const video = e.target;
-    if (translatedSubtitles && selectedLanguage !== 'off') {
-        updateCurrentSubtitle(video.currentTime * 1000);
-    }
-}
+    // Click on badge = show menu, click on button = translate
+    btn.addEventListener('click', (e) => {
+        const clickedBadge = e.target.closest('.vt-badge');
 
-/**
- * Update current subtitle based on video time
- */
-function updateCurrentSubtitle(currentTimeMs) {
-    if (!translatedSubtitles || !translatedSubtitles.subtitles) {
-        return;
-    }
-
-    const subtitleText = document.querySelector('.vt-subtitle-text');
-    if (!subtitleText) {
-        console.warn('[VideoTranslate] Subtitle text element not found');
-        return;
-    }
-
-    // Find current subtitle
-    const current = translatedSubtitles.subtitles.find(sub => {
-        const endMs = sub.startMs + sub.durationMs;
-        return currentTimeMs >= sub.startMs && currentTimeMs < endMs;
+        if (clickedBadge) {
+            // Clicked on badge - toggle menu
+            e.stopPropagation();
+            menuOpen = !menuOpen;
+            menu.classList.toggle('show', menuOpen);
+        } else if (!menuOpen) {
+            // Clicked on button (not badge) and menu closed - translate
+            translateVideo(selectedLanguage);
+        } else {
+            // Menu was open, close it
+            menuOpen = false;
+            menu.classList.remove('show');
+        }
     });
 
-    if (current) {
-        const text = current.translatedText || current.text;
-        subtitleText.textContent = text;
-        subtitleText.style.display = 'inline-block';
-        subtitleText.parentElement.style.display = 'block';
-    } else {
-        subtitleText.style.display = 'none';
+    // Menu item click
+    menu.querySelectorAll('.vt-menu-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            selectedLanguage = item.dataset.lang;
+            updateBadge();
+            menuOpen = false;
+            menu.classList.remove('show');
+            translateVideo(selectedLanguage);
+        });
+    });
+
+    // Close menu on outside click
+    document.addEventListener('click', (e) => {
+        if (!container.contains(e.target)) {
+            menuOpen = false;
+            menu.classList.remove('show');
+        }
+    });
+
+    addStyles();
+    setupSync();
+}
+
+/**
+ * Translate video subtitles
+ */
+async function translateVideo(targetLang) {
+    if (isProcessing) {
+        updateStatus('Processing...', 'loading');
+        return;
+    }
+
+    isProcessing = true;
+    updateStatus('Translating...', 'loading');
+
+    try {
+        let result;
+
+        if (userTier === 'tier3') {
+            // Tier 3: Single combined call (subtitle fetch + translate on server)
+            result = await sendMessage({
+                action: 'process',
+                videoId: currentVideoId,
+                targetLanguage: targetLang
+            });
+        } else {
+            // Tier 1/2: Subtitles already fetched, translate via direct LLM
+            if (!sourceSubtitles || sourceSubtitles.length === 0) {
+                throw new Error('No subtitles available');
+            }
+
+            result = await sendMessage({
+                action: 'translate',
+                videoId: currentVideoId,
+                subtitles: sourceSubtitles,
+                sourceLanguage: 'auto',
+                targetLanguage: targetLang
+            });
+        }
+
+        if (result.error) throw new Error(result.error);
+
+        translatedSubtitles = result.translations;
+        console.log('[VideoTranslate] Received translations:', translatedSubtitles?.length, 'items');
+        console.log('[VideoTranslate] First subtitle:', JSON.stringify(translatedSubtitles?.[0]));
+        console.log('[VideoTranslate] Has translatedText:', !!translatedSubtitles?.[0]?.translatedText);
+
+        if (!translatedSubtitles || translatedSubtitles.length === 0) {
+            throw new Error('No translations received');
+        }
+
+        updateStatus(result.cached ? 'Cached ✓' : 'Done ✓', 'success');
+        showOverlay();
+        setupSync(); // Re-setup sync to ensure listener is attached
+
+    } catch (error) {
+        console.error('[VideoTranslate] Translation failed:', error);
+        updateStatus('Failed', 'error');
+    } finally {
+        isProcessing = false;
     }
 }
 
 /**
- * Show subtitles
+ * Update status display - shows in overlay panel on video
  */
-function showSubtitles() {
-    console.log('[VideoTranslate] Showing subtitles, count:', translatedSubtitles?.subtitles?.length || 0);
+function updateStatus(text, type = '', percent = null, detail = '') {
+    const panel = document.querySelector('.vt-status-panel');
+    const textEl = panel?.querySelector('.vt-status-text');
+    const progressBar = panel?.querySelector('.vt-progress-bar');
+    const progressFill = panel?.querySelector('.vt-progress-fill');
+    const detailEl = panel?.querySelector('.vt-status-detail');
 
-    // Make sure overlay exists
-    let overlay = document.querySelector('.vt-subtitle-overlay');
+    if (panel && textEl) {
+        textEl.textContent = text;
+        panel.className = 'vt-status-panel ' + type;
+
+        // Update progress bar
+        if (progressBar && progressFill) {
+            if (percent !== null && percent > 0) {
+                progressBar.style.display = 'block';
+                progressFill.style.width = `${percent}%`;
+            } else {
+                progressBar.style.display = 'none';
+            }
+        }
+
+        // Update detail text (ETA, percentage)
+        if (detailEl) {
+            if (percent !== null && type === 'loading') {
+                detailEl.textContent = detail || `${percent}%`;
+                detailEl.style.display = 'block';
+            } else {
+                detailEl.style.display = 'none';
+            }
+        }
+
+        // Show panel for loading/error, hide on success after delay
+        if (type === 'loading' || type === 'error') {
+            panel.style.display = 'block';
+        } else if (type === 'success') {
+            panel.style.display = 'block';
+            if (progressBar) progressBar.style.display = 'none';
+            if (detailEl) detailEl.style.display = 'none';
+            setTimeout(() => {
+                if (panel.classList.contains('success')) {
+                    panel.style.display = 'none';
+                }
+            }, 2000);
+        }
+    }
+}
+
+/**
+ * Show subtitle overlay
+ */
+function showOverlay() {
+    let overlay = document.querySelector('.vt-overlay');
     if (!overlay) {
-        console.log('[VideoTranslate] Creating subtitle overlay');
-        injectSubtitleOverlay();
-        overlay = document.querySelector('.vt-subtitle-overlay');
-    }
+        const player = document.querySelector('.html5-video-player');
+        if (!player) return;
 
-    if (overlay) {
-        overlay.style.display = 'block';
-        overlay.style.visibility = 'visible';
-        console.log('[VideoTranslate] Overlay visible');
+        overlay = document.createElement('div');
+        overlay.className = 'vt-overlay';
+        overlay.innerHTML = '<span class="vt-text"></span>';
+        player.appendChild(overlay);
     }
-
-    // Re-setup sync in case it wasn't done
-    setupSubtitleSync();
-
-    // Close dropdown
-    const dropdown = document.querySelector('.vt-dropdown');
-    if (dropdown) {
-        dropdown.style.display = 'none';
-    }
-
-    // Trigger an immediate subtitle check
-    const video = document.querySelector('video');
-    if (video && translatedSubtitles) {
-        updateCurrentSubtitle(video.currentTime * 1000);
-    }
+    overlay.style.display = 'block';
 }
 
 /**
- * Hide subtitles
+ * Setup video time sync
  */
-function hideSubtitles() {
-    const overlay = document.querySelector('.vt-subtitle-overlay');
-    if (overlay) {
-        overlay.style.display = 'none';
+function setupSync() {
+    const video = document.querySelector('video');
+    if (!video) return;
+
+    // Remove existing listener if any
+    if (video._vtSyncHandler) {
+        video.removeEventListener('timeupdate', video._vtSyncHandler);
     }
 
-    // Close dropdown
-    const dropdown = document.querySelector('.vt-dropdown');
-    if (dropdown) {
-        dropdown.style.display = 'none';
-    }
+    video._vtSyncHandler = () => {
+        if (!translatedSubtitles?.length) return;
+
+        const time = video.currentTime * 1000;
+        const sub = translatedSubtitles.find(s => time >= s.start && time <= s.end);
+
+        const textEl = document.querySelector('.vt-text');
+        if (textEl && sub) {
+            // Use translatedText, fallback to original if empty
+            const displayText = sub.translatedText || sub.text;
+            textEl.textContent = displayText || '';
+        } else if (textEl) {
+            textEl.textContent = '';
+        }
+    };
+
+    video.addEventListener('timeupdate', video._vtSyncHandler);
+}
+
+/**
+ * Get subtitle style values based on settings
+ */
+function getSubtitleStyleValues() {
+    // Font sizes
+    const sizes = {
+        small: '16px',
+        medium: '20px',
+        large: '24px',
+        xlarge: '28px',
+    };
+
+    // Background styles
+    const backgrounds = {
+        dark: 'rgba(0,0,0,0.85)',
+        darker: 'rgba(0,0,0,0.95)',
+        transparent: 'rgba(0,0,0,0.5)',
+        none: 'transparent',
+    };
+
+    // Text colors
+    const colors = {
+        white: '#fff',
+        yellow: '#ffeb3b',
+        cyan: '#00bcd4',
+    };
+
+    // Position (bottom or top)
+    const positions = {
+        bottom: { bottom: '70px', top: 'auto' },
+        top: { bottom: 'auto', top: '70px' },
+    };
+
+    return {
+        fontSize: sizes[subtitleSettings.size] || sizes.medium,
+        background: backgrounds[subtitleSettings.background] || backgrounds.dark,
+        color: colors[subtitleSettings.color] || colors.white,
+        position: positions[subtitleSettings.position] || positions.bottom,
+    };
+}
+
+/**
+ * Add styles
+ */
+function addStyles() {
+    // Remove existing styles to apply new settings
+    document.querySelector('#vt-styles')?.remove();
+
+    const styleValues = getSubtitleStyleValues();
+
+    const style = document.createElement('style');
+    style.id = 'vt-styles';
+    style.textContent = `
+        .vt-container {
+            position: relative !important;
+            display: flex !important;
+            align-items: center !important;
+            margin-right: 6px !important;
+        }
+        .vt-btn {
+            position: relative !important;
+            opacity: 0.9 !important;
+        }
+        .vt-btn:hover {
+            opacity: 1 !important;
+        }
+        .vt-badge {
+            position: absolute !important;
+            bottom: 4px !important;
+            right: 4px !important;
+            background: #fff !important;
+            color: #000 !important;
+            font-size: 9px !important;
+            font-weight: bold !important;
+            padding: 1px 3px !important;
+            border-radius: 2px !important;
+            line-height: 1 !important;
+        }
+        .vt-menu {
+            display: none;
+            position: absolute !important;
+            bottom: 100% !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            background: rgba(28,28,28,0.95) !important;
+            border-radius: 3px !important;
+            padding: 3px 0 !important;
+            margin-bottom: 4px !important;
+            min-width: 110px !important;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4) !important;
+            z-index: 9999 !important;
+        }
+        .vt-menu.show {
+            display: block !important;
+        }
+        .vt-menu-item {
+            padding: 3px 10px !important;
+            color: #fff !important;
+            font-size: 14px !important;
+            line-height: 1.3 !important;
+            cursor: pointer !important;
+            white-space: nowrap !important;
+        }
+        .vt-menu-item:hover {
+            background: rgba(255,255,255,0.15) !important;
+        }
+        .vt-status-panel {
+            position: absolute !important;
+            top: 12px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            z-index: 60 !important;
+            pointer-events: none !important;
+        }
+        .vt-status-content {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            background: rgba(0,0,0,0.9) !important;
+            padding: 10px 20px !important;
+            border-radius: 6px !important;
+            min-width: 200px !important;
+        }
+        .vt-status-text {
+            color: #fff !important;
+            font-size: 13px !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            margin-bottom: 6px !important;
+        }
+        .vt-progress-bar {
+            width: 100% !important;
+            height: 4px !important;
+            background: rgba(255,255,255,0.2) !important;
+            border-radius: 2px !important;
+            overflow: hidden !important;
+            display: none;
+        }
+        .vt-progress-fill {
+            height: 100% !important;
+            background: linear-gradient(90deg, #4caf50, #8bc34a) !important;
+            border-radius: 2px !important;
+            transition: width 0.3s ease !important;
+            width: 0%;
+        }
+        .vt-status-detail {
+            color: rgba(255,255,255,0.7) !important;
+            font-size: 11px !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            margin-top: 6px !important;
+            display: none;
+        }
+        .vt-status-panel.loading .vt-status-text {
+            color: #ffc107 !important;
+        }
+        .vt-status-panel.loading .vt-progress-fill {
+            background: linear-gradient(90deg, #ffc107, #ffeb3b) !important;
+        }
+        .vt-status-panel.success .vt-status-text {
+            color: #4caf50 !important;
+        }
+        .vt-status-panel.error .vt-status-text {
+            color: #f44336 !important;
+        }
+        .vt-overlay {
+            position: absolute !important;
+            ${styleValues.position.bottom !== 'auto' ? `bottom: ${styleValues.position.bottom}` : `top: ${styleValues.position.top}`} !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            max-width: 80% !important;
+            text-align: center !important;
+            z-index: 60 !important;
+            pointer-events: none !important;
+        }
+        .vt-text {
+            display: inline-block !important;
+            background: ${styleValues.background} !important;
+            color: ${styleValues.color} !important;
+            padding: 8px 16px !important;
+            border-radius: 4px !important;
+            font-size: ${styleValues.fontSize} !important;
+            line-height: 1.4 !important;
+            text-shadow: ${subtitleSettings.background === 'none' ? '1px 1px 2px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.8)' : 'none'} !important;
+        }
+    `;
+    document.head.appendChild(style);
 }
 
 /**
  * Send message to background script
  */
-function sendMessage(message) {
+function sendMessage(msg) {
     return new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage(message, (response) => {
+        chrome.runtime.sendMessage(msg, (response) => {
             if (chrome.runtime.lastError) {
                 reject(new Error(chrome.runtime.lastError.message));
             } else {
@@ -982,185 +671,32 @@ function sendMessage(message) {
 }
 
 /**
- * Listen for messages from background script
+ * Listen for progress updates from background script
  */
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.action === 'translationProgress') {
-        updateStatus(`Translating... ${message.progress.percentage}%`, 'loading');
-    }
-});
+    if (message.action === 'progress') {
+        const { stage, message: msg, percent } = message;
 
-// Initialize when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-} else {
-    init();
-}
-
-/**
- * Fetch subtitles using YouTube's Internal Transcript API (Innertube)
- */
-async function fetchTranscriptApi(videoId) {
-    try {
-        console.log('[VideoTranslate] Attempting to fetch via Transcript API...');
-        let apiKey = null;
-        let clientDetails = null;
-
-        try {
-            if (typeof window.ytcfg !== 'undefined' && window.ytcfg.data_) {
-                apiKey = window.ytcfg.data_.INNERTUBE_API_KEY;
-                clientDetails = window.ytcfg.data_.INNERTUBE_CONTEXT;
-            } else if (document.body.innerHTML.includes('INNERTUBE_API_KEY')) {
-                const keyMatch = document.body.innerHTML.match(/"INNERTUBE_API_KEY":"(.+?)"/);
-                if (keyMatch) apiKey = keyMatch[1];
-                const contextMatch = document.body.innerHTML.match(/"INNERTUBE_CONTEXT":({.+?})/);
-                if (contextMatch) { try { clientDetails = JSON.parse(contextMatch[1]); } catch (e) { } }
-            }
-        } catch (e) { console.warn('Context extraction error', e); }
-
-        if (!apiKey) return null;
-
-        const context = clientDetails || {
-            client: { hl: 'en', gl: 'US', clientName: 'WEB', clientVersion: '2.20230920.01.00' }
+        // Map stages to status types
+        const stageTypes = {
+            'checking': 'loading',
+            'downloading': 'loading',
+            'whisper': 'loading',
+            'translating': 'loading',
+            'complete': 'success',
         };
 
-        const response = await fetch(`https://www.youtube.com/youtubei/v1/get_transcript?key=${apiKey}`, {
-            method: 'POST',
-            body: JSON.stringify({ context, params: '', videoId })
-        });
-
-        if (!response.ok) return null;
-        const data = await response.json();
-        const segments = findValuesByKey(data, 'transcriptSegmentRenderer');
-
-        const subtitles = [];
-        for (const segment of segments) {
-            if (segment.startTimeText && segment.snippet) {
-                const startMs = parseTimeText(segment.startTimeText.simpleText);
-                const text = segment.snippet.runs.map(r => r.text).join(' ');
-                subtitles.push({ startMs, durationMs: 0, text: text.trim() });
-            }
+        // Build detail string with percentage
+        let detail = '';
+        if (percent !== undefined && percent !== null) {
+            detail = `${percent}%`;
         }
 
-        for (let i = 0; i < subtitles.length; i++) {
-            subtitles[i].durationMs = (i < subtitles.length - 1) ? subtitles[i + 1].startMs - subtitles[i].startMs : 3000;
-        }
-
-        if (subtitles.length > 0) {
-            console.log('[VideoTranslate] Successfully parsed', subtitles.length, 'lines from Transcript API');
-            return subtitles;
-        }
-    } catch (e) { console.warn('[VideoTranslate] Transcript API error:', e.message); }
-    return null;
-}
-
-function findValuesByKey(obj, key) {
-    let list = [];
-    if (!obj) return list;
-    if (obj instanceof Array) {
-        for (var i in obj) { list = list.concat(findValuesByKey(obj[i], key)); }
-        return list;
+        updateStatus(msg, stageTypes[stage] || 'loading', percent, detail);
+        sendResponse({ received: true });
     }
-    if (obj[key]) list.push(obj[key]);
-    if ((typeof obj == "object") && (obj !== null)) {
-        for (var child in obj) { list = list.concat(findValuesByKey(obj[child], key)); }
-    }
-    return list;
-}
+    return true;
+});
 
-function parseTimeText(timeStr) {
-    if (!timeStr) return 0;
-    const parts = timeStr.split(':').map(Number);
-    if (parts.length === 2) return (parts[0] * 60 + parts[1]) * 1000;
-    if (parts.length === 3) return (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000;
-    return 0;
-}
-
-/**
- * Fallback: Fetch subtitles via Invidious API
- * Used when direct YouTube access is blocked
- */
-async function fetchSubtitlesViaInvidious(videoId) {
-    const instances = [
-        'https://inv.tux.pizza',
-        'https://yewtu.be',
-        'https://vid.puffyan.us',
-        'https://invidious.projectsegfau.lt'
-    ];
-
-    for (const instance of instances) {
-        try {
-            console.log(`[VideoTranslate] Trying Invidious instance: ${instance}`);
-            // Get caption metadata first
-            const metaResponse = await fetch(`${instance}/api/v1/captions/${videoId}`);
-            if (!metaResponse.ok) continue;
-
-            const captions = await metaResponse.json();
-            if (!captions || captions.length === 0) continue;
-
-            // Prefer English, then auto-generated, then first available
-            let track = captions.find(c => c.languageCode === 'en' && !c.autoGenerated);
-            if (!track) track = captions.find(c => c.languageCode === 'en');
-            if (!track) track = captions[0];
-
-            if (track) {
-                console.log(`[VideoTranslate] Found track on Invidious: ${track.label} (${track.languageCode})`);
-
-                const subtitleUrl = track.url.startsWith('http') ? track.url : `${instance}${track.url}`;
-
-                const subResponse = await fetch(subtitleUrl);
-                if (!subResponse.ok) continue;
-
-                const text = await subResponse.text();
-                // Invidious returns WebVTT usually
-                const subtitles = parseWebVTT(text);
-                if (subtitles.length > 0) return subtitles;
-            }
-        } catch (e) {
-            console.warn(`[VideoTranslate] Invidious instance ${instance} failed:`, e.message);
-        }
-    }
-    return null;
-}
-
-function parseWebVTT(vttText) {
-    const lines = vttText.split('\n');
-    const subtitles = [];
-    let currentSub = null;
-
-    // Simple parser
-    for (let line of lines) {
-        line = line.trim();
-        if (!line || line === 'WEBVTT') continue;
-        if (line.includes('-->')) {
-            const times = line.split('-->');
-            if (times.length === 2) {
-                currentSub = {
-                    startMs: parseVTTTime(times[0].trim()),
-                    durationMs: parseVTTTime(times[1].trim()) - parseVTTTime(times[0].trim()),
-                    text: ''
-                };
-                subtitles.push(currentSub);
-            }
-        } else if (currentSub) {
-            // Skip sequence numbers if pure digits
-            if (/^\d+$/.test(line)) continue;
-            currentSub.text = currentSub.text ? currentSub.text + ' ' + line : line;
-        }
-    }
-    return subtitles;
-}
-
-function parseVTTTime(timeStr) {
-    // 00:00:01.500 or 01:500
-    const parts = timeStr.split('.');
-    const ms = parts[1] ? parseInt(parts[1]) : 0;
-    const timeParts = parts[0].split(':').map(Number);
-    let seconds = 0;
-    if (timeParts.length === 3) {
-        seconds = timeParts[0] * 3600 + timeParts[1] * 60 + timeParts[2];
-    } else if (timeParts.length === 2) {
-        seconds = timeParts[0] * 60 + timeParts[1];
-    }
-    return seconds * 1000 + ms;
-}
+// Initialize
+init();

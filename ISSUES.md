@@ -1,53 +1,68 @@
-# Issues & TODO
+# Video Translate Issues
 
-## Open Issues
+## Resolved ✅
 
-### #1 - Subtitle fetch blocked by adblockers (CRITICAL)
-**Status**: Known Issue  
-**Severity**: High - Extension will not work without fix
+### Storage Keys Not Loading (Critical)
+- **Issue**: `getConfig()` in service-worker.js wasn't including all storage keys in the `get()` call
+- **Fix**: Changed to use `Object.values(STORAGE_KEYS)` to always get all keys
+- **Impact**: Tier and Provider settings are now properly saved and restored
 
-**Description**: Adblockers like uBlock Origin, AdGuard, etc. interfere with YouTube's timedtext API, causing subtitle extraction to fail with "Empty subtitle response" or "No subtitle content found".
+### Tier Not Being Passed to Backend
+- **Issue**: `fetchSubtitlesFromBackend()` was called without tier option in fallback paths
+- **Fix**: Updated all call sites to pass `{ tier: userTier }` option
 
-**Symptoms**:
-- Status shows "Failed to load subtitles"
-- Console shows: `[VideoTranslate] Empty response, trying next URL`
-- All subtitle fetch attempts return empty responses
+### Dead Code in Service Worker
+- **Issue**: `callLLMAPI()` function threw an error saying it was deprecated
+- **Fix**: Removed all dead code and simplified to use `translateBatch()` directly
 
-**Solution - Add uBlock Exception**:
+### CSS Dark Theme Conflict
+- **Issue**: `.section` had `background: #fff` which conflicted with dark theme
+- **Fix**: Complete CSS rewrite with cohesive dark purple/indigo theme
 
-1. Click the **uBlock Origin icon** in your Chrome toolbar
-2. Click the **⚙️ Dashboard** (gear icon)
-3. Go to the **"My filters"** tab
-4. Add this line:
-   ```
-   @@||youtube.com/api/timedtext$xhr,domain=youtube.com
-   ```
-5. Click **"Apply changes"**
-6. **Refresh the YouTube page**
+### Duplicate Imports in Backend
+- **Issue**: `logging` module imported multiple times, `time` not imported at top
+- **Fix**: Cleaned up imports, added `time` import at module level
 
-**Alternative Solutions**:
-- Temporarily disable uBlock Origin for youtube.com
-- Use a browser profile without adblockers
-- Add exception in other adblockers (AdGuard: similar filter syntax)
+### Tier 3 Configuration Error Handling
+- **Issue**: Tier 3 silently failed if `SERVER_API_KEY` not set
+- **Fix**: Backend now returns clear error message when Tier 3 is not configured
 
-**Technical Details**:
-The timedtext API (`youtube.com/api/timedtext`) is where YouTube serves subtitle/caption data. Some adblocker filter lists classify this as a tracking endpoint and block or modify the response.
+### Complex Network Interception
+- **Issue**: CSP blocked inline script injection for network interception
+- **Fix**: Removed complex interception, rely entirely on backend (yt-dlp) which is more reliable
+
+## Known Limitations ⚠️
+
+### YouTube Rate Limiting
+- **Issue**: YouTube sometimes returns 429 (Too Many Requests) for subtitle URLs
+- **Mitigation**: Backend retries up to 3 times with exponential backoff
+- **Workaround**: Wait a few seconds and try again, or results will be cached
+
+### Whisper Transcription Time
+- **Issue**: First-time Whisper transcription can take 2-5 minutes for long videos
+- **Mitigation**: Results are cached after first transcription
+
+### Tier 3 Requires Server Configuration
+- **Issue**: Tier 3 (managed service) requires `SERVER_API_KEY` environment variable
+- **Info**: If not set, users on Tier 3 will see an error asking them to use their own key
+
+### Subtitle Style Customization
+- **Issue**: Users needed control over subtitle appearance
+- **Fix**: Added full customization support for Font Size, Position, Background opacity, and Text Color in the popup UI
+
+## Future Enhancements 🔮
+
+### User Authentication
+- Implement user accounts for proper tier management
+- JWT-based auth between extension and backend
+
+### Streaming Translation
+- Stream translations as they're generated
+- Show incremental progress in UI
+
+### Multiple Video Platform Support
+- Add support for Twitch, Vimeo, other video platforms
+- Abstract video detection and UI injection
 
 ---
-
-## Planned Features
-
-- [ ] Alternative subtitle extraction that doesn't require API calls
-- [ ] Better detection of adblocker interference
-- [ ] User-friendly error messages with solution links
-
----
-
-## Completed
-
-_No completed issues yet_
-
-## Notes
-
-- Track bugs and feature requests here
-- Reference commit hashes when resolving issues
+*Last updated: 2025-12-31*

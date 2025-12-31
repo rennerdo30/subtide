@@ -1,173 +1,241 @@
-# Video Translate - Chrome Extension
+# Video Translate - Specification
 
 ## Overview
-A Chrome extension that translates video subtitles using any OpenAI-compatible LLM API. Initially supports YouTube with plans for expansion.
+A Chrome extension + Python backend that translates YouTube video subtitles in real-time using LLM APIs.
 
-## Features
-
-### Core Features
-- **Subtitle Extraction**: Extract existing YouTube captions (auto-generated or uploaded)
-- **Batch Translation**: Pre-translate entire subtitle track before video playback
-- **Native Subtitle Display**: Show translated subtitles in YouTube's native style
-- **In-Player Language Selector**: Select target language directly in the video player
-- **Caching**: Store translations locally to avoid re-translating
-
-### Configuration
-Minimal configuration required:
-- **API URL**: OpenAI-compatible API endpoint (e.g., `https://api.openai.com/v1`, Ollama, etc.)
-- **API Key**: Authentication key for the API
-- **Model**: Model identifier (e.g., `gpt-4o-mini`, `llama3.2`, etc.)
-
-## Technical Architecture
+## Architecture
 
 ### Components
+1. **Chrome Extension** (Frontend)
+   - Popup UI for configuration
+   - Content script for YouTube integration
+   - Background service worker for API communication
 
+2. **Python Backend** (Flask)
+   - Subtitle fetching via yt-dlp
+   - Whisper transcription (optional)
+   - Translation via LLM APIs (Tier 3 only)
+   - Caching layer
+
+### Service Tiers
+
+| Feature | Tier 1 (Free) | Tier 2 (Basic) | Tier 3 (Pro) |
+|---------|---------------|----------------|--------------|
+| YouTube Subtitles | ✅ | ✅ | ✅ |
+| Whisper Transcription | ❌ | ✅ | ✅ |
+| Force AI Generation | ❌ | ✅ | ✅ |
+| LLM Translation | ✅ (Own Key) | ✅ (Own Key) | ✅ (Managed) |
+| API Key Required | Yes | Yes | No |
+
+### Security Model
+
+**IMPORTANT**: User API keys NEVER leave the extension for Tier 1 & 2.
+
+- **Tier 1 & 2**:
+  - Backend only fetches subtitles (no API key sent)
+  - Extension makes direct LLM API calls (API key stays local)
+  - User's API key is stored in `chrome.storage.local`
+
+- **Tier 3**:
+  - Single backend call handles everything
+  - Server uses its own managed API key
+  - No user API key needed
+
+## Extension Features
+
+### Popup Settings
+- **Service Tier Selection**: Choose between Free, Basic, or Pro tiers
+- **Provider Selection**: OpenAI, OpenRouter, or Custom endpoint
+- **API Configuration**: URL, Key, Model
+- **Force AI Generation**: Use Whisper instead of YouTube captions
+- **Default Language**: Target translation language
+- **Cache Management**: View and clear translation cache
+
+### YouTube Integration
+- Translate button injected into player controls
+- Language selector dropdown
+- Real-time subtitle overlay
+- Network interception for caption data
+
+## Backend API
+
+### Endpoints
+
+#### `GET /health`
+Health check endpoint.
+
+**Response:**
+```json
+{
+  "status": "ok",
+  "service": "video-translate-backend",
+  "features": {
+    "whisper": true,
+    "tier3": false
+  }
+}
 ```
-video-translate/
-├── manifest.json          # Chrome extension manifest (v3)
-├── src/
-│   ├── background/
-│   │   └── service-worker.js    # Background service worker
-│   ├── content/
-│   │   ├── youtube.js           # YouTube content script
-│   │   ├── subtitle-extractor.js # Extract subtitles from YouTube
-│   │   ├── subtitle-display.js   # Display translated subtitles
-│   │   └── language-selector.js  # In-player language selector UI
-│   ├── popup/
-│   │   ├── popup.html           # Extension popup UI
-│   │   ├── popup.css            # Popup styles
-│   │   └── popup.js             # Popup logic
-│   └── lib/
-│       ├── translator.js        # LLM translation logic
-│       ├── cache.js             # Translation caching
-│       └── storage.js           # Chrome storage helpers
-├── icons/
-│   ├── icon16.png
-│   ├── icon48.png
-│   └── icon128.png
-├── SPECIFICATION.md
-├── ISSUES.md
-└── README.md
-```
 
-### Workflow
+---
 
-1. **Video Load Detection**
-   - Content script detects YouTube video page
-   - Extracts video ID from URL
+#### `GET /api/subtitles`
+Fetch YouTube subtitles via yt-dlp. Used by **all tiers**.
 
-2. **Subtitle Extraction**
-   - Fetch available caption tracks from YouTube
-   - Parse subtitle data (timing + text)
+**Parameters:**
+- `video_id` (required): YouTube video ID
+- `tier` (required): User tier (tier1, tier2, tier3)
+- `lang` (optional): Language code (default: "en")
 
-3. **Translation**
-   - Check cache for existing translation
-   - If not cached, send subtitle text to LLM API in batches
-   - Store translated subtitles in cache
-
-4. **Display**
-   - Inject language selector into YouTube player controls
-   - When language selected, display translated subtitles
-   - Sync translations with video playback time
-
-### YouTube Subtitle Extraction
-
-YouTube provides subtitles through the `timedtext` API. We can extract:
-- Auto-generated captions
-- Uploaded captions in various languages
-
-The subtitle data format:
+**Response:** JSON3 subtitle format
 ```json
 {
   "events": [
     {
-      "tStartMs": 1000,
-      "dDurationMs": 2000,
-      "segs": [{ "utf8": "Hello world" }]
+      "tStartMs": 0,
+      "dDurationMs": 3000,
+      "segs": [{"utf8": "Hello world"}]
     }
   ]
 }
 ```
 
-### Translation Strategy
+**Security**: No API key required. Only fetches publicly available captions.
 
-**Batch Processing**:
-- Group subtitles into contextual chunks (e.g., 10-20 lines)
-- Send to LLM with context about previous/next segments
-- Preserve timing information
+---
 
-**Prompt Template**:
+#### `GET /api/transcribe`
+Generate subtitles using Whisper. Used by **Tier 2 & 3**.
+
+**Parameters:**
+- `video_id` (required): YouTube video ID
+- `tier` (required): User tier (tier2, tier3)
+
+**Response:** Whisper transcription result
+```json
+{
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 3.5,
+      "text": "Hello world"
+    }
+  ]
+}
 ```
-Translate the following subtitles from {source_language} to {target_language}.
-Maintain the original meaning and tone. Keep translations concise for subtitle display.
-Return ONLY the translations, one per line, matching the input order.
 
-Subtitles:
-1. [original text 1]
-2. [original text 2]
-...
+**Restrictions:** Tier 2+ only. Returns 403 for Tier 1.
+
+**Security**: No API key required. Uses server-side Whisper model.
+
+---
+
+#### `POST /api/process`
+Combined subtitle fetch + translation. Used by **Tier 3 only**.
+
+Single endpoint that fetches subtitles (or generates via Whisper) and translates them in one call. Server uses its own managed API key.
+
+**Body:**
+```json
+{
+  "video_id": "dQw4w9WgXcQ",
+  "target_lang": "ja",
+  "force_whisper": false
+}
 ```
 
-### Caching Strategy
+**Response:**
+```json
+{
+  "subtitles": [
+    {
+      "start": 0,
+      "end": 3000,
+      "text": "Hello world",
+      "translatedText": "こんにちは世界"
+    }
+  ],
+  "cached": false
+}
+```
 
-Cache key: `{videoId}_{sourceLanguage}_{targetLanguage}_{modelHash}`
+**Restrictions:** Tier 3 only. Returns 403 for other tiers.
 
-Storage: Chrome's `chrome.storage.local` (10MB limit)
-- LRU eviction for old translations
-- Store translation timestamp for freshness
+**Security**: No user API key sent. Server uses `SERVER_API_KEY` environment variable.
 
-## User Interface
+---
 
-### Extension Popup
-- API URL input field
-- API Key input field (masked)
-- Model name input field
-- Default target language dropdown
-- Status indicator (configured/not configured)
-- Clear cache button
+### Deprecated Endpoints
 
-### In-Player Language Selector
-- Dropdown button in YouTube player controls (near settings gear)
-- Lists available target languages
-- Shows translation status (loading/ready/error)
-- Option to disable/enable translated subtitles
+#### `POST /api/translate` *(DEPRECATED)*
+**DO NOT USE** - This endpoint previously accepted user API keys which is a security risk.
+
+Tier 1 & 2 now call LLM APIs directly from the extension.
+Tier 3 should use `/api/process` instead.
+
+## Configuration
+
+### Environment Variables (Backend)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ENABLE_WHISPER` | Enable Whisper transcription | `true` |
+| `SERVER_API_KEY` | API key for Tier 3 managed translation | - |
+| `SERVER_MODEL` | Default model for Tier 3 | `gpt-3.5-turbo` |
+| `SERVER_API_URL` | Custom API URL for Tier 3 | - |
+
+### Extension Storage
+
+| Key | Description |
+|-----|-------------|
+| `apiUrl` | LLM API endpoint |
+| `apiKey` | User's API key |
+| `provider` | Provider selection (openai/openrouter/custom) |
+| `model` | Model identifier |
+| `tier` | Service tier |
+| `forceGen` | Force Whisper generation |
+| `defaultLanguage` | Default target language |
 
 ## Supported Languages
 
-Initial target languages:
-- English (en)
-- Japanese (ja)
-- Korean (ko)
-- Chinese Simplified (zh-CN)
-- Chinese Traditional (zh-TW)
-- Spanish (es)
-- French (fr)
-- German (de)
-- Portuguese (pt)
-- Russian (ru)
-- Arabic (ar)
-- Hindi (hi)
+- 🇬🇧 English (en)
+- 🇯🇵 Japanese (ja)
+- 🇰🇷 Korean (ko)
+- 🇨🇳 Chinese Simplified (zh-CN)
+- 🇹🇼 Chinese Traditional (zh-TW)
+- 🇪🇸 Spanish (es)
+- 🇫🇷 French (fr)
+- 🇩🇪 German (de)
+- 🇵🇹 Portuguese (pt)
+- 🇷🇺 Russian (ru)
+- 🇸🇦 Arabic (ar)
+- 🇮🇳 Hindi (hi)
 
-## Future Enhancements
+## Deployment
 
-- [ ] Support for other video platforms (Twitch, Netflix, etc.)
-- [ ] Dual subtitle mode (original + translated)
-- [ ] Subtitle style customization
-- [ ] Translation quality options
-- [ ] Offline translation with local models
-- [ ] Export translated subtitles (SRT/VTT)
+### Docker
+```bash
+# Tier 1 (No Whisper)
+docker-compose up video-translate-tier1
 
-## Privacy & Security
+# Tier 2 (Whisper enabled)
+docker-compose up video-translate-tier2
 
-- API keys stored locally in Chrome storage
-- No data sent to external servers except chosen LLM API
-- All translations cached locally
-- No analytics or tracking
+# Tier 3 (Managed translation)
+SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
+```
 
-## Version History
+### Local Development
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+python app.py
+```
 
-### v1.0.0 (Initial Release)
-- YouTube support
-- OpenAI-compatible API translation
-- In-player language selector
-- Local caching
+## Technology Stack
+
+- **Frontend**: Chrome Extension (Manifest V3), Vanilla JS
+- **Backend**: Python 3.9+, Flask, Gunicorn
+- **AI**: OpenAI Whisper, OpenAI/OpenRouter APIs
+- **Tools**: yt-dlp, Docker

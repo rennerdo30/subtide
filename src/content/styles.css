@@ -38,35 +38,43 @@
   position: absolute;
   bottom: 100%;
   right: 0;
-  width: 200px;
-  max-height: 400px;
+  width: 160px;
+  /* Reduced from 200px */
+  max-height: 300px;
   background: rgba(28, 28, 28, 0.95);
-  border-radius: 8px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  border-radius: 6px;
+  /* Slightly tighter radius */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
   overflow: hidden;
   z-index: 9999;
-  margin-bottom: 10px;
+  margin-bottom: 8px;
+  font-size: 12px;
+  /* Base font size */
 }
 
 .vt-dropdown-header {
-  padding: 12px 16px;
-  font-size: 13px;
+  padding: 4px 8px;
+  /* Extremely compact */
+  font-size: 10px;
   font-weight: 600;
-  color: #aaa;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: #666;
+  /* More subtle */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  line-height: 1.2;
 }
 
 .vt-language-list {
-  max-height: 280px;
+  max-height: 220px;
+  /* Reduced height */
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
 }
 
 .vt-language-list::-webkit-scrollbar {
-  width: 6px;
+  width: 4px;
 }
 
 .vt-language-list::-webkit-scrollbar-track {
@@ -74,58 +82,67 @@
 }
 
 .vt-language-list::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.3);
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
 }
 
 /* Language item */
 .vt-language-item {
   display: flex;
   align-items: center;
-  padding: 10px 16px;
+  padding: 6px 10px;
+  /* Tighter padding */
   cursor: pointer;
-  transition: background 0.15s;
-  color: #fff;
-  font-size: 14px;
+  transition: background 0.1s;
+  color: #ddd;
+  font-size: 12px;
+  line-height: 1.2;
 }
 
 .vt-language-item:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
 }
 
 .vt-language-item.vt-selected {
-  background: rgba(62, 166, 255, 0.2);
+  background: rgba(62, 166, 255, 0.15);
+  color: #3ea6ff;
 }
 
 .vt-language-item.vt-selected::after {
   content: '✓';
   margin-left: auto;
   color: #3ea6ff;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .vt-flag {
-  margin-right: 10px;
-  font-size: 16px;
+  margin-right: 8px;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .vt-lang-name {
   flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .vt-lang-status {
-  font-size: 11px;
-  color: #888;
+  font-size: 10px;
+  color: #666;
 }
 
 /* Dropdown footer with status */
 .vt-dropdown-footer {
-  padding: 10px 16px;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .vt-status {
-  font-size: 12px;
+  font-size: 10px;
   color: #888;
   text-align: center;
 }

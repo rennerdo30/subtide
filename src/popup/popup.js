@@ -1,19 +1,40 @@
 /**
- * Popup Script
+ * Video Translate - Popup Script
  * Handles configuration UI and settings management
  */
 
-// DOM Elements
 const elements = {
     apiUrl: document.getElementById('apiUrl'),
     apiKey: document.getElementById('apiKey'),
+    provider: document.getElementById('provider'),
     model: document.getElementById('model'),
+    forceGen: document.getElementById('forceGen'),
     defaultLanguage: document.getElementById('defaultLanguage'),
     toggleApiKey: document.getElementById('toggleApiKey'),
     saveConfig: document.getElementById('saveConfig'),
     clearCache: document.getElementById('clearCache'),
     cacheCount: document.getElementById('cacheCount'),
-    statusBadge: document.getElementById('statusBadge'),
+    backendStatusBadge: document.getElementById('backendStatusBadge'),
+    backendWarning: document.getElementById('backendWarning'),
+    checkBackend: document.getElementById('checkBackend'),
+    tier: document.getElementById('tier'),
+    tierHint: document.getElementById('tierHint'),
+    apiConfigSection: document.getElementById('apiConfigSection'),
+    forceGenGroup: document.getElementById('forceGenGroup'),
+    apiUrlGroup: document.getElementById('apiUrlGroup'),
+    backendUrl: document.getElementById('backendUrl'),
+    // Subtitle appearance
+    subtitleSize: document.getElementById('subtitleSize'),
+    subtitlePosition: document.getElementById('subtitlePosition'),
+    subtitleBackground: document.getElementById('subtitleBackground'),
+    subtitleColor: document.getElementById('subtitleColor'),
+};
+
+// Tier descriptions
+const TIER_HINTS = {
+    tier1: 'Uses YouTube\'s auto-generated captions. Requires your own API key for translation.',
+    tier2: 'Uses Whisper AI for transcription. Requires your own API key.',
+    tier3: 'Fully managed service. No API key needed — we handle everything!',
 };
 
 /**
@@ -22,14 +43,56 @@ const elements = {
 async function init() {
     console.log('[VideoTranslate] Popup initialized');
 
-    // Load current configuration
+    // Load configuration
     await loadConfig();
+
+    // Check backend status
+    await checkBackendStatus();
 
     // Load cache stats
     await loadCacheStats();
 
     // Setup event listeners
     setupEventListeners();
+}
+
+/**
+ * Check Backend Status
+ */
+async function checkBackendStatus() {
+    const statusText = elements.backendStatusBadge.querySelector('.status-text');
+    const statusDot = elements.backendStatusBadge.querySelector('.status-dot');
+
+    statusText.textContent = 'Checking...';
+    statusDot.style.background = 'var(--text-muted)';
+    statusDot.style.boxShadow = 'none';
+    elements.backendWarning.style.display = 'none';
+
+    const backendUrl = elements.backendUrl?.value?.trim() || 'http://localhost:5001';
+
+    try {
+        const response = await fetch(`${backendUrl}/health`, {
+            method: 'GET',
+            signal: AbortSignal.timeout(5000)
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            if (data.status === 'ok') {
+                statusText.textContent = 'Connected';
+                statusDot.style.background = 'var(--success)';
+                statusDot.style.boxShadow = '0 0 8px var(--success)';
+                elements.backendWarning.style.display = 'none';
+                return;
+            }
+        }
+        throw new Error('Invalid response');
+    } catch (e) {
+        statusText.textContent = 'Offline';
+        statusDot.style.background = 'var(--error)';
+        statusDot.style.boxShadow = '0 0 8px var(--error)';
+        elements.backendWarning.style.display = 'flex';
+    }
 }
 
 /**
@@ -41,11 +104,23 @@ async function loadConfig() {
 
         elements.apiUrl.value = config.apiUrl || '';
         elements.apiKey.value = config.apiKey || '';
+        elements.provider.value = config.provider || 'openai';
         elements.model.value = config.model || '';
+        elements.forceGen.checked = config.forceGen || false;
         elements.defaultLanguage.value = config.defaultLanguage || 'en';
+        elements.tier.value = config.tier || 'tier1';
+        elements.backendUrl.value = config.backendUrl || 'http://localhost:5001';
 
-        // Update status badge
-        updateStatusBadge(config.apiUrl && config.apiKey && config.model);
+        // Subtitle appearance
+        elements.subtitleSize.value = config.subtitleSize || 'medium';
+        elements.subtitlePosition.value = config.subtitlePosition || 'bottom';
+        elements.subtitleBackground.value = config.subtitleBackground || 'dark';
+        elements.subtitleColor.value = config.subtitleColor || 'white';
+
+        // Apply tier-based UI
+        updateUIForTier(config.tier || 'tier1');
+        updateProviderUI(config.provider || 'openai');
+
     } catch (error) {
         console.error('[VideoTranslate] Failed to load config:', error);
     }
@@ -60,22 +135,7 @@ async function loadCacheStats() {
         elements.cacheCount.textContent = `${stats.entries} translation${stats.entries !== 1 ? 's' : ''} cached`;
     } catch (error) {
         console.error('[VideoTranslate] Failed to load cache stats:', error);
-        elements.cacheCount.textContent = '0 translations cached';
-    }
-}
-
-/**
- * Update status badge
- */
-function updateStatusBadge(isConfigured) {
-    const statusText = elements.statusBadge.querySelector('.status-text');
-
-    if (isConfigured) {
-        elements.statusBadge.classList.add('configured');
-        statusText.textContent = 'Configured';
-    } else {
-        elements.statusBadge.classList.remove('configured');
-        statusText.textContent = 'Not Configured';
+        elements.cacheCount.textContent = '0 cached';
     }
 }
 
@@ -89,12 +149,14 @@ function setupEventListeners() {
         const isPassword = input.type === 'password';
         input.type = isPassword ? 'text' : 'password';
 
-        // Toggle icons
         const iconEye = elements.toggleApiKey.querySelector('.icon-eye');
         const iconEyeOff = elements.toggleApiKey.querySelector('.icon-eye-off');
         iconEye.style.display = isPassword ? 'none' : 'block';
         iconEyeOff.style.display = isPassword ? 'block' : 'none';
     });
+
+    // Check backend
+    elements.checkBackend.addEventListener('click', checkBackendStatus);
 
     // Save configuration
     elements.saveConfig.addEventListener('click', saveConfiguration);
@@ -110,6 +172,72 @@ function setupEventListeners() {
             }
         });
     });
+
+    // Provider change
+    elements.provider.addEventListener('change', (e) => {
+        updateProviderUI(e.target.value);
+    });
+
+    // Tier change
+    elements.tier.addEventListener('change', (e) => {
+        updateUIForTier(e.target.value);
+    });
+}
+
+/**
+ * Update UI based on provider selection
+ */
+function updateProviderUI(provider) {
+    if (provider === 'openai') {
+        elements.apiUrl.value = 'https://api.openai.com/v1';
+        elements.apiUrlGroup.style.display = 'none';
+    } else if (provider === 'openrouter') {
+        elements.apiUrl.value = 'https://openrouter.ai/api/v1';
+        elements.apiUrlGroup.style.display = 'none';
+        if (!elements.model.value || !elements.model.value.includes('/')) {
+            elements.model.value = 'openai/gpt-4o-mini';
+        }
+    } else {
+        elements.apiUrlGroup.style.display = 'block';
+        elements.apiUrl.value = '';
+    }
+}
+
+/**
+ * Update UI based on tier selection
+ */
+function updateUIForTier(tier) {
+    // Update hint
+    elements.tierHint.textContent = TIER_HINTS[tier] || '';
+
+    if (tier === 'tier3') {
+        // Pro tier: Hide API config, it's managed
+        elements.apiConfigSection.classList.add('disabled-section');
+        elements.apiKey.disabled = true;
+        elements.apiUrl.disabled = true;
+        elements.model.disabled = true;
+        elements.provider.disabled = true;
+        elements.forceGen.disabled = false;
+    } else {
+        elements.apiConfigSection.classList.remove('disabled-section');
+        elements.apiKey.disabled = false;
+        elements.apiUrl.disabled = false;
+        elements.model.disabled = false;
+        elements.provider.disabled = false;
+
+        if (tier === 'tier1') {
+            // Free tier: No force gen
+            elements.forceGen.checked = false;
+            elements.forceGen.disabled = true;
+            elements.forceGenGroup.style.opacity = '0.5';
+            elements.forceGenGroup.title = 'Requires Tier 2 or higher';
+        } else {
+            // Basic tier
+            elements.forceGen.disabled = false;
+            elements.forceGenGroup.style.opacity = '1';
+            elements.forceGenGroup.title = '';
+        }
+    }
 }
 
 /**
@@ -129,8 +257,17 @@ async function saveConfiguration() {
         const config = {
             apiUrl: elements.apiUrl.value.trim(),
             apiKey: elements.apiKey.value.trim(),
+            provider: elements.provider.value,
             model: elements.model.value.trim(),
+            forceGen: elements.forceGen.checked,
             defaultLanguage: elements.defaultLanguage.value,
+            tier: elements.tier.value,
+            backendUrl: elements.backendUrl.value.trim() || 'http://localhost:5001',
+            // Subtitle appearance
+            subtitleSize: elements.subtitleSize.value,
+            subtitlePosition: elements.subtitlePosition.value,
+            subtitleBackground: elements.subtitleBackground.value,
+            subtitleColor: elements.subtitleColor.value,
         };
 
         await sendMessage({ action: 'saveConfig', config });
@@ -139,10 +276,7 @@ async function saveConfiguration() {
         btnSaving.style.display = 'none';
         btnSaved.style.display = 'inline';
 
-        // Update status badge
-        updateStatusBadge(config.apiUrl && config.apiKey && config.model);
-
-        // Reset button after delay
+        // Reset after delay
         setTimeout(() => {
             btnSaved.style.display = 'none';
             btnText.style.display = 'inline';
@@ -152,7 +286,7 @@ async function saveConfiguration() {
     } catch (error) {
         console.error('[VideoTranslate] Failed to save config:', error);
         btnSaving.style.display = 'none';
-        btnText.textContent = 'Error saving!';
+        btnText.textContent = 'Error!';
         btnText.style.display = 'inline';
         elements.saveConfig.disabled = false;
 
@@ -166,28 +300,29 @@ async function saveConfiguration() {
  * Clear translation cache
  */
 async function clearCache() {
+    const btnText = elements.clearCache.querySelector('.btn-text');
     try {
-        elements.clearCache.textContent = 'Clearing...';
+        btnText.textContent = '...';
         elements.clearCache.disabled = true;
 
         await sendMessage({ action: 'clearCache' });
 
-        elements.cacheCount.textContent = '0 translations cached';
-        elements.clearCache.textContent = 'Cleared!';
+        elements.cacheCount.textContent = '0 cached';
+        btnText.textContent = 'Done';
 
         setTimeout(() => {
-            elements.clearCache.textContent = 'Clear Cache';
+            btnText.textContent = 'Clear';
             elements.clearCache.disabled = false;
-        }, 2000);
+        }, 1500);
 
     } catch (error) {
         console.error('[VideoTranslate] Failed to clear cache:', error);
-        elements.clearCache.textContent = 'Error!';
+        btnText.textContent = 'Error';
 
         setTimeout(() => {
-            elements.clearCache.textContent = 'Clear Cache';
+            btnText.textContent = 'Clear';
             elements.clearCache.disabled = false;
-        }, 2000);
+        }, 1500);
     }
 }
 

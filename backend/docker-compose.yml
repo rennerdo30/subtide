@@ -1,0 +1,134 @@
+version: '3.8'
+
+# ============================================================================
+# Video Translate - Docker Compose Configuration
+# ============================================================================
+# Usage:
+#   Development:  docker-compose up dev
+#   Production:   docker-compose --profile production up -d
+#   Tier 1 only:  docker-compose up tier1
+# ============================================================================
+
+services:
+  # --------------------------------------------------------------------------
+  # Development (hot reload, debug logging)
+  # --------------------------------------------------------------------------
+  dev:
+    build:
+      context: .
+      target: development
+    ports:
+      - "5001:5001"
+    environment:
+      - ENABLE_WHISPER=true
+      - LOG_LEVEL=DEBUG
+      - LOG_JSON=false
+    volumes:
+      - .:/app
+      - ./cache:/app/cache
+    restart: unless-stopped
+
+  # --------------------------------------------------------------------------
+  # Tier 1: Basic (No Whisper, User provides API key)
+  # --------------------------------------------------------------------------
+  tier1:
+    build:
+      context: .
+      target: production
+    ports:
+      - "5001:5001"
+    environment:
+      - ENABLE_WHISPER=false
+      - LOG_LEVEL=INFO
+      - LOG_JSON=true
+    volumes:
+      - video-translate-cache:/app/cache
+    restart: unless-stopped
+    profiles:
+      - production
+
+  # --------------------------------------------------------------------------
+  # Tier 2: Pro (Whisper enabled, User provides API key)
+  # --------------------------------------------------------------------------
+  tier2:
+    build:
+      context: .
+      target: production
+    ports:
+      - "5001:5001"
+    environment:
+      - ENABLE_WHISPER=true
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - LOG_LEVEL=INFO
+      - LOG_JSON=true
+    volumes:
+      - video-translate-cache:/app/cache
+      - whisper-models:/root/.cache/whisper
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    profiles:
+      - production
+
+  # --------------------------------------------------------------------------
+  # Tier 3: Enterprise (Whisper + Server-managed translation)
+  # --------------------------------------------------------------------------
+  tier3:
+    build:
+      context: .
+      target: production
+    ports:
+      - "5001:5001"
+    environment:
+      - ENABLE_WHISPER=true
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - SERVER_API_KEY=${SERVER_API_KEY:?SERVER_API_KEY is required for Tier 3}
+      - SERVER_MODEL=${SERVER_MODEL:-gpt-4o-mini}
+      - SERVER_API_URL=${SERVER_API_URL:-https://api.openai.com/v1}
+      - LOG_LEVEL=INFO
+      - LOG_JSON=true
+    volumes:
+      - video-translate-cache:/app/cache
+      - whisper-models:/root/.cache/whisper
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4G
+    profiles:
+      - production
+
+  # --------------------------------------------------------------------------
+  # Redis Cache (optional, for production scaling)
+  # --------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    profiles:
+      - production
+      - with-redis
+
+volumes:
+  video-translate-cache:
+  whisper-models:
+  redis-data:
+
+# ============================================================================
+# Quick Start:
+#
+# 1. Development (recommended for local testing):
+#    docker-compose up dev
+#
+# 2. Production Tier 3:
+#    export SERVER_API_KEY=sk-your-api-key
+#    docker-compose --profile production up tier3 -d
+#
+# 3. View logs:
+#    docker-compose logs -f
+# ============================================================================

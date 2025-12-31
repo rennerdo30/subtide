@@ -1,0 +1,8 @@
+flask
+flask-cors
+yt-dlp
+openai
+openai-whisper
+requests
+gunicorn
+gevent
