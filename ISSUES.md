@@ -42,6 +42,10 @@
 ### Incomplete Test Coverage
 - **Issue**: Core logic for retries and error handling was untested.
 - **Fix**: Implemented exhaustive test suites for services, routes, and utils reaching ~80-100% coverage.
+### Broken Release Pipeline in GitHub Actions
+- **Issue**: Extension packaging missed files, backend build used wrong platform syntax, and releases were misconfigured.
+- **Fix**: Corrected paths for extension (pulling from `extension/` and including `_locales`), implemented platform-agnostic PyInstaller data separators, and optimized dependency caching.
+- **Impact**: Cross-platform backend binaries and extension zip are now correctly packaged and automatically attached to GitHub Releases upon tagging.
 ### Insufficient Logging in Translation Pipeline
 - **Issue**: When normal translation got stuck, there was no logging to debug the cause
 - **Fix**: Added comprehensive logging to `process_service.py`, `translation_service.py`, `live_whisper_service.py`, and `routes/live.py`

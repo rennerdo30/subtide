@@ -21,6 +21,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'backend/requirements.txt'
 
       - name: Install dependencies
         run: |
@@ -30,8 +32,8 @@ jobs:
       - name: Run tests with coverage
         run: |
           cd backend
-          # Set PYTHONPATH so 'backend.config' can be found
-          export PYTHONPATH=$PYTHONPATH:$(dirname $(pwd))
+          # Set PYTHONPATH so 'backend' can be imported
+          export PYTHONPATH=$PYTHONPATH:$(pwd)/..
           python -m pytest tests/ --cov=. --cov-report=term-missing
   # Package Chrome Extension (runs on Ubuntu, cross-platform artifact)
   package-extension:
@@ -43,9 +45,10 @@ jobs:
       - name: Package Chrome Extension
         run: |
           mkdir -p dist/video-translate-extension
-          cp manifest.json dist/video-translate-extension/
-          cp -r src dist/video-translate-extension/
-          cp -r icons dist/video-translate-extension/
+          cp extension/manifest.json dist/video-translate-extension/
+          cp -r extension/src dist/video-translate-extension/
+          cp -r extension/icons dist/video-translate-extension/
+          cp -r extension/_locales dist/video-translate-extension/
           cp LICENSE dist/video-translate-extension/
           cp README.md dist/video-translate-extension/
           
@@ -94,6 +97,8 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: 'backend/requirements.txt'
 
       - name: Install FFmpeg (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
@@ -113,10 +118,19 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: Set PyInstaller Separator
+        shell: bash
+        run: |
+          if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
+            echo "SEP=;" >> $GITHUB_ENV
+          else
+            echo "SEP=:" >> $GITHUB_ENV
+          fi
+
       - name: Build with PyInstaller
         run: |
           cd backend
-          pyinstaller --onefile --name video-translate-backend --add-data ".env.example:." app.py
+          pyinstaller --onefile --name video-translate-backend --add-data ".env.example${{ env.SEP }}." app.py
 
       - name: Rename artifact (Unix)
         if: matrix.os != 'windows-latest'
