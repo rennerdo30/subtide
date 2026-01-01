@@ -577,14 +577,12 @@ async function handleMessage(message, sender) {
             return { configured: await isConfigured() };
 
         case 'fetchSubtitles':
-            // All tiers: Get subtitles from backend (no API key sent)
             return await fetchSubtitlesFromBackend(message.videoId, config);
 
         case 'translate':
             return await handleTranslation(message, sender, config);
 
         case 'process':
-            // Tier 3 only: Combined subtitle + translation
             if (config.tier !== 'tier3') {
                 throw new Error(chrome.i18n.getMessage('tier3Only'));
             }
@@ -607,7 +605,6 @@ async function handleMessage(message, sender) {
             return { entries: Object.keys(cache.entries || {}).length };
 
         case 'testApi':
-            // Test API connection (Tier 1/2 only - direct LLM call)
             try {
                 await callLLMDirect('Say "ok"', message.config || config);
                 return { success: true };
@@ -615,8 +612,45 @@ async function handleMessage(message, sender) {
                 return { success: false, error: e.message };
             }
 
+        case 'startLiveTranslate':
+            // Note: handleStartLiveTranslate now handles finding the active tab if sender.tab is missing
+            return await handleStartLiveTranslate(message, sender, config);
+
+        case 'stopLiveTranslate':
+            return await handleStopLiveTranslate();
+
+        case 'getLiveStatus':
+            return { isLive: isLiveTranslating };
+
+        case 'live-transcription-result':
+            // Forward from offscreen to the specific tab if known, or broadcast
+            if (message.tabId) {
+                chrome.tabs.sendMessage(message.tabId, {
+                    action: 'live-subtitles',
+                    data: message.data
+                }).catch(() => { });
+            } else {
+                // Fallback: Forward from offscreen to all YouTube tabs
+                chrome.tabs.query({ url: "*://*.youtube.com/*" }, (tabs) => {
+                    tabs.forEach(tab => {
+                        chrome.tabs.sendMessage(tab.id, {
+                            action: 'live-subtitles',
+                            data: message.data
+                        }).catch(() => { });
+                    });
+                });
+            }
+            return { success: true };
+        
+        case 'error':
+            console.error('[VideoTranslate] Offscreen error:', message.message || message.error || message);
+            return { success: true };
+
         default:
-            throw new Error(chrome.i18n.getMessage('unknownAction', [message.action]));
+            if (message.action) {
+                throw new Error(chrome.i18n.getMessage('unknownAction', [message.action]));
+            }
+            return { ignored: true };
     }
 }
 
@@ -683,6 +717,118 @@ async function handleTier3Process(message, sender, config) {
 
     await cacheTranslation(videoId, 'auto', targetLanguage, translations);
     return { translations, cached: false };
+}
+
+// ============================================================================
+// Livestream Translation (Proposed)
+// ============================================================================
+
+let isLiveTranslating = false;
+
+// Restore state from storage on init
+chrome.storage.local.get(['isLiveTranslating'], (result) => {
+    isLiveTranslating = !!result.isLiveTranslating;
+});
+
+async function handleStartLiveTranslate(message, sender, config) {
+    let tabId = sender?.tab?.id;
+    const { targetLanguage } = message;
+
+    // If called from popup, sender.tab is undefined. Find the active tab.
+    if (!tabId) {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs && tabs.length > 0) {
+            tabId = tabs[0].id;
+        }
+    }
+
+    if (!tabId) {
+        throw new Error("Could not determine target tab for live translation.");
+    }
+
+    try {
+        // 1. Ensure offscreen document exists
+        await setupOffscreenDocument('src/offscreen/offscreen.html');
+
+        // 2. Get tab capture stream ID
+        // Note: In MV3, this must be called from the background
+        const streamId = await new Promise((resolve, reject) => {
+            chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (streamId) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                } else {
+                    resolve(streamId);
+                }
+            });
+        });
+
+        if (!streamId) {
+            throw new Error("Got empty streamId from tabCapture");
+        }
+
+        console.log('[VideoTranslate] Got streamId:', streamId);
+
+        // 3. Tell offscreen to start recording
+        await chrome.runtime.sendMessage({
+            type: 'start-recording',
+            target: 'offscreen',
+            data: {
+                streamId,
+                tabId, // Pass tabId so offscreen can tag results
+                targetLang: targetLanguage,
+                apiUrl: config.backendUrl
+            }
+        });
+        
+        isLiveTranslating = true;
+        await chrome.storage.local.set({ isLiveTranslating: true });
+        return { success: true };
+    } catch (error) {
+        console.error('[VideoTranslate] Live translate failed:', error);
+        if (error.message && error.message.includes("Extension has not been invoked")) {
+             throw new Error(chrome.i18n.getMessage('usePopupForLive') || "Please start Live Translation from the Extension Popup icon.");
+        }
+        throw error;
+    }
+}
+
+async function handleStopLiveTranslate() {
+    try {
+        await chrome.runtime.sendMessage({
+            type: 'stop-recording',
+            target: 'offscreen'
+        });
+        
+        // Notify all YouTube tabs that live translation stopped
+        chrome.tabs.query({ url: "*://*.youtube.com/*" }, (tabs) => {
+            tabs.forEach(tab => {
+                chrome.tabs.sendMessage(tab.id, {
+                    action: 'live-stopped'
+                }).catch(() => { });
+            });
+        });
+
+        // We can keep the offscreen doc alive or close it
+        // await chrome.offscreen.closeDocument();
+        isLiveTranslating = false;
+        await chrome.storage.local.set({ isLiveTranslating: false });
+        return { success: true };
+    } catch (error) {
+        console.error('[VideoTranslate] Stop live failed:', error);
+        isLiveTranslating = false;
+        await chrome.storage.local.set({ isLiveTranslating: false });
+        return { success: false, error: error.message };
+    }
+}
+
+async function setupOffscreenDocument(path) {
+    if (await chrome.offscreen.hasDocument()) return;
+
+    await chrome.offscreen.createDocument({
+        url: path,
+        reasons: ['USER_MEDIA'],
+        justification: 'Capturing tab audio for real-time translation'
+    });
 }
 
 console.log('[VideoTranslate] Service worker initialized');

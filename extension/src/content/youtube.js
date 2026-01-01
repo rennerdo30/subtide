@@ -19,6 +19,7 @@ let sourceSubtitles = null;
 let translatedSubtitles = null;
 let selectedLanguage = null;
 let isProcessing = false;
+let isLive = false;
 let userTier = 'tier1';
 let backendUrl = 'http://localhost:5001';
 
@@ -31,7 +32,7 @@ let subtitleSettings = {
     font: 'sans-serif',
     outline: 'medium',
     opacity: 'full',
-    showSpeaker: 'off',
+    showSpeaker: 'color',
 };
 
 // =============================================================================
@@ -71,6 +72,7 @@ function onNavigate() {
     translatedSubtitles = null;
     sourceSubtitles = null;
     isProcessing = false;
+    isLive = false; // Reset live state
     removeUI();
     setTimeout(checkForVideo, 1000);
 }
@@ -113,7 +115,7 @@ async function setupPage(videoId) {
         font: config.subtitleFont || 'sans-serif',
         outline: config.subtitleOutline || 'medium',
         opacity: config.subtitleOpacity || 'full',
-        showSpeaker: config.subtitleShowSpeaker || 'off',
+        showSpeaker: config.subtitleShowSpeaker || 'color',
     };
 
     console.log('[VideoTranslate] Tier:', userTier);
@@ -244,6 +246,65 @@ async function translateVideo(targetLang) {
     }
 }
 
+/**
+ * Toggle live translation mode
+ */
+async function toggleLiveTranslate() {
+    // Chrome Manifest V3 restriction: tabCapture requires extension invocation (popup click)
+    // We cannot trigger it from the content script directly.
+    alert(chrome.i18n.getMessage('usePopupForLive') || "Please use the Extension Popup to start Live Translation.\n\nClick the Video Translate icon in your browser toolbar.");
+    return;
+}
+
+/**
+ * Handle incoming live subtitles
+ */
+function handleLiveSubtitles(data) {
+    // If we receive data, we are live. Ensure overlay is visible.
+    if (!isLive) {
+        isLive = true;
+        showOverlay();
+    }
+
+    const overlay = document.querySelector('.vt-overlay');
+    if (!overlay) return;
+
+    const { text, translatedText, speaker } = data;
+
+    // Add to overlay (rolling text)
+    // We treat the translated text as the primary display
+    const content = translatedText || text;
+
+    // Apply styles dynamically
+    const styleValues = getSubtitleStyleValues();
+
+    // Create span with explicit styles to ensure visibility
+    const span = document.createElement('span');
+    span.className = 'vt-text';
+    span.textContent = content;
+
+    // Force styles
+    span.style.background = styleValues.background;
+    span.style.color = styleValues.color || '#fff';
+    span.style.fontSize = styleValues.fontSize;
+    span.style.fontFamily = styleValues.fontFamily;
+    span.style.textShadow = styleValues.textShadow;
+    span.style.opacity = styleValues.opacity;
+    span.style.display = 'inline-block';
+    span.style.padding = '4px 8px';
+    span.style.borderRadius = '4px';
+
+    overlay.innerHTML = '';
+    overlay.appendChild(span);
+    overlay.style.display = 'block';
+
+    // Auto-fade if no new data for 5 seconds
+    if (window._liveSubtitleTimeout) clearTimeout(window._liveSubtitleTimeout);
+    window._liveSubtitleTimeout = setTimeout(() => {
+        overlay.innerHTML = '';
+    }, 5000);
+}
+
 // =============================================================================
 // Communication
 // =============================================================================
@@ -288,6 +349,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         else options.animationKey = stage;
 
         updateStatus(msg, stageTypes[stage] || 'loading', percent, options);
+        sendResponse({ received: true });
+    } else if (message.action === 'live-subtitles') {
+        handleLiveSubtitles(message.data);
+        sendResponse({ received: true });
+    } else if (message.action === 'live-stopped') {
+        isLive = false;
+        const overlay = document.querySelector('.vt-overlay');
+        if (overlay) overlay.textContent = '';
         sendResponse({ received: true });
     }
     return true;

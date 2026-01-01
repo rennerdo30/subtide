@@ -44,6 +44,12 @@
     "subtitleStyle": {
         "message": "Estilo de Subtítulos"
     },
+    "liveTranslation": {
+        "message": "Traducción en Vivo"
+    },
+    "liveTranslate": {
+        "message": "Traducción en Vivo (Beta)"
+    },
     "size": {
         "message": "Tamaño"
     },

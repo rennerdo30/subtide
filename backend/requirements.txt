@@ -9,8 +9,9 @@ mlx-whisper
 pyannote.audio
 requests
 gunicorn
-gevent
 python-dotenv
+flask-socketio
+simple-websocket
 
 pytest
 pytest-mock

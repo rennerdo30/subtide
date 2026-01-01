@@ -199,6 +199,17 @@ function addStyles() {
             z-index: 60 !important;
             pointer-events: none !important;
         }
+        .vt-overlay {
+            position: absolute !important;
+            ${styleValues.position.bottom !== 'auto' ? `bottom: ${styleValues.position.bottom} !important;` : ''}
+            ${styleValues.position.top !== 'auto' ? `top: ${styleValues.position.top} !important;` : ''}
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            z-index: 50 !important;
+            text-align: center !important;
+            width: 80% !important;
+            pointer-events: none !important;
+        }
         .vt-text {
             display: inline-block !important;
             background: ${styleValues.background} !important;
@@ -244,6 +255,9 @@ function addStyles() {
             cursor: pointer !important;
             color: #fff !important;
             border-bottom: 1px solid rgba(255,255,255,0.1) !important;
+        }
+        .vt-settings-back.header-hidden {
+            display: none !important;
         }
         .vt-settings-back:hover {
             background: rgba(255,255,255,0.1) !important;

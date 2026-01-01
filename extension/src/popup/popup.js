@@ -24,7 +24,10 @@ const elements = {
     forceGenGroup: document.getElementById('forceGenGroup'),
     apiUrlGroup: document.getElementById('apiUrlGroup'),
     backendUrl: document.getElementById('backendUrl'),
+    liveTranslateBtn: document.getElementById('liveTranslateBtn'),
 };
+
+let isLiveTranslating = false;
 
 // Tier descriptions
 // Tier descriptions keys (mapped to messages.json)
@@ -199,6 +202,85 @@ function setupEventListeners() {
     elements.tier.addEventListener('change', (e) => {
         updateUIForTier(e.target.value);
     });
+
+    // Live Translate Button
+    elements.liveTranslateBtn.addEventListener('click', async () => {
+        try {
+            updateLiveButtonState('loading');
+            
+            if (!isLiveTranslating) {
+                // Start
+                // We need to send the message to the background script, 
+                // but we also need to make sure the background script can find the active tab.
+                // The service worker update I did handles finding the active tab if sender.tab is undefined.
+                const response = await sendMessage({
+                    action: 'startLiveTranslate',
+                    targetLanguage: elements.defaultLanguage.value
+                });
+                
+                if (!response.success) throw new Error(response.error);
+                isLiveTranslating = true;
+                updateLiveButtonState('active');
+            } else {
+                // Stop
+                const response = await sendMessage({ action: 'stopLiveTranslate' });
+                if (!response.success) throw new Error(response.error);
+                isLiveTranslating = false;
+                updateLiveButtonState('inactive');
+            }
+        } catch (error) {
+            console.error('[VideoTranslate] Live toggle failed:', error);
+            isLiveTranslating = false;
+            updateLiveButtonState('inactive');
+            
+            // Show user friendly error
+            let errorMsg = error.message;
+            if (errorMsg.includes('Extension has not been invoked')) {
+                errorMsg = "Please reload the YouTube page and try again.";
+            } else if (errorMsg.includes('No active tab')) {
+                errorMsg = "No active YouTube tab found. Please open a video.";
+            }
+            alert('Failed to toggle live translation:\n' + errorMsg);
+        }
+    });
+
+    // Check initial live status
+    checkLiveStatus();
+}
+
+async function checkLiveStatus() {
+    try {
+        const response = await sendMessage({ action: 'getLiveStatus' });
+        isLiveTranslating = response.isLive;
+        updateLiveButtonState(isLiveTranslating ? 'active' : 'inactive');
+    } catch (e) {
+        console.log("Could not check live status", e);
+    }
+}
+
+function updateLiveButtonState(state) {
+    const btn = elements.liveTranslateBtn;
+    const icon = btn.querySelector('.btn-icon');
+    const text = btn.querySelector('.btn-text');
+
+    if (state === 'loading') {
+        btn.disabled = true;
+        text.textContent = '...';
+    } else if (state === 'active') {
+        btn.disabled = false;
+        btn.classList.add('btn-danger'); // Add a red style class if you have one, or inline style
+        btn.style.backgroundColor = '#ef4444';
+        btn.style.color = 'white';
+        icon.textContent = '⏹️';
+        text.textContent = 'Stop Live Translate';
+    } else {
+        btn.disabled = false;
+        btn.classList.remove('btn-danger');
+        btn.style.backgroundColor = '';
+        btn.style.color = '';
+        icon.textContent = '🎙️';
+        text.textContent = chrome.i18n.getMessage('startLiveTranslate');
+    }
 }
 
 /**

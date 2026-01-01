@@ -270,7 +270,33 @@ pip install -r requirements.txt
 ./run.sh
 ```
 
+## Future Roadmap: Livestream Real-Time Translation (Proposed)
+
+### Overview
+A low-latency pipeline to translate live video streams in real-time by capturing tab audio and processing it via a streaming Whisper backend.
+
+### Proposed Architecture
+
+#### 1. Real-Time Audio Capture
+- Uses Chrome `tabCapture` API (Extension) to record system audio from the browser tab.
+- Audio is chunked (500ms - 1s) and sent via **WebSockets** to the backend.
+
+#### 2. Streaming Transcription
+- Backend uses `faster-whisper` in a streaming configuration.
+- Voice Activity Detection (VAD) is used to identify speech segments without waiting for 30s chunks.
+
+#### 3. Live Translation Overlay
+- The UI uses a "Rolling Subtitles" approach, where text is updated dynamically as the LLM refines the translation of the current sentence.
+
+### Technical Requirements
+- **Frontend**: Chrome Offscreen Documents (for `MediaRecorder` support in MV3).
+- **Backend**: `Flask-SocketIO` or parallel WebSocket server.
+- **AI**: CUDA/MPS acceleration is highly recommended for real-time performance.
+
+---
+
 ## Technology Stack
+
 
 - **Frontend**: Chrome Extension (Manifest V3), Vanilla JS
 - **Backend**: Python 3.9+, Flask, Gunicorn

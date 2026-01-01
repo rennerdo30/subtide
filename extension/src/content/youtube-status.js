@@ -5,6 +5,20 @@
 
 let statusAnimationInterval = null;
 let currentStatusIndex = 0;
+let lastProgressUpdate = 0;
+let stageStartTime = 0;
+let currentStage = '';
+
+/**
+ * Format seconds to human readable time
+ */
+function formatEta(seconds) {
+    if (!seconds || seconds <= 0) return '';
+    if (seconds < 60) return `${Math.round(seconds)}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.round(seconds % 60);
+    return `${mins}m ${secs}s`;
+}
 
 /**
  * Update status display with enhanced progress information
@@ -14,6 +28,15 @@ let currentStatusIndex = 0;
  * @param {object|null} options - Extended options
  */
 function updateStatus(text, type = '', percent = null, options = {}) {
+    const now = Date.now();
+
+    // Track stage changes for timing
+    const stage = options.stage || options.animationKey || 'unknown';
+    if (stage !== currentStage) {
+        currentStage = stage;
+        stageStartTime = now;
+        console.log(`[VideoTranslate] Stage changed to: ${stage}`);
+    }
     const panel = document.querySelector('.vt-status-panel');
     const stepIndicator = panel?.querySelector('.vt-step-indicator');
     const textEl = panel?.querySelector('.vt-status-text');
@@ -138,14 +161,39 @@ function updateStatus(text, type = '', percent = null, options = {}) {
             }
         }
 
-        // Update ETA
+        // Update ETA with elapsed time
         if (etaEl) {
-            if (options.eta && type === 'loading') {
-                etaEl.textContent = chrome.i18n.getMessage('eta', [options.eta]);
-                etaEl.style.display = 'inline';
+            if (type === 'loading') {
+                const elapsed = Math.round((now - stageStartTime) / 1000);
+                let etaText = '';
+
+                if (options.eta) {
+                    // Show ETA from server
+                    etaText = chrome.i18n.getMessage('eta', [options.eta]);
+                } else if (elapsed > 5) {
+                    // Show elapsed time if no ETA
+                    etaText = `Elapsed: ${formatEta(elapsed)}`;
+                }
+
+                // Add stage-specific info
+                if (options.stagePercent !== undefined && options.stagePercent !== percent) {
+                    etaText += ` (${options.stagePercent}% stage)`;
+                }
+
+                if (etaText) {
+                    etaEl.textContent = etaText;
+                    etaEl.style.display = 'inline';
+                } else {
+                    etaEl.style.display = 'none';
+                }
             } else {
                 etaEl.style.display = 'none';
             }
+        }
+
+        // Log progress for debugging
+        if (type === 'loading' && percent !== null) {
+            console.log(`[VideoTranslate] Progress: ${percent}% - ${text} (stage: ${stage})`);
         }
 
         // Show panel for loading/error, hide on success after delay

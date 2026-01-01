@@ -4,6 +4,8 @@
 
 set -e
 
+# export MLX_FORCE_DIRECT=true
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PYTHONPATH=$PYTHONPATH:$(dirname "$SCRIPT_DIR")
 cd "$SCRIPT_DIR"
@@ -206,13 +208,13 @@ if platform.system() == 'Darwin' and platform.machine() == 'arm64':
     except ImportError:
         pass
 
-# Check for faster-whisper
-try:
-    from faster_whisper import WhisperModel
-    print('faster-whisper (CTranslate2 - optimized)')
-    sys.exit(0)
-except ImportError:
-    pass
+# Check for faster-whisper (REMOVED: We use mlx-whisper exclusively on Mac)
+# try:
+#     from faster_whisper import WhisperModel
+#     print('faster-whisper (CTranslate2 - optimized)')
+#     sys.exit(0)
+# except ImportError:
+#     pass
 
 print('openai-whisper')
 " 2>/dev/null || echo "openai-whisper")
@@ -238,11 +240,4 @@ echo -e "${GREEN}Starting server on http://localhost:${PORT:-5001}${NC}"
 echo ""
 
 # Run the server
-if [ -n "$PORT" ]; then
-    python -c "
-import app
-app.app.run(host='0.0.0.0', port=$PORT, debug=False)
-"
-else
-    python app.py
-fi
+python app.py

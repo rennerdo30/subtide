@@ -3,6 +3,7 @@ import os
 import threading
 import queue
 import logging
+import time
 from typing import Generator, Dict, Any, List, Optional
 
 from backend.config import CACHE_DIR, ENABLE_WHISPER, SERVER_API_KEY
@@ -12,7 +13,8 @@ from backend.services.whisper_service import run_whisper_process
 from backend.services.translation_service import (
     await_translate_subtitles, 
     estimate_translation_time, 
-    format_eta
+    format_eta,
+    get_historical_batch_time
 )
 # Ensure we import yt_dlp for the initial check in process_video_logic
 import yt_dlp
@@ -22,38 +24,59 @@ logger = logging.getLogger('video-translate')
 def estimate_whisper_time(duration_seconds: float) -> float:
     """
     Estimate Whisper transcription time based on video duration.
-    This logic was originally in app.py
+    Uses historical data if available, otherwise conservative defaults.
     """
     from backend.services.whisper_service import get_whisper_device, WHISPER_BACKEND, WHISPER_MODEL_SIZE
-    
+    from backend.config import ENABLE_DIARIZATION
+
+    # Try to load historical RTF
+    history_path = os.path.join(CACHE_DIR, 'whisper_timing.json')
+    try:
+        if os.path.exists(history_path):
+            with open(history_path, 'r') as f:
+                history = json.load(f)
+                if history.get('rtf_samples'):
+                    samples = history['rtf_samples'][-10:]
+                    historical_rtf = sum(samples) / len(samples)
+                    # Add buffer for diarization if enabled
+                    if ENABLE_DIARIZATION:
+                        historical_rtf *= 1.3  # Diarization adds ~30%
+                    return duration_seconds * historical_rtf * 1.1  # +10% buffer
+    except:
+        pass
+
     device = get_whisper_device()
 
-    # Heuristics based on real-world usage
+    # MORE CONSERVATIVE defaults based on real-world testing
     if device == "cuda":
-        factor = 0.1
+        factor = 0.15  # Was 0.1
     elif WHISPER_BACKEND == "mlx-whisper":
         model_factors = {
-            'tiny': 0.05, 'tiny.en': 0.05,
-            'base': 0.08, 'base.en': 0.08,
-            'small': 0.12, 'small.en': 0.12,
-            'medium': 0.2, 'medium.en': 0.2,
-            'large': 0.35, 'large-v2': 0.35,
-            'large-v3': 0.35, 'large-v3-turbo': 0.25,
+            'tiny': 0.15, 'tiny.en': 0.15,
+            'base': 0.20, 'base.en': 0.20,
+            'small': 0.30, 'small.en': 0.30,
+            'medium': 0.50, 'medium.en': 0.50,
+            'large': 0.80, 'large-v2': 0.80,
+            'large-v3': 0.80, 'large-v3-turbo': 0.60,
         }
-        factor = model_factors.get(WHISPER_MODEL_SIZE, 0.1)
+        factor = model_factors.get(WHISPER_MODEL_SIZE, 0.25)
     elif WHISPER_BACKEND == "faster-whisper":
         model_factors = {
-            'tiny': 0.08, 'base': 0.12, 'small': 0.2,
-            'medium': 0.4, 'large': 0.8, 'large-v2': 0.8, 'large-v3': 0.8,
+            'tiny': 0.15, 'base': 0.20, 'small': 0.35,
+            'medium': 0.60, 'large': 1.0, 'large-v2': 1.0, 'large-v3': 1.0,
         }
-        factor = model_factors.get(WHISPER_MODEL_SIZE, 0.15)
+        factor = model_factors.get(WHISPER_MODEL_SIZE, 0.30)
     else:
         # Original openai-whisper on CPU
         model_factors = {
-            'tiny': 0.3, 'base': 0.5, 'small': 0.8,
-            'medium': 1.5, 'large': 3.0, 'large-v2': 3.0, 'large-v3': 3.0,
+            'tiny': 0.5, 'base': 0.8, 'small': 1.2,
+            'medium': 2.0, 'large': 4.0, 'large-v2': 4.0, 'large-v3': 4.0,
         }
-        factor = model_factors.get(WHISPER_MODEL_SIZE, 0.5)
+        factor = model_factors.get(WHISPER_MODEL_SIZE, 1.0)
+
+    # Add time for diarization if enabled
+    if ENABLE_DIARIZATION:
+        factor *= 1.3  # Diarization adds ~30% time
 
     return duration_seconds * factor
 
@@ -125,9 +148,12 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
             progress_queue.put(('result', result))
 
         def send_error(error):
+            logger.error(f"[PROCESS] Sending error: {error}")
             progress_queue.put(('error', str(error)))
 
         def do_work():
+            work_start_time = time.time()
+            logger.info(f"[PROCESS] Worker thread started for video={video_id}, target={target_lang}")
             try:
                 # Check translation cache first
                 translation_cache_path = get_cache_path(video_id, f'translated_{target_lang}')
@@ -145,8 +171,9 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                 needs_translation = True
                 
                 # Step 1: Check available subtitles
+                step_start = time.time()
                 send_sse('checking', 'Checking available subtitles...', 5, step=1, total_steps=4)
-                logger.info(f"[PROCESS] Starting: video={video_id}, target={target_lang}")
+                logger.info(f"[PROCESS] Starting: video={video_id}, target={target_lang}, force_whisper={force_whisper}")
 
                 ydl_opts = {
                     'skip_download': True,
@@ -162,7 +189,7 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                     auto_subs = info.get('automatic_captions') or {}
                     video_duration = info.get('duration', 0)
 
-                logger.info(f"[PROCESS] Manual subs: {list(manual_subs.keys())} | Duration: {video_duration}s")
+                logger.info(f"[PROCESS] Manual subs: {list(manual_subs.keys())} | Auto subs: {list(auto_subs.keys())} | Duration: {video_duration}s (checked in {time.time()-step_start:.1f}s)")
                 
                 # Priority 1: Target language MANUAL subs exist
                 if target_lang in manual_subs:
@@ -250,9 +277,12 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
 
                 # Step 2: Translate if needed
                 if needs_translation:
+                    trans_start = time.time()
                     trans_eta_sec = estimate_translation_time(len(subtitles))
                     trans_eta_str = format_eta(trans_eta_sec)
+                    hist_avg = get_historical_batch_time()
                     
+                    logger.info(f"[PROCESS] Translation needed: {len(subtitles)} subtitles, ETA={trans_eta_str}, hist_avg={hist_avg:.1f}s/batch")
                     send_sse('translating', f'Translating {len(subtitles)} subtitles...', 55, step=3, total_steps=4, eta=trans_eta_str)
 
                     def on_translate_progress(done, total, pct, eta=""):
@@ -261,6 +291,7 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                         send_sse('translating', f'Translating subtitles...', overall_pct, step=3, total_steps=4, eta=eta if eta else None, batch_info=batch_info)
 
                     subtitles = await_translate_subtitles(subtitles, target_lang, on_translate_progress)
+                    logger.info(f"[PROCESS] Translation complete in {time.time()-trans_start:.1f}s")
                     send_sse('translating', 'Translation complete', 95, step=3, total_steps=4)
                 else:
                     for sub in subtitles:
@@ -284,15 +315,19 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                 send_result(final_result)
 
             except Exception as e:
-                logger.exception("[PROCESS] Error")
+                logger.exception(f"[PROCESS] Error in worker after {time.time()-work_start_time:.1f}s")
                 send_error(str(e))
+            finally:
+                logger.info(f"[PROCESS] Worker thread finished in {time.time()-work_start_time:.1f}s")
 
         worker = threading.Thread(target=do_work, daemon=True)
         worker.start()
 
         while True:
             try:
-                msg_type, data = progress_queue.get(timeout=10)
+                # Increased timeout to 60s for long-running Whisper transcription
+                # MLX-whisper for 20min+ videos can take several minutes
+                msg_type, data = progress_queue.get(timeout=60)
 
                 if msg_type == 'progress':
                     yield f"data: {json.dumps(data)}\n\n"
@@ -305,8 +340,10 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
 
             except queue.Empty:
                 if worker.is_alive():
+                    logger.debug(f"[PROCESS] Queue timeout (10s), worker still alive, sending ping")
                     yield f"data: {json.dumps({'ping': True})}\n\n"
                 else:
+                    logger.warning(f"[PROCESS] Queue timeout and worker is dead, ending")
                     yield f"data: {json.dumps({'error': 'Processing ended unexpectedly'})}\n\n"
                     return
 

@@ -42,6 +42,15 @@
 ### Incomplete Test Coverage
 - **Issue**: Core logic for retries and error handling was untested.
 - **Fix**: Implemented exhaustive test suites for services, routes, and utils reaching ~80-100% coverage.
+### Insufficient Logging in Translation Pipeline
+- **Issue**: When normal translation got stuck, there was no logging to debug the cause
+- **Fix**: Added comprehensive logging to `process_service.py`, `translation_service.py`, `live_whisper_service.py`, and `routes/live.py`
+- **Impact**: Worker thread lifecycle, queue timeouts, batch start/end, and rate limiting are now all logged
+
+### Test Mock Issue with MLX-Whisper on Apple Silicon
+- **Issue**: `test_live_whisper_service.py` failed because MLX-whisper returns a string placeholder instead of a mockable model
+- **Fix**: Updated test to directly replace the model attribute after service initialization
+- **Impact**: All 10 tests now pass on Apple Silicon Macs
 
 ## Known Limitations ⚠️
 

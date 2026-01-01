@@ -3,3 +3,4 @@ backend/cache
 __pycache__
 backend/.env
 *.log
+.trae

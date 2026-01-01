@@ -70,6 +70,33 @@ const STATUS_MESSAGES = {
         { lang: 'fr', text: 'Traitement de votre demande, veuillez patienter...' },
         { lang: 'de', text: 'Ihre Anfrage wird abgeschlossen...' },
     ],
+    finalizing: [
+        { lang: 'en', text: 'Finalizing transcription, almost done...' },
+        { lang: 'ja', text: '文字起こしを完了しています。もうすぐです...' },
+        { lang: 'ko', text: '전사를 마무리 중입니다. 거의 완료됐습니다...' },
+        { lang: 'zh', text: '正在完成转录，即将完成...' },
+        { lang: 'es', text: 'Finalizando la transcripción, casi listo...' },
+        { lang: 'fr', text: 'Finalisation de la transcription, presque terminé...' },
+        { lang: 'de', text: 'Transkription wird abgeschlossen, fast fertig...' },
+    ],
+    whisper: [
+        { lang: 'en', text: 'AI is listening and transcribing...' },
+        { lang: 'ja', text: 'AIが音声を聞いて文字起こししています...' },
+        { lang: 'ko', text: 'AI가 듣고 전사하는 중...' },
+        { lang: 'zh', text: 'AI正在聆听并转录...' },
+        { lang: 'es', text: 'La IA está escuchando y transcribiendo...' },
+        { lang: 'fr', text: "L'IA écoute et transcrit..." },
+        { lang: 'de', text: 'KI hört zu und transkribiert...' },
+    ],
+    diarization: [
+        { lang: 'en', text: 'Identifying speakers in the audio...' },
+        { lang: 'ja', text: '音声内の話者を識別しています...' },
+        { lang: 'ko', text: '오디오에서 발언자를 식별하는 중...' },
+        { lang: 'zh', text: '正在识别音频中的说话者...' },
+        { lang: 'es', text: 'Identificando hablantes en el audio...' },
+        { lang: 'fr', text: 'Identification des locuteurs dans l\'audio...' },
+        { lang: 'de', text: 'Sprecher im Audio werden identifiziert...' },
+    ],
 };
 
 // Speaker colors for diarization display

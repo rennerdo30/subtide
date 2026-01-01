@@ -1,5 +1,6 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
+from flask_socketio import SocketIO
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
@@ -36,6 +37,8 @@ logger = setup_logging(
 
 app = Flask(__name__)
 CORS(app)
+# Use threading mode for MLX compatibility (gevent causes performance issues with Apple Silicon/MLX)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
 # Rate limiting configuration
 # Limits: 30 requests/minute for general endpoints, 5/minute for heavy processing
@@ -101,6 +104,10 @@ app.register_blueprint(subtitles_bp)
 app.register_blueprint(transcribe_bp)
 app.register_blueprint(translation_bp)
 
+from backend.routes.live import live_bp, init_socketio as init_live_socketio
+app.register_blueprint(live_bp)
+init_live_socketio(socketio)
+
 # Initialize rate limiter for routes that need custom limits
 init_translation_limiter(limiter)
 
@@ -127,8 +134,8 @@ def print_banner():
     print("="*60 + "\n")
     logger.info(f"Server Configuration: ENABLE_WHISPER={ENABLE_WHISPER}, Tier3Enabled={bool(SERVER_API_KEY)}, Cookies={'Yes' if COOKIES_FILE else 'No'}")
 
-print_banner()
-
 if __name__ == '__main__':
+    print_banner()
     port = int(os.getenv('PORT', 5001))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    logger.info(f"Starting SocketIO server on port {port}...")
+    socketio.run(app, host='0.0.0.0', port=port, debug=False, log_output=True)

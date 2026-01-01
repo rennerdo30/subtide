@@ -136,6 +136,12 @@
     "subtitleStyle": {
         "message": "Subtitle Style"
     },
+    "liveTranslation": {
+        "message": "Live Translation"
+    },
+    "liveTranslate": {
+        "message": "Live Translate (Beta)"
+    },
     "size": {
         "message": "Size"
     },

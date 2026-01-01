@@ -1,6 +1,6 @@
 # Video Translate
 <p align="center">
-  <img src="icons/icon.svg" width="128" height="128" alt="Video Translate Logo">
+  <img src="extension/icons/icon.svg" width="128" height="128" alt="Video Translate Logo">
 </p>
 
 <p align="center">
@@ -58,7 +58,7 @@ pip install -r requirements.txt
 
 1. Open Chrome and go to `chrome://extensions`
 2. Enable "Developer mode"
-3. Click "Load unpacked" and select the project folder
+3. Click "Load unpacked" and select the `extension` folder
 4. The extension icon will appear in your toolbar
 
 ### 3. Configure
@@ -128,13 +128,16 @@ video-translate/
 │   ├── requirements.txt    # Python dependencies
 │   ├── Dockerfile          # Container configuration
 │   └── docker-compose.yml  # Multi-tier deployment
-├── src/
-│   ├── background/         # Service worker
-│   ├── content/            # YouTube integration
-│   ├── lib/                # Shared utilities
-│   └── popup/              # Extension popup UI
-├── icons/                  # Extension icons
-├── manifest.json           # Chrome extension manifest
+├── extension/
+│   ├── manifest.json       # Chrome extension manifest
+│   ├── _locales/           # Internationalization (i18n)
+│   ├── icons/              # Extension icons
+│   └── src/                # Extension source code
+│       ├── background/     # Service worker
+│       ├── content/        # YouTube integration
+│       ├── lib/            # Shared utilities
+│       ├── offscreen/      # Offscreen audio capture
+│       └── popup/          # Extension popup UI
 └── SPECIFICATION.md        # Detailed documentation
 ```
 

@@ -13,6 +13,7 @@ LOG_FILE = os.getenv('LOG_FILE')
 ENABLE_WHISPER = os.getenv('ENABLE_WHISPER', 'true').lower() == 'true'
 HF_TOKEN = os.getenv('HF_TOKEN')
 ENABLE_DIARIZATION = os.getenv('ENABLE_DIARIZATION', 'true').lower() == 'true' and bool(HF_TOKEN)
+DIARIZATION_MODE = os.getenv('DIARIZATION_MODE', 'on')  # on|off|deferred
 
 # Cookies
 COOKIES_FILE = os.getenv('COOKIES_FILE')
@@ -24,6 +25,8 @@ SERVER_API_URL = os.getenv('SERVER_API_URL')
 
 # Whisper Config
 WHISPER_MODEL_SIZE = os.getenv('WHISPER_MODEL', 'base')  # tiny, base, small, medium, large
+WHISPER_QUANTIZED = os.getenv('WHISPER_QUANTIZED', 'false').lower() == 'true'
+WHISPER_HF_REPO = os.getenv('WHISPER_HF_REPO')
 
 # Supported Languages
 LANG_NAMES = {

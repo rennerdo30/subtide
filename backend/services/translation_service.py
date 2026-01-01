@@ -161,9 +161,11 @@ def await_translate_subtitles(
 
     def translate_batch(batch_data, is_retry=False):
         """Translate a single batch with rate limit handling."""
-        batch_start = time.time()
         batch_idx, batch = batch_data
         batch_num = batch_idx // BATCH_SIZE + 1
+        
+        logger.info(f"[TRANSLATE] Batch {batch_num}/{total_batches} starting ({len(batch)} subtitles)...")
+        batch_start = time.time()
 
         numbered_subs = "\n".join([f"{i+1}. {s['text']}" for i, s in enumerate(batch)])
 
@@ -238,9 +240,10 @@ Remember: Output MUST be in {t_name} only."""
                                 wait_time = int(match.group(1)) + 1
                         except:
                             pass
-                    logger.warning(f"[TRANSLATE] Rate limited, waiting {wait_time}s...")
+                    logger.warning(f"[TRANSLATE] Rate limited on batch {batch_num}, waiting {wait_time}s (attempt {attempt+1}/{MAX_RETRIES})")
                     time.sleep(wait_time)
                 elif attempt < MAX_RETRIES:
+                    logger.debug(f"[TRANSLATE] Retrying batch {batch_num} after 1s (attempt {attempt+1}/{MAX_RETRIES})")
                     time.sleep(1)
 
         batch_duration = time.time() - batch_start
@@ -286,7 +289,7 @@ Remember: Output MUST be in {t_name} only."""
         if not failed_batches:
             break
         logger.info(f"[TRANSLATE] Retry round {retry_round + 1}: {len(failed_batches)} failed batches")
-        time.sleep(5)
+        time.sleep(3)  # Reduced from 5s to 3s for faster retries
         retry_results, failed_batches = process_batches(failed_batches, retry_round + 2)
         results.update(retry_results)
 

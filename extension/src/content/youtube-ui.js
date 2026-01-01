@@ -144,6 +144,14 @@ function createSettingsPanelHTML() {
                     </div>
                 </div>
                 <div class="vt-menu-separator"></div>
+                <div class="vt-menu-title">${chrome.i18n.getMessage('liveTranslation')}</div>
+                <div class="vt-menu-section-group">
+                    <div class="vt-menu-option vt-live-action">
+                        <svg viewBox="0 0 24 24" width="24" height="24" style="color: #ff0000; animation: vt-pulse 2s infinite;"><circle cx="12" cy="12" r="8" fill="currentColor"/></svg>
+                        <span class="vt-option-label" style="font-weight: 500;">${chrome.i18n.getMessage('liveTranslate')}</span>
+                    </div>
+                </div>
+                <div class="vt-menu-separator"></div>
                 <div class="vt-menu-title">${chrome.i18n.getMessage('subtitleStyle')}</div>
                 ${createSettingsOptionsHTML()}
             </div>
@@ -165,7 +173,7 @@ function createSettingsOptionsHTML() {
         { key: 'font', label: 'Font', defaultValue: 'Sans-serif' },
         { key: 'outline', label: 'Text Outline', defaultValue: 'Medium' },
         { key: 'opacity', label: 'Opacity', defaultValue: 'Full' },
-        { key: 'showSpeaker', label: 'Speaker Labels', defaultValue: 'Off' },
+        { key: 'showSpeaker', label: 'Speaker Labels', defaultValue: 'Color Only' },
     ];
 
     return options.map(opt => `
@@ -366,6 +374,13 @@ function setupSettingsPanelListeners(settingsPanel) {
     const translateBtn = settingsPanel.querySelector('.vt-translate-action');
     translateBtn.addEventListener('click', () => {
         translateVideo(selectedLanguage);
+        settingsPanel.classList.remove('show');
+    });
+
+    // Add live action
+    const liveBtn = settingsPanel.querySelector('.vt-live-action');
+    liveBtn.addEventListener('click', () => {
+        toggleLiveTranslate();
         settingsPanel.classList.remove('show');
     });
 
