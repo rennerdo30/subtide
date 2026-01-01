@@ -11,3 +11,6 @@ gunicorn
 gevent
 python-dotenv
 
+pytest
+pytest-mock
+pytest-cov

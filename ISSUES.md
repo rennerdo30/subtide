@@ -31,6 +31,18 @@
 - **Issue**: CSP blocked inline script injection for network interception
 - **Fix**: Removed complex interception, rely entirely on backend (yt-dlp) which is more reliable
 
+### ModuleNotFoundError in Backend (Regression)
+- **Issue**: Modularization split `config.py` but `run.sh` didn't include the project root in `PYTHONPATH`.
+- **Fix**: Updated `run.sh` to export `PYTHONPATH` correctly.
+
+### GitHub Actions: No space left on device
+- **Issue**: Ubuntu runners ran out of space during PyInstaller assembly (Torch/Whisper are huge).
+- **Fix**: Added `maximize-build-space` action to free up ~25GB before build.
+
+### Incomplete Test Coverage
+- **Issue**: Core logic for retries and error handling was untested.
+- **Fix**: Implemented exhaustive test suites for services, routes, and utils reaching ~80-100% coverage.
+
 ## Known Limitations ⚠️
 
 ### YouTube Rate Limiting
@@ -65,4 +77,4 @@
 - Abstract video detection and UI injection
 
 ---
-*Last updated: 2025-12-31*
+*Last updated: 2026-01-01*

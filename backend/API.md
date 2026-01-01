@@ -1,41 +1,57 @@
 # Backend API Documentation
 
-The `video-translate` extension now relies on a local Python backend to handle heavy lifting, specifically for network-sensitive tasks.
+The `video-translate` backend provides a robust API for subtitle fetching, AI transcription, and LLM-powered translation.
 
-## Prerequisite
+## Getting Started
 
-The backend must be running for the extension to work reliably.
+The preferred way to run locally is using the `run.sh` script, which handles environment isolation and PYTHONPATH setup.
 
 ```bash
 cd backend
-source venv/bin/activate
-python app.py
+./run.sh
 ```
-
-## Architecture
-
-![Hybrid Architecture](https://mermaid.ink/img/pako:eNpVkM1Kw0AQx19lzGkL9iKCR6HgQREvPZSWXDbTZhu6O5N0FymFvrsJtR7EczPz__3mN0Ith4gC1a2u1R0c4zq_gG-8P8A5rPMaLE9wDbthOAeLB7iC3WUY3sDiCW5g9xmG97B4hgfYe4bhAyye4Qn2fobhIyye4Rn2XobhMyye4QX2fobhCyyey1apW7VSt2qlbtVK3aqVuj9L3d_Lp3zK53zOVz6XfCnzZcmXJV_WfFnzZVfKrq6sW7VSt2qlbtVK3aqVuj9L3d-r_Fqf82t9zq_1Ob_W5_xaX8qv9aX8Wl_Kr_Wl_Fpfyq_1pfxaX8qv9aX8Wl_Kr_Wl_Fpfyq_1pfxaX8qv9aX8Wl_Kr_Wl_Fpfyq_1pfxaX8qv9aX8Wl_Kr_Wl_Fpfyq_1pfxaX8qv9aX8Wl_Kr_Wl_Fpfyq_1pfxaX8qv9aX8Wl_Kr_Wl_P4_v_8B_jdp1Q)
-
-*(Conceptual Diagram)*
-1. **Chrome Extension** runs in the browser.
-2. **Browser Permissions** allow access to `http://localhost:5001`.
-3. **Python Backend** runs on `localhost:5001`.
-4. **Backend** makes requests to:
-   - `www.youtube.com` (for subtitles via `yt-dlp`)
-   - `api.openai.com` (for translation)
 
 ## Endpoints
 
-### 1. Subtitle Fetching
+### 1. Health & Config
+`GET /health`
+- **Purpose**: Verify server status and view active features.
+- **Returns**: JSON with version, hardware info, and enabled tiers.
+
+### 2. Subtitle Fetching
 `GET /api/subtitles`
-- **Purpose**: Reliably get subtitle data without browser blocks.
-- **Params**:
-    - `video_id`: The YouTube Video ID.
-    - `lang`: (Optional) 2-letter language code (default: `en`).
-- **Returns**: JSON (json3 format) or Raw Subtitle Text.
-- **Caching**: The backend caches results in `backend/cache/` to speed up subsequent requests.
+- **Purpose**: Get existing YouTube subtitles.
+- **Tiers**: All (1, 2, 3).
+- **Params**: `video_id` (required), `lang` (optional).
+- **Returns**: Subtitles in JSON3 format.
 
-## Troubleshooting
+### 3. Whisper Transcription
+`GET /api/transcribe`
+- **Purpose**: Generate subtitles from audio using Whisper + Pyannote diarization.
+- **Tiers**: Tier 2, Tier 3.
+- **Params**: `video_id` (required).
+- **Returns**: Array of segments with start, end, text, and speaker info.
 
-- **Server Not Found**: Ensure you ran `python app.py` on port 5001.
-- **502 Bad Gateway**: The backend failed to reach YouTube. Check your internet connection (or server logs).
+### 4. Managed Translation (SSE)
+`POST /api/process`
+- **Purpose**: Combined workflow (fetch/transcribe → translate).
+- **Tiers**: Tier 3 only.
+- **Body**: `{ "video_ids": "...", "target_lang": "...", "force_whisper": false }`
+- **Returns**: Server-Sent Events (SSE) stream for real-time progress, followed by final result.
+
+### 5. Manual Translation
+`POST /api/translate`
+- **Purpose**: Translate provided subtitles using a custom API key.
+- **Tiers**: Tier 1, 2.
+- **Body**: `{ "subtitles": [...], "api_key": "...", "model": "...", "target_lang": "..." }`
+
+### 6. Model Info
+`GET /api/model-info`
+- **Purpose**: Get context window limits for the server's configured model.
+- **Tiers**: Tier 3.
+
+## Caching
+All results are cached:
+- **Audio**: `backend/cache/*.mp3`
+- **Subtitles**: `backend/cache/*.json`
+- **Transcripts**: `backend/cache/*.whisper.json`

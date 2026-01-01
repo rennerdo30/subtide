@@ -72,7 +72,11 @@ Health check endpoint.
   "service": "video-translate-backend",
   "features": {
     "whisper": true,
-    "tier3": false
+    "tier3": true
+  },
+  "config": {
+    "model": "gpt-4o-mini",
+    "context_size": 128000
   }
 }
 ```
@@ -191,11 +195,19 @@ Uses **Server-Sent Events (SSE)** for real-time progress updates.
 
 ### Deprecated Endpoints
 
-#### `POST /api/translate` *(DEPRECATED)*
-**DO NOT USE** - This endpoint previously accepted user API keys which is a security risk.
+#### `POST /api/translate`
+Standard translation endpoint for Tier 1 & 2 (Optional).
+While the extension typically translates client-side for Tier 1 & 2 to keep API keys private, the backend provides this endpoint for convenience and as a fallback.
 
-Tier 1 & 2 now call LLM APIs directly from the extension.
-Tier 3 should use `/api/process` instead.
+**Body:**
+```json
+{
+  "subtitles": [...],
+  "target_lang": "es",
+  "api_key": "sk-...",
+  "model": "gpt-4o"
+}
+```
 
 ## Configuration
 
@@ -255,7 +267,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-python app.py
+./run.sh
 ```
 
 ## Technology Stack

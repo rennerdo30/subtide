@@ -51,7 +51,7 @@ cd backend
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-python app.py
+./run.sh
 ```
 
 ### 2. Install the Extension
@@ -120,7 +120,11 @@ SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
 ```
 video-translate/
 ├── backend/
-│   ├── app.py              # Flask API server
+│   ├── app.py              # Flask entry point
+│   ├── config.py           # Configuration
+│   ├── services/           # Business logic (Whisper, YouTube, Translation)
+│   ├── routes/             # API Endpoints
+│   ├── utils/              # Helper utilities
 │   ├── requirements.txt    # Python dependencies
 │   ├── Dockerfile          # Container configuration
 │   └── docker-compose.yml  # Multi-tier deployment

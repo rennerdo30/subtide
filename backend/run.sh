@@ -5,6 +5,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export PYTHONPATH=$PYTHONPATH:$(dirname "$SCRIPT_DIR")
 cd "$SCRIPT_DIR"
 
 # Colors

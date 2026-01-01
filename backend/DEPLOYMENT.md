@@ -53,6 +53,6 @@ docker-compose up --build video-translate-tier1
    ```
 3. Run the server:
    ```bash
-   python app.py
+   ./run.sh
    ```
    (Defaults to Tier 2 behavior for development convenience)

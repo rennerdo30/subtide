@@ -10,6 +10,29 @@ permissions:
   contents: write
 
 jobs:
+  # Unit Tests for Backend
+  test-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          pip install -r requirements.txt
+
+      - name: Run tests with coverage
+        run: |
+          cd backend
+          # Set PYTHONPATH so 'backend.config' can be found
+          export PYTHONPATH=$PYTHONPATH:$(dirname $(pwd))
+          python -m pytest tests/ --cov=. --cov-report=term-missing
   # Package Chrome Extension (runs on Ubuntu, cross-platform artifact)
   package-extension:
     runs-on: ubuntu-latest
@@ -37,6 +60,7 @@ jobs:
 
   # Build Backend Binaries for each platform
   build-backend:
+    needs: [test-backend]
     strategy:
       matrix:
         include:
@@ -52,6 +76,17 @@ jobs:
     
     runs-on: ${{ matrix.os }}
     steps:
+      - name: Maximize build space
+        if: matrix.os == 'ubuntu-latest'
+        uses: easimon/maximize-build-space@master
+        with:
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          temp-reserve-mb: 100
+          swap-size-mb: 1024
+          overprovision-lvm: 'true'
+
       - name: Checkout code
         uses: actions/checkout@v4
 
