@@ -4,7 +4,6 @@ flask-limiter
 yt-dlp
 openai
 openai-whisper
-faster-whisper
 mlx-whisper
 pyannote.audio
 requests
@@ -12,6 +11,8 @@ gunicorn
 python-dotenv
 flask-socketio
 simple-websocket
+torchaudio
+onnxruntime
 
 pytest
 pytest-mock

@@ -23,12 +23,12 @@ class TestLiveWhisperService(unittest.TestCase):
         self.sid = "test_sid"
         self.target_lang = "es"
         
-        # Setup get_whisper_model mock to return a specific mock model
-        self.mock_model = MagicMock()
-        mock_whisper_service.get_whisper_model.return_value = self.mock_model
+        # Setup get_whisper_model mock to return a string (MLX path)
+        mock_whisper_service.get_whisper_model.return_value = "mlx-community/whisper-base-mlx"
         
-        # Initialize service
-        self.service = LiveWhisperService(self.sid, self.target_lang, self.mock_socketio)
+        # Initialize service - this will trigger loading of mlx_whisper mocks
+        with patch('mlx_whisper.load_models.load_model', return_value=MagicMock()):
+            self.service = LiveWhisperService(self.sid, self.target_lang, self.mock_socketio)
 
     def test_add_audio(self):
         # Create 16kHz PCM audio (1 second of silence)
@@ -46,23 +46,18 @@ class TestLiveWhisperService(unittest.TestCase):
         # Prepare buffer
         self.service.audio_buffer = np.zeros(32000, dtype=np.float32) # 2 seconds
         
-        # Configure model mock - need to replace the model since on Apple Silicon
-        # the real get_whisper_model returns "mlx-whisper-ready" string
-        mock_model = MagicMock()
-        mock_segment = MagicMock()
-        mock_segment.text = "Hello world"
-        # Ensure transcribe returns the tuple we expect
-        mock_model.transcribe.return_value = ([mock_segment], MagicMock(language="en"))
-        self.service.model = mock_model
-        
-        # Configure translation mock
-        # We need to configure the mock that was imported into LiveWhisperService
-        # Since we mocked the module 'backend.services.translation_service', 
-        # the function imported is mock_translation_service.await_translate_subtitles
-        mock_translation_service.await_translate_subtitles.return_value = [{'translatedText': 'Hola mundo'}]
-        
-        # Run
-        self.service._transcribe_and_translate()
+        # Configure MLX decode mock
+        # LiveWhisperService uses mlx_whisper.decoding.decode
+        with patch('mlx_whisper.decoding.decode') as mock_decode:
+            mock_res = MagicMock()
+            mock_res.text = "Hello world"
+            mock_decode.return_value = mock_res
+            
+            # Configure translation mock
+            mock_translation_service.await_translate_subtitles.return_value = [{'translatedText': 'Hola mundo'}]
+            
+            # Run
+            self.service._transcribe_and_translate()
         
         # Verify transcription emitted
         self.mock_socketio.emit.assert_any_call(

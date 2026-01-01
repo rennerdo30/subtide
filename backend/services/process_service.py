@@ -26,7 +26,7 @@ def estimate_whisper_time(duration_seconds: float) -> float:
     Estimate Whisper transcription time based on video duration.
     Uses historical data if available, otherwise conservative defaults.
     """
-    from backend.services.whisper_service import get_whisper_device, WHISPER_BACKEND, WHISPER_MODEL_SIZE
+    from backend.services.whisper_service import get_whisper_device, get_whisper_backend, WHISPER_MODEL_SIZE
     from backend.config import ENABLE_DIARIZATION
 
     # Try to load historical RTF
@@ -48,9 +48,10 @@ def estimate_whisper_time(duration_seconds: float) -> float:
     device = get_whisper_device()
 
     # MORE CONSERVATIVE defaults based on real-world testing
+    backend = get_whisper_backend()
     if device == "cuda":
         factor = 0.15  # Was 0.1
-    elif WHISPER_BACKEND == "mlx-whisper":
+    elif backend == "mlx-whisper":
         model_factors = {
             'tiny': 0.15, 'tiny.en': 0.15,
             'base': 0.20, 'base.en': 0.20,
@@ -60,7 +61,7 @@ def estimate_whisper_time(duration_seconds: float) -> float:
             'large-v3': 0.80, 'large-v3-turbo': 0.60,
         }
         factor = model_factors.get(WHISPER_MODEL_SIZE, 0.25)
-    elif WHISPER_BACKEND == "faster-whisper":
+    elif backend == "faster-whisper":
         model_factors = {
             'tiny': 0.15, 'base': 0.20, 'small': 0.35,
             'medium': 0.60, 'large': 1.0, 'large-v2': 1.0, 'large-v3': 1.0,

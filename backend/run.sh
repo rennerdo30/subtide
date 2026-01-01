@@ -5,6 +5,8 @@
 set -e
 
 # export MLX_FORCE_DIRECT=true
+export KMP_DUPLICATE_LIB_OK=TRUE
+export OMP_NUM_THREADS=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export PYTHONPATH=$PYTHONPATH:$(dirname "$SCRIPT_DIR")
@@ -192,6 +194,22 @@ if python3 -c "import torch; exit(0 if torch.cuda.is_available() else 1)" 2>/dev
     HARDWARE="CUDA (NVIDIA GPU)"
 elif python3 -c "import torch; exit(0 if torch.backends.mps.is_available() else 1)" 2>/dev/null; then
     HARDWARE="MPS (Apple Silicon GPU)"
+fi
+
+# Pre-download silero-vad model if VAD is enabled
+if [ "${ENABLE_VAD:-true}" = "true" ]; then
+    VAD_CACHE_DIR="$HOME/.cache/torch/hub/snakers4_silero-vad_master"
+    if [ ! -d "$VAD_CACHE_DIR" ]; then
+        echo -e "${YELLOW}Pre-downloading silero-vad model...${NC}"
+        python3 -c "
+import torch
+try:
+    torch.hub.load('snakers4/silero-vad', 'silero_vad', force_reload=False, trust_repo=True)
+    print('silero-vad downloaded successfully')
+except Exception as e:
+    print(f'Warning: Could not pre-download silero-vad: {e}')
+" 2>/dev/null || echo -e "${YELLOW}VAD download skipped (will retry at runtime)${NC}"
+    fi
 fi
 
 # Detect whisper backend (priority: mlx-whisper > faster-whisper > openai-whisper)

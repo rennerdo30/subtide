@@ -16,6 +16,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="pyannote")
 
 # Enable MPS fallback
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 # Load environment variables
 load_dotenv()
@@ -26,7 +27,7 @@ from backend.config import (
     ENABLE_DIARIZATION, HF_TOKEN
 )
 from backend.utils.logging_utils import setup_logging
-from backend.services.whisper_service import WHISPER_BACKEND
+from backend.services.whisper_service import get_whisper_backend
 
 # Setup logging
 logger = setup_logging(
@@ -115,9 +116,10 @@ init_translation_limiter(limiter)
 def print_banner():
     print("\n" + "="*60)
     print(" VIDEO TRANSLATE BACKEND")
-    print(f" - Whisper Backend: {WHISPER_BACKEND}")
+    backend = get_whisper_backend()
+    print(f" - Whisper Backend: {backend}")
     
-    if WHISPER_BACKEND == "mlx-whisper":
+    if backend == "mlx-whisper":
         print(" - GPU Acceleration: ENABLED (Apple Silicon Metal)")
     elif platform.system() == "Darwin" and platform.machine() == "arm64":
         print(" - GPU Acceleration: DISABLED (install mlx-whisper for Metal GPU)")

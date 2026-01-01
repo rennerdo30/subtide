@@ -80,16 +80,19 @@ function setupSync() {
     const video = document.querySelector('video');
     if (!video) return;
 
-    // Remove existing listener if any
+    // Remove existing listeners if any
     if (video._vtSyncHandler) {
         video.removeEventListener('timeupdate', video._vtSyncHandler);
+        video.removeEventListener('seeked', video._vtSyncHandler);
     }
 
     video._vtSyncHandler = () => {
         if (!translatedSubtitles?.length) return;
 
         const time = video.currentTime * 1000;
-        const sub = translatedSubtitles.find(s => time >= s.start && time <= s.end);
+
+        // Binary search for better performance on large subtitle lists
+        const sub = findSubtitleAtTime(translatedSubtitles, time);
 
         const textEl = document.querySelector('.vt-text');
         if (textEl && sub) {
@@ -123,7 +126,39 @@ function setupSync() {
         }
     };
 
+    // Listen to timeupdate for regular playback
     video.addEventListener('timeupdate', video._vtSyncHandler);
+
+    // Listen to seeked for immediate sync after seeking
+    video.addEventListener('seeked', video._vtSyncHandler);
+}
+
+/**
+ * Binary search for subtitle at given time (more efficient for large lists)
+ * @param {Array} subs - Sorted subtitle array
+ * @param {number} time - Current time in ms
+ * @returns {Object|null} Matching subtitle or null
+ */
+function findSubtitleAtTime(subs, time) {
+    if (!subs || subs.length === 0) return null;
+
+    let left = 0;
+    let right = subs.length - 1;
+
+    while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+        const sub = subs[mid];
+
+        if (time >= sub.start && time <= sub.end) {
+            return sub;
+        } else if (time < sub.start) {
+            right = mid - 1;
+        } else {
+            left = mid + 1;
+        }
+    }
+
+    return null;
 }
 
 /**

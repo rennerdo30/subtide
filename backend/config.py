@@ -38,3 +38,17 @@ LANG_NAMES = {
     'pl': 'Polish', 'tr': 'Turkish', 'vi': 'Vietnamese',
     'th': 'Thai', 'id': 'Indonesian'
 }
+
+# VAD (Voice Activity Detection) Config
+ENABLE_VAD = os.getenv('ENABLE_VAD', 'true').lower() == 'true'
+VAD_THRESHOLD = float(os.getenv('VAD_THRESHOLD', '0.5'))  # Speech probability threshold
+
+# Subtitle Segment Limits
+MAX_SUBTITLE_DURATION = float(os.getenv('MAX_SUBTITLE_DURATION', '6.0'))  # seconds
+MAX_SUBTITLE_WORDS = int(os.getenv('MAX_SUBTITLE_WORDS', '15'))
+
+# Speaker Diarization Tuning
+MIN_SPEAKERS = int(os.getenv('MIN_SPEAKERS', '0')) or None  # 0 = auto-detect
+MAX_SPEAKERS = int(os.getenv('MAX_SPEAKERS', '0')) or None  # 0 = auto-detect
+DIARIZATION_SMOOTHING = os.getenv('DIARIZATION_SMOOTHING', 'true').lower() == 'true'
+MIN_SEGMENT_DURATION = float(os.getenv('MIN_SEGMENT_DURATION', '1.0'))  # Merge segments shorter than this

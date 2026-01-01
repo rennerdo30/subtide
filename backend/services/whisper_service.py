@@ -19,23 +19,57 @@ warnings.filterwarnings("ignore", category=UserWarning, module="speechbrain")
 # Enable MPS fallback
 os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
 
-import torch
-import torch.serialization
 
-# Monkeypatch torch.load
-def _patched_load(original_fn):
-    @functools.wraps(original_fn)
-    def wrapper(*args, **kwargs):
+# Torch is now lazy-loaded to prevent OpenMP conflicts with MLX
+def _ensure_torch():
+    import torch
+    import torch.serialization
+    
+    # If already patched, just return
+    if hasattr(torch, '_antigravity_patched'):
+        return torch
+
+    logger.info("Applying security patches to Torch for PyTorch 2.6+ compatibility...")
+
+    # 1. Add safe globals for PyTorch 2.6+
+    if hasattr(torch.serialization, 'add_safe_globals'):
+        try:
+            import torch.torch_version
+            torch.serialization.add_safe_globals([
+                torch.torch_version.TorchVersion,
+                # Add other common globals used by diarization models if needed
+            ])
+            logger.info("Added TorchVersion to safe globals")
+        except Exception as e:
+            logger.warning(f"Could not add safe globals: {e}")
+
+    # 2. Force weights_only=False globally for torch.load
+    # This is often needed for older models or third-party libraries (like pyannote)
+    original_torch_load = torch.load
+    
+    @functools.wraps(original_torch_load)
+    def _patched_torch_load(*args, **kwargs):
+        # We FORCE weights_only to False to avoid unpickling errors with trusted models
         kwargs['weights_only'] = False
-        return original_fn(*args, **kwargs)
-    return wrapper
+        return original_torch_load(*args, **kwargs)
+    
+    torch.load = _patched_torch_load
+    
+    # Also patch the internal serialization load if it exists
+    if hasattr(torch.serialization, 'load'):
+        original_ser_load = torch.serialization.load
+        @functools.wraps(original_ser_load)
+        def _patched_ser_load(*args, **kwargs):
+            kwargs['weights_only'] = False
+            return original_ser_load(*args, **kwargs)
+        torch.serialization.load = _patched_ser_load
 
-torch.load = _patched_load(torch.load)
-torch.serialization.load = _patched_load(torch.serialization.load)
-
-# Set threads
-torch.set_num_threads(os.cpu_count() or 8)
-torch.set_num_interop_threads(os.cpu_count() or 8)
+    # 3. Set threads for performance
+    torch.set_num_threads(os.cpu_count() or 8)
+    torch.set_num_interop_threads(os.cpu_count() or 8)
+    
+    torch._antigravity_patched = True
+    return torch
 
 from backend.config import (
     CACHE_DIR,
@@ -46,40 +80,240 @@ from backend.config import (
     DIARIZATION_MODE,
     WHISPER_QUANTIZED,
     WHISPER_HF_REPO,
+    ENABLE_VAD,
+    VAD_THRESHOLD,
+    MAX_SUBTITLE_DURATION,
+    MAX_SUBTITLE_WORDS,
+    MIN_SPEAKERS,
+    MAX_SPEAKERS,
+    DIARIZATION_SMOOTHING,
+    MIN_SEGMENT_DURATION,
 )
 from backend.utils.logging_utils import log_stage
 
 logger = logging.getLogger('video-translate')
 
 # Whisper backend detection
-WHISPER_BACKEND = None
+_whisper_backend = None
 
-if platform.system() == "Darwin" and platform.machine() == "arm64":
+def get_whisper_backend():
+    """Detect and return the whisper backend to use."""
+    global _whisper_backend
+    if _whisper_backend is not None:
+        return _whisper_backend
+        
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        try:
+            import mlx_whisper
+            _whisper_backend = "mlx-whisper"
+            return _whisper_backend
+        except ImportError:
+            pass
+
+    # Default to openai-whisper if others fail or aren't available
     try:
-        import mlx_whisper
-        WHISPER_BACKEND = "mlx-whisper"
+        import whisper
+        _whisper_backend = "openai-whisper"
     except ImportError:
-        pass
-
-if WHISPER_BACKEND is None:
-    try:
-        from faster_whisper import WhisperModel
-        WHISPER_BACKEND = "faster-whisper"
-    except ImportError:
-        pass
-
-if WHISPER_BACKEND is None:
-    import whisper
-    WHISPER_BACKEND = "openai-whisper"
+        logger.warning("No whisper backend available!")
+        _whisper_backend = None
+        
+    return _whisper_backend
 
 # Lazy loaded models
 _whisper_model = None
 _diarization_pipeline = None
+_vad_model = None
+_vad_utils = None  # Store VAD utils (get_speech_timestamps, etc.)
 
 # Control whether to use subprocess for mlx-whisper (default: False = direct/faster)
 MLX_USE_SUBPROCESS = os.getenv('MLX_USE_SUBPROCESS', 'false').lower() == 'true'
 # New: Force direct mode even for long files
 MLX_FORCE_DIRECT = os.getenv('MLX_FORCE_DIRECT', 'false').lower() == 'true'
+
+
+def get_vad_model():
+    """Lazy load silero-vad model."""
+    global _vad_model, _vad_utils
+    if _vad_model is None and ENABLE_VAD:
+        try:
+            torch = _ensure_torch()
+            logger.info("Loading silero-vad model...")
+            model, utils = torch.hub.load(
+                repo_or_dir='snakers4/silero-vad',
+                model='silero_vad',
+                force_reload=False,
+                trust_repo=True
+            )
+            _vad_model = model
+            _vad_utils = utils  # Contains get_speech_timestamps, read_audio, etc.
+            logger.info("silero-vad loaded successfully")
+        except Exception as e:
+            logger.warning(f"Could not load silero-vad: {e}")
+            _vad_model = False  # Mark as failed so we don't retry
+    return (_vad_model, _vad_utils) if _vad_model else (None, None)
+
+
+def get_speech_timestamps(audio_path: str, progress_callback=None) -> list:
+    """Use silero-vad to detect speech segments in audio.
+    
+    Returns list of dicts with 'start' and 'end' in seconds.
+    """
+    if not ENABLE_VAD:
+        return None
+    
+    vad_model, vad_utils = get_vad_model()
+    if not vad_model or not vad_utils:
+        return None
+    
+    # Get the speech timestamp function from utils
+    get_speech_ts = vad_utils[0] if isinstance(vad_utils, tuple) else getattr(vad_utils, 'get_speech_timestamps', None)
+    if not get_speech_ts:
+        logger.warning("[VAD] Could not find get_speech_timestamps in utils")
+        return None
+    
+    try:
+        torch = _ensure_torch()
+        import torchaudio
+        import tempfile
+        import subprocess
+        
+        logger.info(f"[VAD] Processing audio: {audio_path}")
+        
+        # Try to load audio directly, fall back to ffmpeg conversion if needed
+        temp_wav = None
+        try:
+            waveform, sample_rate = torchaudio.load(audio_path)
+        except Exception as load_error:
+            # torchaudio doesn't support this format (e.g. m4a), convert with ffmpeg
+            logger.info(f"[VAD] Converting audio format with ffmpeg...")
+            temp_wav = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+            temp_wav.close()
+            
+            try:
+                subprocess.run([
+                    'ffmpeg', '-y', '-i', audio_path,
+                    '-ar', '16000', '-ac', '1',  # 16kHz mono for VAD
+                    '-f', 'wav', temp_wav.name
+                ], check=True, capture_output=True)
+                waveform, sample_rate = torchaudio.load(temp_wav.name)
+            except subprocess.CalledProcessError as e:
+                logger.warning(f"[VAD] ffmpeg conversion failed: {e}")
+                return None
+            finally:
+                # Clean up temp file
+                if temp_wav and os.path.exists(temp_wav.name):
+                    os.unlink(temp_wav.name)
+        
+        # Resample to 16kHz if needed (silero-vad requirement)
+        if sample_rate != 16000:
+            resampler = torchaudio.transforms.Resample(sample_rate, 16000)
+            waveform = resampler(waveform)
+            sample_rate = 16000
+        
+        # Convert to mono if stereo
+        if waveform.shape[0] > 1:
+            waveform = waveform.mean(dim=0, keepdim=True)
+        
+        # Flatten to 1D
+        waveform = waveform.squeeze()
+        
+        # Get speech timestamps
+        speech_timestamps = []
+        
+        # Process in chunks to avoid memory issues on long audio
+        chunk_size = 30 * sample_rate  # 30 seconds
+        total_chunks = (len(waveform) + chunk_size - 1) // chunk_size
+        
+        for i in range(0, len(waveform), chunk_size):
+            chunk = waveform[i:i + chunk_size]
+            chunk_offset = i / sample_rate
+            
+            # Get timestamps for this chunk using the utils function
+            timestamps = get_speech_ts(chunk, vad_model, sampling_rate=sample_rate, threshold=VAD_THRESHOLD)
+            
+            for ts in timestamps:
+                speech_timestamps.append({
+                    'start': chunk_offset + ts['start'] / sample_rate,
+                    'end': chunk_offset + ts['end'] / sample_rate
+                })
+            
+            if progress_callback and total_chunks > 1:
+                pct = int((i / len(waveform)) * 10)  # 0-10% for VAD
+                progress_callback('vad', f'Detecting speech... {pct}%', pct)
+        
+        logger.info(f"[VAD] Found {len(speech_timestamps)} speech segments")
+        return speech_timestamps
+        
+    except Exception as e:
+        logger.warning(f"[VAD] Failed to process audio: {e}")
+        return None
+
+
+def filter_segments_by_vad(segments: list, speech_timestamps: list) -> list:
+    """Filter Whisper segments to only include those overlapping with VAD speech."""
+    if not speech_timestamps:
+        return segments
+    
+    filtered = []
+    for seg in segments:
+        seg_start = seg['start']
+        seg_end = seg['end']
+        
+        # Check if segment overlaps with any speech timestamp
+        for st in speech_timestamps:
+            overlap_start = max(seg_start, st['start'])
+            overlap_end = min(seg_end, st['end'])
+            
+            if overlap_end > overlap_start:
+                # Has overlap - keep segment
+                filtered.append(seg)
+                break
+    
+    logger.info(f"[VAD] Filtered {len(segments)} -> {len(filtered)} segments")
+    return filtered
+
+
+def smooth_speaker_segments(segments: list) -> list:
+    """Post-process segments to reduce speaker flicker.
+    
+    Merges short segments with adjacent segments that have the same speaker.
+    """
+    if not DIARIZATION_SMOOTHING or not segments:
+        return segments
+    
+    smoothed = []
+    i = 0
+    
+    while i < len(segments):
+        current = segments[i].copy()
+        
+        # Look ahead and merge short segments with same speaker
+        while i + 1 < len(segments):
+            next_seg = segments[i + 1]
+            current_duration = current['end'] - current['start']
+            next_duration = next_seg['end'] - next_seg['start']
+            
+            # If current segment is short and next has same speaker, merge
+            if current_duration < MIN_SEGMENT_DURATION and current.get('speaker') == next_seg.get('speaker'):
+                current['end'] = next_seg['end']
+                current['text'] = current['text'] + ' ' + next_seg['text']
+                i += 1
+            # If next segment is short and has same speaker, merge
+            elif next_duration < MIN_SEGMENT_DURATION and current.get('speaker') == next_seg.get('speaker'):
+                current['end'] = next_seg['end']
+                current['text'] = current['text'] + ' ' + next_seg['text']
+                i += 1
+            else:
+                break
+        
+        smoothed.append(current)
+        i += 1
+    
+    if len(smoothed) != len(segments):
+        logger.info(f"[SMOOTHING] Merged {len(segments)} -> {len(smoothed)} segments")
+    
+    return smoothed
 
 
 # Subprocess mode removed.
@@ -103,7 +337,10 @@ def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None) ->
     result = mlx_whisper.transcribe(
         audio_path,
         path_or_hf_repo=model_path,
-        verbose=True  # Enable internal progress for debugging
+        verbose=True,  # Enable internal progress for debugging
+        word_timestamps=True,
+        no_speech_threshold=0.6,
+        hallucination_silence_threshold=2.0
     )
 
     elapsed = time.time() - start_time
@@ -122,23 +359,33 @@ def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None) ->
 
 def get_whisper_device():
     """Detect best available device for Whisper."""
-    if WHISPER_BACKEND == "mlx-whisper":
+    backend = get_whisper_backend()
+    if backend == "mlx-whisper":
         logger.info("Using MLX with Metal GPU acceleration (Apple Silicon)")
         return "metal"
-    elif WHISPER_BACKEND == "faster-whisper":
-        if torch.cuda.is_available():
-            logger.info("CUDA detected. Using NVIDIA GPU acceleration.")
-            return "cuda"
-        else:
-            logger.info("Using CPU with CTranslate2 optimizations (Metal not supported by faster-whisper)")
-            return "cpu"
+    elif backend == "faster-whisper":
+        # Fallback to existing logic or error if strictly removed, 
+        # but since we removed detection, this case shouldn't be hit unless manually set.
+        # We will map it to cpu/cuda same as openai-whisper for safety or just error.
+        logger.warning("faster-whisper backend is deprecated/removed. Using default device detection.")
+        try:
+            torch = _ensure_torch()
+            if torch.cuda.is_available():
+                return "cuda"
+        except ImportError:
+            pass
+        return "cpu"
     else:
-        if torch.cuda.is_available():
-            logger.info("CUDA detected. Using NVIDIA GPU acceleration.")
-            return "cuda"
-        if torch.backends.mps.is_available():
-             logger.info("MPS detected. Using Apple Silicon GPU acceleration.")
-             return "mps"
+        try:
+            torch = _ensure_torch()
+            if torch.cuda.is_available():
+                logger.info("CUDA detected. Using NVIDIA GPU acceleration.")
+                return "cuda"
+            if torch.backends.mps.is_available():
+                 logger.info("MPS detected. Using Apple Silicon GPU acceleration.")
+                 return "mps"
+        except ImportError:
+            pass
         return "cpu"
 
 def get_mlx_model_path():
@@ -162,31 +409,16 @@ def get_whisper_model():
     if _whisper_model is None:
         device = get_whisper_device()
 
-        if WHISPER_BACKEND == "mlx-whisper":
+        backend = get_whisper_backend()
+
+        if backend == "mlx-whisper":
             logger.info(f"MLX-Whisper ready (model '{WHISPER_MODEL_SIZE}')")
             logger.info("Using Apple Silicon GPU (Metal) for maximum performance!")
             # Return the model path for MLX backend
             _whisper_model = get_mlx_model_path()
 
-        elif WHISPER_BACKEND == "faster-whisper":
-            logger.info(f"Loading faster-whisper model '{WHISPER_MODEL_SIZE}' on {device.upper()}...")
-            compute_type = "int8" if device == "cpu" else "float16"
-            cpu_threads = os.cpu_count() or 4
-
-            try:
-                # Lazy import inside to avoid top-level dependency if possible, though this block runs only if backend selected
-                from faster_whisper import WhisperModel
-                _whisper_model = WhisperModel(
-                    WHISPER_MODEL_SIZE,
-                    device=device,
-                    compute_type=compute_type,
-                    cpu_threads=cpu_threads,
-                    num_workers=2
-                )
-                logger.info(f"faster-whisper loaded: device={device}, compute={compute_type}, threads={cpu_threads}")
-            except Exception as e:
-                logger.error(f"faster-whisper loading failed: {e}")
-                raise
+        elif backend == "faster-whisper":
+            raise ValueError("faster-whisper backend is no longer supported due to performance issues.")
         else:
             logger.info(f"Loading openai-whisper model '{WHISPER_MODEL_SIZE}' on {device.upper()}...")
             try:
@@ -214,6 +446,10 @@ def get_diarization_pipeline():
         logger.info("Loading Pyannote diarization pipeline (CPU mode for stability)...")
 
         try:
+            # CRITICAL: Call _ensure_torch BEFORE importing pyannote
+            # This patches torch.load to work with pyannote's model files
+            torch = _ensure_torch()
+            
             from pyannote.audio import Pipeline
             pipeline = Pipeline.from_pretrained(
                 "pyannote/speaker-diarization-3.1",
@@ -224,6 +460,7 @@ def get_diarization_pipeline():
                 logger.error("Diarization pipeline returned None - check your HF_TOKEN")
                 return None
 
+            # torch is already loaded above
             if torch.backends.mps.is_available():
                 try:
                     logger.info("Attempting to use MPS (Apple Silicon GPU) for diarization...")
@@ -250,14 +487,15 @@ def run_whisper_process(audio_file: str, progress_callback=None) -> Dict[str, An
     if not ENABLE_WHISPER:
         raise Exception("Whisper is disabled on this server")
         
-    logger.info(f"Running Whisper transcription ({WHISPER_BACKEND})...")
+    backend = get_whisper_backend()
+    logger.info(f"Running Whisper transcription ({backend})...")
     model = get_whisper_model()
 
     segments = []
     text = ""
     language = "en"
 
-    if WHISPER_BACKEND == "mlx-whisper":
+    if backend == "mlx-whisper":
         import threading
         import time as time_module
         import multiprocessing
@@ -422,6 +660,7 @@ def run_whisper_process(audio_file: str, progress_callback=None) -> Dict[str, An
                 "start": s.get("start"),
                 "end": s.get("end"),
                 "text": s.get("text", "").strip(),
+                "words": s.get("words", []),
                 "speaker": None
             })
         text = result.get("text", "")
@@ -432,29 +671,8 @@ def run_whisper_process(audio_file: str, progress_callback=None) -> Dict[str, An
             logger.info(f"MLX device: {mlx_meta.get('mlx_device')}")
         logger.info(f"mlx-whisper done: {len(segments)} segments, language={language}, took {total_time:.1f}s, rtf={rtf:.3f}")
 
-    elif WHISPER_BACKEND == "faster-whisper":
-        logger.info("Starting faster-whisper transcription...")
-        segments_generator, info = model.transcribe(
-            audio_file,
-            beam_size=5,
-            language=None,
-            vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500),
-        )
-
-        text_parts = []
-        for seg in segments_generator:
-            segments.append({
-                "start": seg.start,
-                "end": seg.end,
-                "text": seg.text.strip(),
-                "speaker": None
-            })
-            text_parts.append(seg.text.strip())
-
-        text = " ".join(text_parts)
-        language = info.language
-        logger.info(f"faster-whisper done: {len(segments)} segments, language={language}")
+    elif backend == "faster-whisper":
+        raise ValueError("faster-whisper backend is no longer supported.")
 
     else:
         # openai-whisper
@@ -466,18 +684,31 @@ def run_whisper_process(audio_file: str, progress_callback=None) -> Dict[str, An
 
         fp16 = device_str == "cuda"
         logger.info(f"Starting openai-whisper transcription (fp16={fp16}, device={device_str})...")
-        result = model.transcribe(audio_file, fp16=fp16)
+        # Enable word timestamps for openai-whisper
+        result = model.transcribe(audio_file, fp16=fp16, word_timestamps=True, no_speech_threshold=0.6)
 
+        # openai-whisper structure with word_timestamps=True might differ slightly or be same
+        # It typically returns 'segments' with 'words' inside if supported
         for s in result.get("segments", []):
+            # We want to keep the raw segment structure for now, but we will re-process it later
+            # if we are doing word-level diarization.
+            # But here we just populate the initial list.
             segments.append({
                 "start": s.get("start"),
                 "end": s.get("end"),
                 "text": s.get("text", "").strip(),
+                "words": s.get("words", []),
                 "speaker": None
             })
         text = result.get("text", "")
         language = result.get("language", "en")
 
+    # VAD Filtering - remove hallucinated segments in silence
+    if ENABLE_VAD:
+        speech_timestamps = get_speech_timestamps(audio_file, progress_callback)
+        if speech_timestamps:
+            segments = filter_segments_by_vad(segments, speech_timestamps)
+    
     # Diarization
     pipeline = get_diarization_pipeline()
     if pipeline and ENABLE_DIARIZATION and DIARIZATION_MODE == 'on':
@@ -542,42 +773,159 @@ def run_whisper_process(audio_file: str, progress_callback=None) -> Dict[str, An
                         logger.info(f"[DIARIZATION] {step_name} (running...)")
 
             # Run diarization on the audio file with progress tracking
+            # Build kwargs with optional speaker count hints
+            diarization_kwargs = {'hook': None}  # Will be set in context
+            if MIN_SPEAKERS:
+                diarization_kwargs['min_speakers'] = MIN_SPEAKERS
+                logger.info(f"[DIARIZATION] Using min_speakers={MIN_SPEAKERS}")
+            if MAX_SPEAKERS:
+                diarization_kwargs['max_speakers'] = MAX_SPEAKERS
+                logger.info(f"[DIARIZATION] Using max_speakers={MAX_SPEAKERS}")
+            
             try:
                 with CustomProgressHook(progress_callback) as hook:
-                    diarization = pipeline(diarization_audio, hook=hook)
+                    diarization_kwargs['hook'] = hook
+                    diarization = pipeline(diarization_audio, **diarization_kwargs)
             except Exception as e:
                 # If MPS fails (common with SparseMPS error), try fallback to CPU
                 # We check the error message or device to decide
                 device = getattr(pipeline, "device", None)
                 if device and device.type == "mps":
                     logger.warning(f"Diarization failed on MPS ({e}). Falling back to CPU...")
+                    torch = _ensure_torch()
                     pipeline.to(torch.device("cpu"))
                     with CustomProgressHook(progress_callback) as hook:
-                        diarization = pipeline(diarization_audio, hook=hook)
+                        diarization_kwargs['hook'] = hook
+                        diarization = pipeline(diarization_audio, **diarization_kwargs)
                     logger.info("Diarization succeeded on CPU fallback.")
                 else:
                     raise e  # Re-raise if not MPS related or already on CPU
             
-            # Match speakers
-            for segment in segments:
-                start = segment["start"]
-                end = segment["end"]
-                speaker_overlaps = {}
+            # Match speakers using SEGMENT-LEVEL approach (more stable than word-level)
+            # This preserves Whisper's natural sentence boundaries and reduces noise
+            
+            diarization_turns = list(diarization.itertracks(yield_label=True))
+            logger.info(f"[DIARIZATION] Found {len(diarization_turns)} speaker turns")
+            logger.info(f"[DIARIZATION] Processing {len(segments)} segments for speaker assignment")
+            
+            # Use configurable limits from config.py
+            max_duration = MAX_SUBTITLE_DURATION
+            max_words = MAX_SUBTITLE_WORDS
+            
+            new_segments = []
+            
+            for seg in segments:
+                seg_start = seg["start"]
+                seg_end = seg["end"]
+                seg_text = seg.get("text", "").strip()
+                seg_words = seg.get("words", [])
                 
-                for turn, _, speaker in diarization.itertracks(yield_label=True):
-                    overlap_start = max(start, turn.start)
-                    overlap_end = min(end, turn.end)
-                    overlap = max(0, overlap_end - overlap_start)
-                    if overlap > 0:
-                        speaker_overlaps[speaker] = speaker_overlaps.get(speaker, 0) + overlap
+                # Find speaker with most overlap for this segment
+                speaker_overlaps = {}
+                for turn, _, speaker in diarization_turns:
+                    overlap_start = max(seg_start, turn.start)
+                    overlap_end = min(seg_end, turn.end)
+                    overlap_duration = max(0, overlap_end - overlap_start)
+                    
+                    if overlap_duration > 0:
+                        speaker_overlaps[speaker] = speaker_overlaps.get(speaker, 0) + overlap_duration
                 
                 if speaker_overlaps:
                     best_speaker = max(speaker_overlaps, key=speaker_overlaps.get)
-                    segment["speaker"] = best_speaker
+                else:
+                    best_speaker = "SPEAKER_00"
+                
+                # Check if segment needs to be split (too long or too many words)
+                duration = seg_end - seg_start
+                word_count = len(seg_words) if seg_words else len(seg_text.split())
+                
+                if duration <= max_duration and word_count <= max_words:
+                    # Segment is fine, keep it
+                    new_segments.append({
+                        "start": seg_start,
+                        "end": seg_end,
+                        "text": seg_text,
+                        "speaker": best_speaker
+                    })
+                else:
+                    # Segment is too long, split it
+                    if seg_words:
+                        # Split by words
+                        current_words = []
+                        current_start = None
+                        
+                        for w in seg_words:
+                            if current_start is None:
+                                current_start = w.get("start", seg_start)
+                            
+                            current_words.append(w.get("word", ""))
+                            current_end = w.get("end", seg_end)
+                            current_duration = current_end - current_start
+                            
+                            # Check limits
+                            if len(current_words) >= max_words or current_duration >= max_duration:
+                                # Close this sub-segment
+                                text = "".join(current_words).strip()
+                                if text:
+                                    new_segments.append({
+                                        "start": current_start,
+                                        "end": current_end,
+                                        "text": text,
+                                        "speaker": best_speaker
+                                    })
+                                current_words = []
+                                current_start = None
+                        
+                        # Handle remaining words
+                        if current_words:
+                            text = "".join(current_words).strip()
+                            if text:
+                                new_segments.append({
+                                    "start": current_start,
+                                    "end": seg_end,
+                                    "text": text,
+                                    "speaker": best_speaker
+                                })
+                    else:
+                        # No word-level data, split by time
+                        words = seg_text.split()
+                        chunk_size = min(max_words, len(words))
+                        time_per_word = duration / len(words) if words else duration
+                        
+                        for i in range(0, len(words), chunk_size):
+                            chunk_words = words[i:i + chunk_size]
+                            chunk_start = seg_start + (i * time_per_word)
+                            chunk_end = seg_start + ((i + len(chunk_words)) * time_per_word)
+                            
+                            new_segments.append({
+                                "start": chunk_start,
+                                "end": min(chunk_end, seg_end),
+                                "text": " ".join(chunk_words),
+                                "speaker": best_speaker
+                            })
+            
+            # Replace segments
+            if new_segments:
+                segments = new_segments
+                logger.info(f"[DIARIZATION] Produced {len(segments)} segments with speaker labels")
+                
+                # Apply smoothing to reduce speaker flicker
+                segments = smooth_speaker_segments(segments)
+            else:
+                # Fallback: just add speaker to original segments
+                for s in segments:
+                    if s.get("speaker") is None:
+                        s["speaker"] = "SPEAKER_00"
 
             logger.info("Diarization complete.")
         except Exception as e:
             logger.error(f"Diarization failed: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            # Ensure segments at least have a default speaker if diarization crashed
+            for s in segments:
+                if s.get("speaker") is None:
+                    s["speaker"] = "SPEAKER_00"
 
     return {
         "segments": segments,
