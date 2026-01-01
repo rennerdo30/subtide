@@ -5,15 +5,22 @@ import queue
 import sys
 
 # Mock modules before importing the service
-# We need to keep these mocks alive or accessible
 mock_faster_whisper = MagicMock()
 mock_whisper_service = MagicMock()
 mock_translation_service = MagicMock()
+mock_mlx = MagicMock()
+mock_mlx_whisper = MagicMock()
 
 with patch.dict('sys.modules', {
     'faster_whisper': mock_faster_whisper,
     'backend.services.whisper_service': mock_whisper_service,
-    'backend.services.translation_service': mock_translation_service
+    'backend.services.translation_service': mock_translation_service,
+    'mlx': mock_mlx,
+    'mlx.core': mock_mlx.core,
+    'mlx_whisper': mock_mlx_whisper,
+    'mlx_whisper.load_models': mock_mlx_whisper.load_models,
+    'mlx_whisper.decoding': mock_mlx_whisper.decoding,
+    'mlx_whisper.audio': mock_mlx_whisper.audio
 }):
     from backend.services.live_whisper_service import LiveWhisperService
 
@@ -26,9 +33,8 @@ class TestLiveWhisperService(unittest.TestCase):
         # Setup get_whisper_model mock to return a string (MLX path)
         mock_whisper_service.get_whisper_model.return_value = "mlx-community/whisper-base-mlx"
         
-        # Initialize service - this will trigger loading of mlx_whisper mocks
-        with patch('mlx_whisper.load_models.load_model', return_value=MagicMock()):
-            self.service = LiveWhisperService(self.sid, self.target_lang, self.mock_socketio)
+        # Initialize service - mocks are already in sys.modules
+        self.service = LiveWhisperService(self.sid, self.target_lang, self.mock_socketio)
 
     def test_add_audio(self):
         # Create 16kHz PCM audio (1 second of silence)
