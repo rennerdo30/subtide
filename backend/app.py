@@ -450,35 +450,30 @@ def _run_whisper_process(audio_file, progress_callback=None):
             # Run diarization on the audio file with progress tracking
             diarization = pipeline(diarization_audio, hook=diarization_progress)
             
-            # Match speakers to segments
+            # Match speakers to segments using overlap duration
             for segment in segments:
-                # Find the most active speaker during this segment
+                # Find the speaker with the most overlap during this segment
                 start = segment["start"]
                 end = segment["end"]
                 
-                # Get speakers overlapping with this segment
-                # We simply find the speaker with max overlap logic or first speaker
-                # Pyannote returns a text format like:
-                # [ 00:00:00.000 -->  00:00:03.000] A speaker_0
-                
-                # Simplified matching: Check intersection
-                speakers_in_segment = []
+                # Calculate overlap duration for each speaker
+                speaker_overlaps = {}
                 for turn, _, speaker in diarization.itertracks(yield_label=True):
-                    # Check overlap
-                    seg_start = start
-                    seg_end = end
                     turn_start = turn.start
                     turn_end = turn.end
                     
-                    if turn_start < seg_end and turn_end > seg_start:
-                        speakers_in_segment.append(speaker)
+                    # Calculate overlap
+                    overlap_start = max(start, turn_start)
+                    overlap_end = min(end, turn_end)
+                    overlap_duration = max(0, overlap_end - overlap_start)
+                    
+                    if overlap_duration > 0:
+                        speaker_overlaps[speaker] = speaker_overlaps.get(speaker, 0) + overlap_duration
                 
-                if speakers_in_segment:
-                    # Just take the first/most frequent one for now
-                    # (A better logic would be max overlap duration)
-                    from collections import Counter
-                    most_common = Counter(speakers_in_segment).most_common(1)[0][0]
-                    segment["speaker"] = most_common
+                if speaker_overlaps:
+                    # Assign the speaker with the most overlap duration
+                    best_speaker = max(speaker_overlaps, key=speaker_overlaps.get)
+                    segment["speaker"] = best_speaker
 
             logger.info("Diarization complete.")
         except Exception as e:

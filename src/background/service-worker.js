@@ -25,6 +25,10 @@ const STORAGE_KEYS = {
     SUBTITLE_POSITION: 'subtitlePosition',
     SUBTITLE_BACKGROUND: 'subtitleBackground',
     SUBTITLE_COLOR: 'subtitleColor',
+    SUBTITLE_FONT: 'subtitleFont',
+    SUBTITLE_OUTLINE: 'subtitleOutline',
+    SUBTITLE_OPACITY: 'subtitleOpacity',
+    SUBTITLE_SHOW_SPEAKER: 'subtitleShowSpeaker',
 };
 
 const DEFAULT_CONFIG = {
@@ -40,6 +44,10 @@ const DEFAULT_CONFIG = {
     subtitlePosition: 'bottom',
     subtitleBackground: 'dark',
     subtitleColor: 'white',
+    subtitleFont: 'sans-serif',
+    subtitleOutline: 'medium',
+    subtitleOpacity: 'full',
+    subtitleShowSpeaker: 'off',
 };
 
 async function getConfig() {
@@ -58,6 +66,10 @@ async function getConfig() {
                 subtitlePosition: result[STORAGE_KEYS.SUBTITLE_POSITION] || DEFAULT_CONFIG.subtitlePosition,
                 subtitleBackground: result[STORAGE_KEYS.SUBTITLE_BACKGROUND] || DEFAULT_CONFIG.subtitleBackground,
                 subtitleColor: result[STORAGE_KEYS.SUBTITLE_COLOR] || DEFAULT_CONFIG.subtitleColor,
+                subtitleFont: result[STORAGE_KEYS.SUBTITLE_FONT] || DEFAULT_CONFIG.subtitleFont,
+                subtitleOutline: result[STORAGE_KEYS.SUBTITLE_OUTLINE] || DEFAULT_CONFIG.subtitleOutline,
+                subtitleOpacity: result[STORAGE_KEYS.SUBTITLE_OPACITY] || DEFAULT_CONFIG.subtitleOpacity,
+                subtitleShowSpeaker: result[STORAGE_KEYS.SUBTITLE_SHOW_SPEAKER] || DEFAULT_CONFIG.subtitleShowSpeaker,
             });
         });
     });
@@ -65,20 +77,26 @@ async function getConfig() {
 
 async function saveConfig(config) {
     return new Promise((resolve) => {
-        chrome.storage.local.set({
-            [STORAGE_KEYS.API_URL]: config.apiUrl,
-            [STORAGE_KEYS.API_KEY]: config.apiKey,
-            [STORAGE_KEYS.MODEL]: config.model,
-            [STORAGE_KEYS.TIER]: config.tier,
-            [STORAGE_KEYS.FORCE_GEN]: config.forceGen,
-            [STORAGE_KEYS.DEFAULT_LANGUAGE]: config.defaultLanguage,
-            [STORAGE_KEYS.BACKEND_URL]: config.backendUrl,
-            // Subtitle appearance
-            [STORAGE_KEYS.SUBTITLE_SIZE]: config.subtitleSize,
-            [STORAGE_KEYS.SUBTITLE_POSITION]: config.subtitlePosition,
-            [STORAGE_KEYS.SUBTITLE_BACKGROUND]: config.subtitleBackground,
-            [STORAGE_KEYS.SUBTITLE_COLOR]: config.subtitleColor,
-        }, resolve);
+        const toSave = {};
+        // Only save defined values (partial update support)
+        if (config.apiUrl !== undefined) toSave[STORAGE_KEYS.API_URL] = config.apiUrl;
+        if (config.apiKey !== undefined) toSave[STORAGE_KEYS.API_KEY] = config.apiKey;
+        if (config.model !== undefined) toSave[STORAGE_KEYS.MODEL] = config.model;
+        if (config.tier !== undefined) toSave[STORAGE_KEYS.TIER] = config.tier;
+        if (config.forceGen !== undefined) toSave[STORAGE_KEYS.FORCE_GEN] = config.forceGen;
+        if (config.defaultLanguage !== undefined) toSave[STORAGE_KEYS.DEFAULT_LANGUAGE] = config.defaultLanguage;
+        if (config.backendUrl !== undefined) toSave[STORAGE_KEYS.BACKEND_URL] = config.backendUrl;
+        // Subtitle appearance
+        if (config.subtitleSize !== undefined) toSave[STORAGE_KEYS.SUBTITLE_SIZE] = config.subtitleSize;
+        if (config.subtitlePosition !== undefined) toSave[STORAGE_KEYS.SUBTITLE_POSITION] = config.subtitlePosition;
+        if (config.subtitleBackground !== undefined) toSave[STORAGE_KEYS.SUBTITLE_BACKGROUND] = config.subtitleBackground;
+        if (config.subtitleColor !== undefined) toSave[STORAGE_KEYS.SUBTITLE_COLOR] = config.subtitleColor;
+        if (config.subtitleFont !== undefined) toSave[STORAGE_KEYS.SUBTITLE_FONT] = config.subtitleFont;
+        if (config.subtitleOutline !== undefined) toSave[STORAGE_KEYS.SUBTITLE_OUTLINE] = config.subtitleOutline;
+        if (config.subtitleOpacity !== undefined) toSave[STORAGE_KEYS.SUBTITLE_OPACITY] = config.subtitleOpacity;
+        if (config.subtitleShowSpeaker !== undefined) toSave[STORAGE_KEYS.SUBTITLE_SHOW_SPEAKER] = config.subtitleShowSpeaker;
+
+        chrome.storage.local.set(toSave, resolve);
     });
 }
 

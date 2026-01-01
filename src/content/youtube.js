@@ -18,6 +18,10 @@ let subtitleSettings = {
     position: 'bottom',
     background: 'dark',
     color: 'white',
+    font: 'sans-serif',
+    outline: 'medium',
+    opacity: 'full',
+    showSpeaker: 'off',
 };
 
 // Multilingual status messages for cool animation effect
@@ -156,6 +160,10 @@ async function setupPage(videoId) {
         position: config.subtitlePosition || 'bottom',
         background: config.subtitleBackground || 'dark',
         color: config.subtitleColor || 'white',
+        font: config.subtitleFont || 'sans-serif',
+        outline: config.subtitleOutline || 'medium',
+        opacity: config.subtitleOpacity || 'full',
+        showSpeaker: config.subtitleShowSpeaker || 'off',
     };
 
     console.log('[VideoTranslate] Tier:', userTier);
@@ -457,6 +465,26 @@ function injectUI(controlsElement) {
                         <span class="vt-option-value" data-value="color">${chrome.i18n.getMessage('colorWhite')}</span>
                         <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
                     </div>
+                    <div class="vt-menu-option" data-setting="font">
+                        <span class="vt-option-label">Font</span>
+                        <span class="vt-option-value" data-value="font">Sans-serif</span>
+                        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </div>
+                    <div class="vt-menu-option" data-setting="outline">
+                        <span class="vt-option-label">Text Outline</span>
+                        <span class="vt-option-value" data-value="outline">Medium</span>
+                        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </div>
+                    <div class="vt-menu-option" data-setting="opacity">
+                        <span class="vt-option-label">Opacity</span>
+                        <span class="vt-option-value" data-value="opacity">Full</span>
+                        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </div>
+                    <div class="vt-menu-option" data-setting="showSpeaker">
+                        <span class="vt-option-label">Speaker Labels</span>
+                        <span class="vt-option-value" data-value="showSpeaker">Off</span>
+                        <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
+                    </div>
                 </div>
                 <div class="vt-submenu" data-for="lang" style="display: none;">
                     <div class="vt-submenu-item" data-val="en">${chrome.i18n.getMessage('langEn')}</div>
@@ -489,7 +517,33 @@ function injectUI(controlsElement) {
                     <div class="vt-submenu-item" data-val="white">White</div>
                     <div class="vt-submenu-item" data-val="yellow">Yellow</div>
                     <div class="vt-submenu-item" data-val="cyan">Cyan</div>
+                    <div class="vt-submenu-item" data-val="speaker">By Speaker</div>
                 </div>
+                <div class="vt-submenu" data-for="font" style="display: none;">
+                    <div class="vt-submenu-item" data-val="sans-serif">Sans-serif</div>
+                    <div class="vt-submenu-item" data-val="serif">Serif</div>
+                    <div class="vt-submenu-item" data-val="monospace">Monospace</div>
+                    <div class="vt-submenu-item" data-val="casual">Casual</div>
+                </div>
+                <div class="vt-submenu" data-for="outline" style="display: none;">
+                    <div class="vt-submenu-item" data-val="none">None</div>
+                    <div class="vt-submenu-item" data-val="light">Light</div>
+                    <div class="vt-submenu-item" data-val="medium">Medium</div>
+                    <div class="vt-submenu-item" data-val="heavy">Heavy</div>
+                </div>
+                <div class="vt-submenu" data-for="opacity" style="display: none;">
+                    <div class="vt-submenu-item" data-val="full">Full (100%)</div>
+                    <div class="vt-submenu-item" data-val="high">High (85%)</div>
+                    <div class="vt-submenu-item" data-val="medium">Medium (70%)</div>
+                    <div class="vt-submenu-item" data-val="low">Low (50%)</div>
+                </div>
+                <div class="vt-submenu" data-for="showSpeaker" style="display: none;">
+                    <div class="vt-submenu-item" data-val="off">Off</div>
+                    <div class="vt-submenu-item" data-val="color">Color Only</div>
+                    <div class="vt-submenu-item" data-val="label">Show Label</div>
+                    <div class="vt-submenu-item" data-val="both">Color + Label</div>
+                </div>
+
             </div>
         `;
         player.appendChild(settingsPanel);
@@ -521,7 +575,32 @@ function injectUI(controlsElement) {
             color: {
                 white: chrome.i18n.getMessage('colorWhite'),
                 yellow: chrome.i18n.getMessage('colorYellow'),
-                cyan: chrome.i18n.getMessage('colorCyan')
+                cyan: chrome.i18n.getMessage('colorCyan'),
+                speaker: 'By Speaker'
+            },
+            font: {
+                'sans-serif': 'Sans-serif',
+                'serif': 'Serif',
+                'monospace': 'Monospace',
+                'casual': 'Casual'
+            },
+            outline: {
+                none: 'None',
+                light: 'Light',
+                medium: 'Medium',
+                heavy: 'Heavy'
+            },
+            opacity: {
+                full: 'Full (100%)',
+                high: 'High (85%)',
+                medium: 'Medium (70%)',
+                low: 'Low (50%)'
+            },
+            showSpeaker: {
+                off: 'Off',
+                color: 'Color Only',
+                label: 'Show Label',
+                both: 'Color + Label'
             },
             lang: {
                 'en': chrome.i18n.getMessage('langEn'),
@@ -535,6 +614,7 @@ function injectUI(controlsElement) {
                 'ru': chrome.i18n.getMessage('langRu')
             }
         };
+
 
         // Update displayed values from saved settings
         const updateDisplayedValues = () => {
@@ -632,6 +712,10 @@ function injectUI(controlsElement) {
                         subtitlePosition: subtitleSettings.position,
                         subtitleBackground: subtitleSettings.background,
                         subtitleColor: subtitleSettings.color,
+                        subtitleFont: subtitleSettings.font,
+                        subtitleOutline: subtitleSettings.outline,
+                        subtitleOpacity: subtitleSettings.opacity,
+                        subtitleShowSpeaker: subtitleSettings.showSpeaker,
                     }
                 });
 
@@ -994,18 +1078,31 @@ function setupSync() {
 
         const textEl = document.querySelector('.vt-text');
         if (textEl && sub) {
-            // Use translatedText, fallback to original if empty
-            const displayText = sub.translatedText || sub.text;
+            const styleValues = getSubtitleStyleValues();
+
+            // Build display text with optional speaker label
+            let displayText = sub.translatedText || sub.text;
+
+            // Add speaker label if enabled
+            const showSpeaker = styleValues.showSpeaker;
+            if (sub.speaker && (showSpeaker === 'label' || showSpeaker === 'both')) {
+                const speakerNum = sub.speaker.match(/\d+/)?.[0] || '?';
+                displayText = `[S${speakerNum}] ${displayText}`;
+            }
+
             textEl.textContent = displayText || '';
 
-            // Apply speaker color if available
-            const speakerColor = getSpeakerColor(sub.speaker);
-            if (speakerColor) {
-                textEl.style.color = speakerColor;
+            // Apply speaker color based on settings
+            const useSpeakerColor = styleValues.useSpeakerColor ||
+                showSpeaker === 'color' ||
+                showSpeaker === 'both';
+
+            if (useSpeakerColor && sub.speaker) {
+                const speakerColor = getSpeakerColor(sub.speaker);
+                // Use setProperty with 'important' to override CSS !important
+                textEl.style.setProperty('color', speakerColor || styleValues.color || '#fff', 'important');
             } else {
-                // Fallback to chosen setting
-                const styleValues = getSubtitleStyleValues();
-                textEl.style.color = styleValues.color;
+                textEl.style.setProperty('color', styleValues.color || '#fff', 'important');
             }
         } else if (textEl) {
 
@@ -1041,6 +1138,7 @@ function getSubtitleStyleValues() {
         white: '#fff',
         yellow: '#ffeb3b',
         cyan: '#00bcd4',
+        speaker: null, // Special: use speaker colors
     };
 
     // Position (bottom or top)
@@ -1049,13 +1147,43 @@ function getSubtitleStyleValues() {
         top: { bottom: 'auto', top: '70px' },
     };
 
+    // Font families
+    const fonts = {
+        'sans-serif': '"YouTube Noto", Roboto, Arial, sans-serif',
+        'serif': 'Georgia, "Times New Roman", serif',
+        'monospace': '"Courier New", Consolas, monospace',
+        'casual': '"Comic Sans MS", cursive',
+    };
+
+    // Text outlines (text-shadow)
+    const outlines = {
+        none: 'none',
+        light: '1px 1px 2px rgba(0,0,0,0.7)',
+        medium: '2px 2px 3px rgba(0,0,0,0.9), -1px -1px 2px rgba(0,0,0,0.7)',
+        heavy: '3px 3px 4px #000, -2px -2px 3px #000, 2px -2px 3px #000, -2px 2px 3px #000',
+    };
+
+    // Opacity values
+    const opacities = {
+        full: '1',
+        high: '0.85',
+        medium: '0.7',
+        low: '0.5',
+    };
+
     return {
         fontSize: sizes[subtitleSettings.size] || sizes.medium,
         background: backgrounds[subtitleSettings.background] || backgrounds.dark,
         color: colors[subtitleSettings.color] || colors.white,
         position: positions[subtitleSettings.position] || positions.bottom,
+        fontFamily: fonts[subtitleSettings.font] || fonts['sans-serif'],
+        textShadow: outlines[subtitleSettings.outline] || outlines.medium,
+        opacity: opacities[subtitleSettings.opacity] || opacities.full,
+        showSpeaker: subtitleSettings.showSpeaker || 'off',
+        useSpeakerColor: subtitleSettings.color === 'speaker',
     };
 }
+
 
 /**
  * Add styles
@@ -1256,12 +1384,14 @@ function addStyles() {
         .vt-text {
             display: inline-block !important;
             background: ${styleValues.background} !important;
-            color: ${styleValues.color} !important;
+            color: ${styleValues.color || '#fff'} !important;
             padding: 8px 16px !important;
             border-radius: 4px !important;
             font-size: ${styleValues.fontSize} !important;
+            font-family: ${styleValues.fontFamily} !important;
             line-height: 1.4 !important;
-            text-shadow: ${subtitleSettings.background === 'none' ? '1px 1px 2px rgba(0,0,0,0.8), -1px -1px 2px rgba(0,0,0,0.8)' : 'none'} !important;
+            text-shadow: ${styleValues.textShadow} !important;
+            opacity: ${styleValues.opacity} !important;
         }
         .vt-settings-btn {
             opacity: 0.9 !important;
