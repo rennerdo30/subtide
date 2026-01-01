@@ -93,16 +93,36 @@ def parse_vtt_to_json3(vtt_content: str) -> Dict[str, Any]:
     return {'events': events}
 
 def await_translate_subtitles(
-    subtitles: List[Dict[str, Any]], 
-    target_lang: str, 
+    subtitles: List[Dict[str, Any]],
+    target_lang: str,
     progress_callback: Optional[Callable[[int, int, int, str], None]] = None
 ) -> List[Dict[str, Any]]:
     """Translate subtitles using LLM with parallel batching, rate limit handling, and retry."""
-    
+
+    # Configuration constants with documented rationale
+    # -------------------------------------------------------------------------
+    # BATCH_SIZE: 25 subtitles per batch
+    # - Balances context size (~2000 tokens/batch) with API call overhead
+    # - Fits comfortably in 4K-8K context models while leaving room for responses
+    # - Empirically optimal for GPT-4o-mini and similar models
     BATCH_SIZE = 25
+
+    # MAX_RETRIES: 3 attempts per batch
+    # - Handles transient API failures (timeouts, rate limits)
+    # - With exponential backoff (2^attempt seconds), max wait is ~8s per retry
     MAX_RETRIES = 3
-    MAX_WORKERS = 3  # Reduced to avoid rate limits
-    RETRY_ROUNDS = 2  # Retry failed batches this many times
+
+    # MAX_WORKERS: 3 parallel workers
+    # - OpenAI Tier 1: 3 RPM limit, so 3 workers maximizes throughput
+    # - Prevents rate limit errors while maintaining reasonable speed
+    # - Higher values trigger 429 errors on most API tiers
+    MAX_WORKERS = 3
+
+    # RETRY_ROUNDS: 2 retry rounds for failed batches
+    # - After initial pass, retry failed batches up to 2 more times
+    # - Allows recovery from temporary API issues without excessive retries
+    RETRY_ROUNDS = 2
+
     t_name = LANG_NAMES.get(target_lang, target_lang)
 
     client_args = {

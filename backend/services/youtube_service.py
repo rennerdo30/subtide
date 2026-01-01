@@ -2,6 +2,7 @@ import logging
 import time
 import json
 import os
+import re
 import requests
 import yt_dlp
 from typing import Optional, Dict, Any, Tuple, List
@@ -12,6 +13,65 @@ from backend.services.translation_service import parse_vtt_to_json3
 from backend.config import CACHE_DIR, COOKIES_FILE
 
 logger = logging.getLogger('video-translate')
+
+# YouTube video ID validation
+# Valid format: 11 characters, alphanumeric + hyphen + underscore
+VIDEO_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{11}$')
+
+# Reserved filenames on Windows (for cross-platform safety)
+RESERVED_NAMES = {'CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4',
+                  'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2',
+                  'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'}
+
+
+def validate_video_id(video_id: str) -> bool:
+    """
+    Validate YouTube video ID format.
+
+    Args:
+        video_id: The video ID to validate
+
+    Returns:
+        True if valid, False otherwise
+    """
+    if not video_id or not isinstance(video_id, str):
+        return False
+    if not VIDEO_ID_PATTERN.match(video_id):
+        return False
+    # Check for reserved names (case-insensitive)
+    if video_id.upper() in RESERVED_NAMES:
+        return False
+    return True
+
+
+def sanitize_video_id(video_id: str) -> str:
+    """
+    Sanitize video ID for safe filesystem use.
+
+    Args:
+        video_id: The video ID to sanitize
+
+    Returns:
+        Sanitized video ID safe for filenames
+
+    Raises:
+        ValueError: If video ID is invalid or cannot be sanitized
+    """
+    if not video_id:
+        raise ValueError("Video ID cannot be empty")
+
+    # Remove any characters that aren't alphanumeric, hyphen, or underscore
+    safe_vid_id = "".join([c for c in video_id if c.isalnum() or c in ('-', '_')])
+
+    # Validate length (YouTube IDs are exactly 11 chars)
+    if len(safe_vid_id) != 11:
+        raise ValueError(f"Invalid video ID length: {len(safe_vid_id)}")
+
+    # Check for reserved names
+    if safe_vid_id.upper() in RESERVED_NAMES:
+        raise ValueError(f"Video ID matches reserved filename: {safe_vid_id}")
+
+    return safe_vid_id
 
 def fetch_subtitles(video_id: str, lang: str = 'en') -> Tuple[Any, int]:
     """
@@ -172,8 +232,12 @@ def ensure_audio_downloaded(video_id: str, url: str) -> Optional[str]:
     audio_cache_dir = os.path.join(CACHE_DIR, "audio")
     os.makedirs(audio_cache_dir, exist_ok=True)
 
-    # Use a safe filename
-    safe_vid_id = "".join([c for c in video_id if c.isalnum() or c in ('-', '_')])
+    # Validate and sanitize the video ID for safe filesystem use
+    try:
+        safe_vid_id = sanitize_video_id(video_id)
+    except ValueError as e:
+        logger.error(f"[AUDIO CACHE] Invalid video ID: {e}")
+        return None
 
     # Check if audio already exists (any audio format)
     possible_exts = ['m4a', 'mp3', 'wav', 'webm', 'opus', 'ogg', 'aac']

@@ -1,5 +1,7 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from dotenv import load_dotenv
 import os
 import platform
@@ -35,6 +37,56 @@ logger = setup_logging(
 app = Flask(__name__)
 CORS(app)
 
+# Rate limiting configuration
+# Limits: 30 requests/minute for general endpoints, 5/minute for heavy processing
+limiter = Limiter(
+    key_func=get_remote_address,
+    app=app,
+    default_limits=["60 per minute"],
+    storage_uri="memory://",
+)
+
+# Request size limit (10MB max for POST requests)
+MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
+
+@app.before_request
+def validate_request():
+    """Validate incoming requests for size limits."""
+    if request.method == 'POST':
+        content_length = request.content_length
+        if content_length and content_length > MAX_CONTENT_LENGTH:
+            return jsonify({
+                'error': 'Request too large',
+                'max_size_mb': MAX_CONTENT_LENGTH // (1024 * 1024)
+            }), 413
+
+# Error handlers
+@app.errorhandler(404)
+def not_found(error):
+    """Handle 404 errors."""
+    return jsonify({
+        'error': 'Not found',
+        'message': 'The requested endpoint does not exist'
+    }), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle 500 errors."""
+    logger.exception("Internal server error")
+    return jsonify({
+        'error': 'Internal server error',
+        'message': 'An unexpected error occurred'
+    }), 500
+
+@app.errorhandler(429)
+def rate_limit_exceeded(error):
+    """Handle rate limit exceeded errors."""
+    return jsonify({
+        'error': 'Rate limit exceeded',
+        'message': 'Too many requests. Please try again later.',
+        'retry_after': error.description if hasattr(error, 'description') else '60 seconds'
+    }), 429
+
 # Ensure cache directory exists
 os.makedirs(CACHE_DIR, exist_ok=True)
 
@@ -42,12 +94,15 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 from backend.routes.health import health_bp
 from backend.routes.subtitles import subtitles_bp
 from backend.routes.transcribe import transcribe_bp
-from backend.routes.translation import translation_bp
+from backend.routes.translation import translation_bp, init_limiter as init_translation_limiter
 
 app.register_blueprint(health_bp)
 app.register_blueprint(subtitles_bp)
 app.register_blueprint(transcribe_bp)
 app.register_blueprint(translation_bp)
+
+# Initialize rate limiter for routes that need custom limits
+init_translation_limiter(limiter)
 
 # Startup Banner
 def print_banner():

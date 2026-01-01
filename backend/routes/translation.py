@@ -11,6 +11,14 @@ import logging
 translation_bp = Blueprint('translation', __name__)
 logger = logging.getLogger('video-translate')
 
+# Import limiter from app (will be set after blueprint registration)
+limiter = None
+
+def init_limiter(app_limiter):
+    """Initialize rate limiter for this blueprint."""
+    global limiter
+    limiter = app_limiter
+
 @translation_bp.route('/api/model-info', methods=['GET'])
 def get_model_info():
     """Get model information including context size for smart batching."""
@@ -31,6 +39,9 @@ def get_model_info():
 def translate_subtitles():
     """
     Translate subtitles using LLM.
+
+    Rate limit: 60 requests/minute (app default)
+
     - Tier 1/2: User provides API key
     - Tier 3: Server-managed API key
     """

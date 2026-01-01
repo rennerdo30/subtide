@@ -24,6 +24,11 @@
         "https://youtube.com/*"
       ],
       "js": [
+        "src/content/youtube-constants.js",
+        "src/content/youtube-status.js",
+        "src/content/youtube-subtitles.js",
+        "src/content/youtube-styles.js",
+        "src/content/youtube-ui.js",
         "src/content/youtube.js"
       ],
       "css": [

@@ -345,9 +345,94 @@ async function fetchSubtitlesFromBackend(videoId, config) {
 }
 
 /**
+ * Parse SSE (Server-Sent Events) data from a buffer
+ * Handles multi-line data fields and incomplete frames robustly
+ *
+ * @param {string} buffer - Raw SSE data buffer
+ * @returns {{events: Array, remainder: string}} Parsed events and remaining buffer
+ */
+function parseSSEBuffer(buffer) {
+    const events = [];
+    const lines = buffer.split('\n');
+    let currentEvent = {};
+    let dataLines = [];
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Empty line signals end of event
+        if (line === '') {
+            if (dataLines.length > 0) {
+                currentEvent.data = dataLines.join('\n');
+                events.push(currentEvent);
+            }
+            currentEvent = {};
+            dataLines = [];
+            continue;
+        }
+
+        // Check if this might be an incomplete line at the end
+        if (i === lines.length - 1 && !buffer.endsWith('\n')) {
+            // Return this as remainder for next chunk
+            return {
+                events,
+                remainder: line
+            };
+        }
+
+        // Parse field: value format
+        const colonIndex = line.indexOf(':');
+        if (colonIndex === -1) continue;
+
+        // Handle comment lines (start with :)
+        if (colonIndex === 0) continue;
+
+        const field = line.slice(0, colonIndex);
+        // Value starts after colon, with optional leading space
+        let value = line.slice(colonIndex + 1);
+        if (value.startsWith(' ')) {
+            value = value.slice(1);
+        }
+
+        switch (field) {
+            case 'data':
+                dataLines.push(value);
+                break;
+            case 'event':
+                currentEvent.event = value;
+                break;
+            case 'id':
+                currentEvent.id = value;
+                break;
+            case 'retry':
+                currentEvent.retry = parseInt(value, 10);
+                break;
+        }
+    }
+
+    // Handle case where buffer ends with complete event but no trailing newline
+    if (dataLines.length > 0 && buffer.endsWith('\n\n')) {
+        currentEvent.data = dataLines.join('\n');
+        events.push(currentEvent);
+        return { events, remainder: '' };
+    }
+
+    // Return any incomplete data as remainder
+    const lastDoubleNewline = buffer.lastIndexOf('\n\n');
+    if (lastDoubleNewline !== -1 && lastDoubleNewline < buffer.length - 2) {
+        return {
+            events,
+            remainder: buffer.slice(lastDoubleNewline + 2)
+        };
+    }
+
+    return { events, remainder: dataLines.length > 0 ? lines[lines.length - 1] || '' : '' };
+}
+
+/**
  * Combined process endpoint for Tier 3 (subtitles + translation in one call)
  * Server uses its own API key - user doesn't need one
- * Uses Server-Sent Events for progress updates
+ * Uses Server-Sent Events for progress updates with robust parsing
  */
 async function processVideoTier3(videoId, targetLanguage, config, onProgress, tabId) {
     const { backendUrl, forceGen } = config;
@@ -389,51 +474,72 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
 
                 buffer += decoder.decode(value, { stream: true });
 
-                // Parse SSE events
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || ''; // Keep incomplete line in buffer
+                // Parse SSE events using robust parser
+                const { events, remainder } = parseSSEBuffer(buffer);
+                buffer = remainder;
 
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        try {
-                            const data = JSON.parse(line.slice(6));
+                for (const event of events) {
+                    if (!event.data) continue;
 
-                            // Progress update
-                            if (data.stage && data.message) {
-                                console.log(`[VideoTranslate] Progress: ${data.stage} - ${data.message} (${data.percent || 0}%) Step ${data.step || '?'}/${data.totalSteps || '?'}`);
-                                // Send progress to content script with all details
-                                if (tabId) {
-                                    chrome.tabs.sendMessage(tabId, {
-                                        action: 'progress',
-                                        stage: data.stage,
-                                        message: data.message,
-                                        percent: data.percent,
-                                        step: data.step,
-                                        totalSteps: data.totalSteps,
-                                        eta: data.eta,
-                                        batchInfo: data.batchInfo,
-                                    }).catch(() => { });
-                                }
-                                if (onProgress) {
-                                    onProgress(data);
-                                }
+                    try {
+                        const data = JSON.parse(event.data);
+
+                        // Progress update
+                        if (data.stage && data.message) {
+                            console.log(`[VideoTranslate] Progress: ${data.stage} - ${data.message} (${data.percent || 0}%) Step ${data.step || '?'}/${data.totalSteps || '?'}`);
+                            // Send progress to content script with all details
+                            if (tabId) {
+                                chrome.tabs.sendMessage(tabId, {
+                                    action: 'progress',
+                                    stage: data.stage,
+                                    message: data.message,
+                                    percent: data.percent,
+                                    step: data.step,
+                                    totalSteps: data.totalSteps,
+                                    eta: data.eta,
+                                    batchInfo: data.batchInfo,
+                                }).catch(() => { });
                             }
-
-                            // Final result
-                            if (data.result) {
-                                resolve(data.result.subtitles);
-                                return;
+                            if (onProgress) {
+                                onProgress(data);
                             }
+                        }
 
-                            // Error
-                            if (data.error) {
-                                reject(new Error(data.error));
-                                return;
-                            }
-                        } catch (e) {
-                            console.warn('[VideoTranslate] SSE parse error:', e);
+                        // Final result
+                        if (data.result) {
+                            resolve(data.result.subtitles);
+                            return;
+                        }
+
+                        // Error
+                        if (data.error) {
+                            reject(new Error(data.error));
+                            return;
+                        }
+                    } catch (e) {
+                        console.warn('[VideoTranslate] SSE JSON parse error:', e, 'Data:', event.data);
+                    }
+                }
+            }
+
+            // Handle any remaining buffer content
+            if (buffer.trim()) {
+                try {
+                    // Try to parse as final event
+                    const match = buffer.match(/data:\s*(.+)/);
+                    if (match) {
+                        const data = JSON.parse(match[1]);
+                        if (data.result) {
+                            resolve(data.result.subtitles);
+                            return;
+                        }
+                        if (data.error) {
+                            reject(new Error(data.error));
+                            return;
                         }
                     }
+                } catch (e) {
+                    console.warn('[VideoTranslate] Final buffer parse failed:', e);
                 }
             }
 
