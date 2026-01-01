@@ -3,7 +3,11 @@ flask-cors
 yt-dlp
 openai
 openai-whisper
+faster-whisper
+mlx-whisper
+pyannote.audio
 requests
 gunicorn
 gevent
 python-dotenv
+

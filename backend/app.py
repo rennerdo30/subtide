@@ -1,8 +1,42 @@
+import os
+import warnings
+
+# Suppress torchaudio deprecation warnings (they're moving to TorchCodec)
+warnings.filterwarnings("ignore", message=".*torchaudio.*deprecated.*")
+warnings.filterwarnings("ignore", message=".*TorchCodec.*")
+warnings.filterwarnings("ignore", category=UserWarning, module="torchaudio")
+warnings.filterwarnings("ignore", category=UserWarning, module="pyannote")
+warnings.filterwarnings("ignore", category=UserWarning, module="speechbrain")
+
+# Enable MPS fallback for sparse operations BEFORE importing torch
+# This allows Pyannote to fall back to CPU for unsupported sparse tensor ops
+os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] = "1"
+
+import torch
+
+# Use all CPU cores for PyTorch operations (diarization)
+torch.set_num_threads(os.cpu_count() or 8)
+torch.set_num_interop_threads(os.cpu_count() or 8)
+import torch.serialization
+import functools
+
+
+# Monkeypatch torch.load for compatibility with Pyannote in PyTorch 2.6+
+# We patch both torch.load and torch.serialization.load to ensure all callers are covered.
+def _patched_load(original_fn):
+    @functools.wraps(original_fn)
+    def wrapper(*args, **kwargs):
+        kwargs['weights_only'] = False
+        return original_fn(*args, **kwargs)
+    return wrapper
+
+torch.load = _patched_load(torch.load)
+torch.serialization.load = _patched_load(torch.serialization.load)
+
 from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 import yt_dlp
 import requests
-import whisper
 import tempfile
 import time
 from openai import OpenAI
@@ -10,8 +44,40 @@ import os
 import json
 from dotenv import load_dotenv
 
+# Whisper backend priority:
+# 1. mlx-whisper (Apple Silicon GPU via Metal - fastest on Mac!)
+# 2. faster-whisper (CTranslate2 - fast on CPU)
+# 3. openai-whisper (original, slowest)
+
+import platform
+WHISPER_BACKEND = None
+
+# Try mlx-whisper first on Mac (uses Metal GPU directly!)
+if platform.system() == "Darwin" and platform.machine() == "arm64":
+    try:
+        import mlx_whisper
+        WHISPER_BACKEND = "mlx-whisper"
+    except ImportError:
+        pass
+
+# Try faster-whisper next
+if WHISPER_BACKEND is None:
+    try:
+        from faster_whisper import WhisperModel
+        WHISPER_BACKEND = "faster-whisper"
+    except ImportError:
+        pass
+
+# Fall back to openai-whisper
+if WHISPER_BACKEND is None:
+    import whisper
+    WHISPER_BACKEND = "openai-whisper"
+
 # Load environment variables from .env file
 load_dotenv()
+
+
+
 
 from logging_config import setup_logging
 
@@ -39,6 +105,25 @@ SERVER_API_KEY = os.getenv('SERVER_API_KEY')  # For Tier 3 managed translation
 SERVER_MODEL = os.getenv('SERVER_MODEL', 'gpt-4o-mini')
 SERVER_API_URL = os.getenv('SERVER_API_URL', 'https://api.openai.com/v1')
 COOKIES_FILE = os.getenv('COOKIES_FILE')  # Path to cookies.txt for YouTube auth
+ENABLE_DIARIZATION = os.getenv('ENABLE_DIARIZATION', 'true').lower() == 'true'
+HF_TOKEN = os.getenv('HF_TOKEN')
+
+# Startup banner (after all config is loaded)
+print("\n" + "="*60)
+print(" VIDEO TRANSLATE BACKEND")
+print(f" - Whisper Backend: {WHISPER_BACKEND}")
+if WHISPER_BACKEND == "mlx-whisper":
+    print(" - GPU Acceleration: ENABLED (Apple Silicon Metal)")
+elif platform.system() == "Darwin" and platform.machine() == "arm64":
+    print(" - GPU Acceleration: DISABLED (install mlx-whisper for Metal GPU)")
+print(" - Audio Cache: ENABLED")
+if ENABLE_DIARIZATION and HF_TOKEN:
+    print(" - Speaker Diarization: ENABLED (CPU mode)")
+elif ENABLE_DIARIZATION:
+    print(" - Speaker Diarization: DISABLED (HF_TOKEN not set)")
+else:
+    print(" - Speaker Diarization: DISABLED")
+print("="*60 + "\n")
 
 logger.info(f"Server Configuration: ENABLE_WHISPER={ENABLE_WHISPER}, Tier3Enabled={bool(SERVER_API_KEY)}, Cookies={'Yes' if COOKIES_FILE else 'No'}")
 
@@ -49,12 +134,24 @@ WHISPER_MODEL_SIZE = os.getenv('WHISPER_MODEL', 'base')  # tiny, base, small, me
 
 def get_whisper_device():
     """Detect best available device for Whisper."""
-    import torch
-    if torch.cuda.is_available():
-        return "cuda"
-    elif torch.backends.mps.is_available():
-        return "mps"
-    return "cpu"
+    if WHISPER_BACKEND == "mlx-whisper":
+        # mlx-whisper uses Metal GPU directly - no device selection needed
+        logger.info("Using MLX with Metal GPU acceleration (Apple Silicon)")
+        return "metal"
+    elif WHISPER_BACKEND == "faster-whisper":
+        if torch.cuda.is_available():
+            logger.info("CUDA detected. Using NVIDIA GPU acceleration.")
+            return "cuda"
+        else:
+            logger.info("Using CPU with CTranslate2 optimizations")
+            return "cpu"
+    else:
+        # Original openai-whisper
+        if torch.cuda.is_available():
+            logger.info("CUDA detected. Using NVIDIA GPU acceleration.")
+            return "cuda"
+        return "cpu"
+
 
 
 def get_whisper_fp16():
@@ -66,19 +163,353 @@ def get_whisper_fp16():
 
 
 def get_whisper_model():
-    """Lazy load Whisper model with GPU support."""
+    """Lazy load Whisper model.
+
+    Priority:
+    1. mlx-whisper (Apple Silicon GPU via Metal) - no model object needed
+    2. faster-whisper (CTranslate2) - 4-8x faster on CPU
+    3. openai-whisper (original)
+    """
     global _whisper_model
     if _whisper_model is None:
         device = get_whisper_device()
-        logger.info(f"Loading Whisper model '{WHISPER_MODEL_SIZE}' on {device.upper()}...")
-        _whisper_model = whisper.load_model(WHISPER_MODEL_SIZE, device=device)
-        logger.info(f"Whisper model loaded successfully on {device.upper()}")
+
+        if WHISPER_BACKEND == "mlx-whisper":
+            # mlx-whisper doesn't need a model object - it transcribes directly
+            # We return a sentinel value to indicate "ready"
+            logger.info(f"MLX-Whisper ready (model '{WHISPER_MODEL_SIZE}' will be loaded on first transcription)")
+            logger.info("Using Apple Silicon GPU (Metal) for maximum performance!")
+            _whisper_model = "mlx-whisper-ready"
+
+        elif WHISPER_BACKEND == "faster-whisper":
+            # faster-whisper uses CTranslate2 - much faster on CPU
+            logger.info(f"Loading faster-whisper model '{WHISPER_MODEL_SIZE}' on {device.upper()}...")
+
+            # Compute type: int8 for CPU (fast), float16 for GPU
+            compute_type = "int8" if device == "cpu" else "float16"
+
+            # CPU threads for parallelism
+            cpu_threads = os.cpu_count() or 4
+
+            try:
+                _whisper_model = WhisperModel(
+                    WHISPER_MODEL_SIZE,
+                    device=device,
+                    compute_type=compute_type,
+                    cpu_threads=cpu_threads,
+                    num_workers=2  # For parallel processing
+                )
+                logger.info(f"faster-whisper loaded: device={device}, compute={compute_type}, threads={cpu_threads}")
+            except Exception as e:
+                logger.error(f"faster-whisper loading failed: {e}")
+                raise
+        else:
+            # Original openai-whisper
+            logger.info(f"Loading openai-whisper model '{WHISPER_MODEL_SIZE}' on {device.upper()}...")
+            try:
+                import whisper
+                _whisper_model = whisper.load_model(WHISPER_MODEL_SIZE, device=device)
+                logger.info(f"openai-whisper loaded on {device.upper()}")
+            except Exception as e:
+                logger.error(f"Failed to load Whisper model: {e}")
+                raise
+
     return _whisper_model
+
+
+# Pyannote diarization pipeline (lazy loaded)
+_diarization_pipeline = None
+
+def get_diarization_pipeline():
+    """Lazy load Pyannote diarization pipeline.
+
+    IMPORTANT: Always runs on CPU to avoid MPS SparseTensor crashes on Mac.
+    Requires HF_TOKEN environment variable with access to pyannote models.
+    """
+    global _diarization_pipeline
+
+    if not ENABLE_DIARIZATION:
+        return None
+
+    if _diarization_pipeline is None:
+        if not HF_TOKEN or HF_TOKEN == 'your_huggingface_token_here':
+            logger.warning("Diarization disabled: HF_TOKEN not set")
+            logger.warning("Get a token at https://huggingface.co/settings/tokens")
+            logger.warning("Accept terms at https://huggingface.co/pyannote/speaker-diarization-3.1")
+            return None
+
+        logger.info("Loading Pyannote diarization pipeline (CPU mode for stability)...")
+
+        try:
+            from pyannote.audio import Pipeline
+
+            # Load the pipeline
+            pipeline = Pipeline.from_pretrained(
+                "pyannote/speaker-diarization-3.1",
+                use_auth_token=HF_TOKEN
+            )
+
+            if pipeline is None:
+                logger.error("Diarization pipeline returned None - check your HF_TOKEN and model access")
+                logger.error("1. Visit https://huggingface.co/pyannote/speaker-diarization-3.1")
+                logger.error("2. Click 'Agree and access repository' to accept the terms")
+                logger.error("3. Make sure your HF_TOKEN has read access")
+                return None
+
+            # Try MPS (Apple Silicon GPU) first, fall back to CPU if it fails
+            if torch.backends.mps.is_available():
+                try:
+                    logger.info("Attempting to use MPS (Apple Silicon GPU) for diarization...")
+                    pipeline.to(torch.device("mps"))
+                    _diarization_pipeline = pipeline
+                    logger.info("Diarization pipeline loaded on MPS (GPU)")
+                except Exception as mps_error:
+                    logger.warning(f"MPS failed ({mps_error}), falling back to CPU")
+                    pipeline.to(torch.device("cpu"))
+                    _diarization_pipeline = pipeline
+                    logger.info("Diarization pipeline loaded on CPU (fallback)")
+            else:
+                pipeline.to(torch.device("cpu"))
+                _diarization_pipeline = pipeline
+                logger.info("Diarization pipeline loaded on CPU")
+        except Exception as e:
+            logger.error(f"Failed to load diarization pipeline: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    return _diarization_pipeline
+
+
+
+
+
+
+
+
+
+def _run_whisper_process(audio_file, progress_callback=None):
+    """Transcribe audio with Whisper + optional Pyannote diarization.
+
+    Args:
+        audio_file: Path to audio file
+        progress_callback: Optional function(stage, message, percent) for progress updates
+    """
+    logger.info(f"Running Whisper transcription ({WHISPER_BACKEND})...")
+    model = get_whisper_model()
+
+    if WHISPER_BACKEND == "mlx-whisper":
+        # mlx-whisper API - uses Metal GPU on Apple Silicon!
+        logger.info("Starting mlx-whisper transcription (Metal GPU)...")
+
+        # Map model size to MLX model repo
+        mlx_model_map = {
+            'tiny': 'mlx-community/whisper-tiny-mlx',
+            'tiny.en': 'mlx-community/whisper-tiny.en-mlx',
+            'base': 'mlx-community/whisper-base-mlx',
+            'base.en': 'mlx-community/whisper-base.en-mlx',
+            'small': 'mlx-community/whisper-small-mlx',
+            'small.en': 'mlx-community/whisper-small.en-mlx',
+            'medium': 'mlx-community/whisper-medium-mlx',
+            'medium.en': 'mlx-community/whisper-medium.en-mlx',
+            'large': 'mlx-community/whisper-large-v3-mlx',
+            'large-v2': 'mlx-community/whisper-large-v2-mlx',
+            'large-v3': 'mlx-community/whisper-large-v3-mlx',
+            'large-v3-turbo': 'mlx-community/whisper-large-v3-turbo',
+        }
+
+        mlx_model_path = mlx_model_map.get(WHISPER_MODEL_SIZE, 'mlx-community/whisper-base-mlx')
+        logger.info(f"Using MLX model: {mlx_model_path}")
+
+        result = mlx_whisper.transcribe(
+            audio_file,
+            path_or_hf_repo=mlx_model_path,
+        )
+
+        segments = result.get("segments", [])
+        text = result.get("text", "")
+        language = result.get("language", "en")
+
+        # Convert mlx-whisper segments to dict format
+        processed_segments = []
+        for s in segments:
+            processed_segments.append({
+                "start": s.get("start"),
+                "end": s.get("end"),
+                "text": s.get("text", "").strip(),
+                "speaker": None
+            })
+        segments = processed_segments
+        logger.info(f"mlx-whisper done: {len(segments)} segments, language={language}")
+
+    elif WHISPER_BACKEND == "faster-whisper":
+        # faster-whisper API
+        logger.info("Starting faster-whisper transcription...")
+        segments_generator, info = model.transcribe(
+            audio_file,
+            beam_size=5,
+            language=None,  # Auto-detect
+            vad_filter=True,  # Voice activity detection for better accuracy
+            vad_parameters=dict(min_silence_duration_ms=500),
+        )
+
+        # Convert generator to list
+        segments = []
+        text_parts = []
+        for seg in segments_generator:
+            segments.append({
+                "start": seg.start,
+                "end": seg.end,
+                "text": seg.text.strip(),
+                "speaker": None
+            })
+            text_parts.append(seg.text.strip())
+
+        text = " ".join(text_parts)
+        language = info.language
+        logger.info(f"faster-whisper done: {len(segments)} segments, language={language}")
+
+    else:
+        # Original openai-whisper API
+        try:
+            device = next(model.parameters()).device
+            device_str = str(device)
+        except:
+            device_str = "cpu"
+
+        fp16 = device_str == "cuda"
+        logger.info(f"Starting openai-whisper transcription (fp16={fp16}, device={device_str})...")
+        result = model.transcribe(audio_file, fp16=fp16)
+
+        segments = result.get("segments", [])
+        text = result.get("text", "")
+        language = result.get("language", "en")
+
+        # Convert openai-whisper segments to dict format
+        processed_segments = []
+        for s in segments:
+            processed_segments.append({
+                "start": s.get("start"),
+                "end": s.get("end"),
+                "text": s.get("text", "").strip(),
+                "speaker": None
+            })
+        segments = processed_segments
+
+    # Segments are now in consistent dict format for both backends
+
+    # 3. Apply Diarization if available
+    pipeline = get_diarization_pipeline()
+    if pipeline and ENABLE_DIARIZATION:
+        logger.info("Starting speaker diarization...")
+        try:
+            # Pyannote requires WAV format - convert if needed
+            diarization_audio = audio_file
+            if not audio_file.endswith('.wav'):
+                wav_path = audio_file.rsplit('.', 1)[0] + '_diarization.wav'
+                if not os.path.exists(wav_path):
+                    logger.info(f"Converting audio to WAV for diarization: {wav_path}")
+                    import subprocess
+                    result = subprocess.run([
+                        'ffmpeg', '-i', audio_file,
+                        '-ar', '16000',  # 16kHz sample rate (required by Pyannote)
+                        '-ac', '1',      # Mono
+                        '-y',            # Overwrite
+                        wav_path
+                    ], capture_output=True, text=True)
+                    if result.returncode != 0:
+                        logger.error(f"FFmpeg conversion failed: {result.stderr}")
+                        raise Exception("Audio conversion failed")
+                diarization_audio = wav_path
+
+            # Progress hook for diarization
+            # Pyannote calls hook multiple times per step (e.g., once per chunk for embeddings)
+            diarization_steps = ['segmentation', 'embeddings', 'speaker_counting', 'discrete_diarization']
+            current_step = [None]  # Track current step name
+            step_idx = [0]  # Track which step we're on (0-3)
+            chunk_count = [0]  # Track chunks within current step
+
+            def diarization_progress(step_name, step_result=None, **kwargs):
+                # Check if we've moved to a new step
+                if step_name != current_step[0]:
+                    current_step[0] = step_name
+                    chunk_count[0] = 0
+                    if step_name in diarization_steps:
+                        step_idx[0] = diarization_steps.index(step_name) + 1
+                
+                chunk_count[0] += 1
+                pct = min(int((step_idx[0] / len(diarization_steps)) * 100), 100)
+
+                logger.info(f"[DIARIZATION] {step_name} (step {step_idx[0]}/{len(diarization_steps)}, chunk {chunk_count[0]})")
+
+                # Send to frontend if callback provided
+                if progress_callback:
+                    progress_callback('diarization', f'Speaker detection: {step_name}', 50 + (pct // 4))
+
+
+            # Run diarization on the audio file with progress tracking
+            diarization = pipeline(diarization_audio, hook=diarization_progress)
+            
+            # Match speakers to segments
+            for segment in segments:
+                # Find the most active speaker during this segment
+                start = segment["start"]
+                end = segment["end"]
+                
+                # Get speakers overlapping with this segment
+                # We simply find the speaker with max overlap logic or first speaker
+                # Pyannote returns a text format like:
+                # [ 00:00:00.000 -->  00:00:03.000] A speaker_0
+                
+                # Simplified matching: Check intersection
+                speakers_in_segment = []
+                for turn, _, speaker in diarization.itertracks(yield_label=True):
+                    # Check overlap
+                    seg_start = start
+                    seg_end = end
+                    turn_start = turn.start
+                    turn_end = turn.end
+                    
+                    if turn_start < seg_end and turn_end > seg_start:
+                        speakers_in_segment.append(speaker)
+                
+                if speakers_in_segment:
+                    # Just take the first/most frequent one for now
+                    # (A better logic would be max overlap duration)
+                    from collections import Counter
+                    most_common = Counter(speakers_in_segment).most_common(1)[0][0]
+                    segment["speaker"] = most_common
+
+            logger.info("Diarization complete.")
+        except Exception as e:
+            logger.error(f"Diarization failed: {e}")
+            # Continue without speaker labels
+            
+    return {
+        "segments": segments,
+        "text": text,
+        "language": language
+    }
+
+
+
 
 
 def get_cache_path(video_id: str, suffix: str = 'subtitles') -> str:
     """Generate cache file path for a video."""
     return os.path.join(CACHE_DIR, f"{video_id}_{suffix}.json")
+
+
+def validate_audio_file(audio_path):
+    """Check if audio file exists and is not empty."""
+    if not audio_path or not os.path.exists(audio_path):
+        return False, "Audio file not found"
+    
+    file_size = os.path.getsize(audio_path)
+    if file_size < 1000:  # Less than 1KB is likely an error or silent
+        return False, f"Audio file is too small ({file_size} bytes)"
+    
+    return True, None
 
 
 # =============================================================================
@@ -369,76 +800,22 @@ def transcribe_video():
         except Exception as e:
             logger.warning(f"Cache read error: {e}")
 
+    # Transcribe with persistent caching
     logger.info(f"Transcribing video: {video_id}")
     url = f"https://www.youtube.com/watch?v={video_id}"
-
+    
     try:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            # Download audio with better options to avoid 403
-            ydl_opts = {
-                'format': 'bestaudio[ext=m4a]/bestaudio/best',
-                'outtmpl': os.path.join(temp_dir, 'audio.%(ext)s'),
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '128',
-                }],
-                'quiet': True,
-                'no_warnings': True,
-                'extract_flat': False,
-                'http_headers': {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-                    'Accept-Language': 'en-US,en;q=0.9',
-                },
-                'socket_timeout': 30,
-                'retries': 3,
-            }
-            
-            # Use cookies if available (optional - for better reliability)
-            if COOKIES_FILE and os.path.exists(COOKIES_FILE):
-                ydl_opts['cookiefile'] = COOKIES_FILE
-                logger.info("Using cookies file for authentication")
-
-            logger.info(f"Downloading audio...")
-            try:
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    ydl.download([url])
-            except Exception as download_err:
-                # If download fails, return a specific error suggesting to use YouTube captions
-                logger.error(f"Audio download failed: {download_err}")
-                return jsonify({
-                    'error': 'YouTube blocked audio download. Try using Tier 2 (YouTube captions + your API key) instead.',
-                    'details': str(download_err),
-                    'fallback': 'tier2'
-                }), 503
-
-            # Find audio file
-            audio_file = None
-            for f in os.listdir(temp_dir):
-                if f.startswith('audio'):
-                    audio_file = os.path.join(temp_dir, f)
-                    break
-
-            if not audio_file:
-                return jsonify({
-                    'error': 'Audio file not found after download',
-                    'fallback': 'tier2'
-                }), 500
-
-            # Transcribe
-            logger.info("Running Whisper transcription...")
-            model = get_whisper_model()
-            result = model.transcribe(audio_file, fp16=get_whisper_fp16())
-
-            # Cache result
-            with open(cache_path, 'w', encoding='utf-8') as f:
-                json.dump(result, f, indent=2)
-
-            logger.info(f"Transcription complete: {len(result.get('segments', []))} segments")
-            return jsonify(result)
+        # Use simple wrapper that handles caching and persistent storage
+        segments = await_whisper_transcribe(video_id, url)
+        
+        # Return in expected format
+        return jsonify({
+            'segments': segments,
+            'cached': True # Hint to frontend
+        })
 
     except Exception as e:
-        logger.exception("Transcription error")
+        logger.error(f"Transcription failed: {e}")
         return jsonify({'error': str(e)}), 500
 
 
@@ -508,8 +885,11 @@ def translate_subtitles():
     t_name = LANG_NAMES.get(target_lang, target_lang)
     numbered_subs = "\n".join([f"{i+1}. {s.get('text', '')}" for i, s in enumerate(subtitles)])
 
-    system_prompt = "You are a professional subtitle translator."
+    system_prompt = f"You are a professional subtitle translator. You ONLY output {t_name}. Never output Chinese unless translating TO Chinese."
     user_prompt = f"""Translate the following subtitles from {s_name} to {t_name}.
+
+TARGET LANGUAGE: {t_name} (code: {target_lang})
+CRITICAL: Your output MUST be in {t_name}. Do NOT output Chinese or any other language except {t_name}.
 
 Rules:
 - Maintain original meaning, tone, and emotion
@@ -517,9 +897,12 @@ Rules:
 - Preserve speaker indicators and sound effects in brackets
 - Return ONLY numbered translations, one per line
 - No explanations or notes
+- Output MUST be in {t_name}
 
 Subtitles:
-{numbered_subs}"""
+{numbered_subs}
+
+Remember: All output must be in {t_name}."""
 
     prompt_tokens = len(user_prompt) // 4
     logger.info(f"Prompt size: ~{prompt_tokens} tokens")
@@ -676,11 +1059,10 @@ def process_video():
                 subtitles = []
                 source_type = None
                 needs_translation = True
-
-                # Define total steps based on whether translation will be needed
-                # We'll update this later if we know translation is needed
-                # Steps: 1-Checking, 2-Downloading/Whisper, 3-Translating (optional), 4-Complete
                 
+                # Global ETA Tracking
+                current_eta_seconds = 0
+
                 # Step 1: Check available subtitles
                 send_sse('checking', 'Checking available subtitles...', 5, step=1, total_steps=4)
                 logger.info(f"[PROCESS] Starting: video={video_id}, target={target_lang}")
@@ -697,9 +1079,10 @@ def process_video():
                     info = ydl.extract_info(url, download=False)
                     manual_subs = info.get('subtitles') or {}
                     auto_subs = info.get('automatic_captions') or {}
+                    video_duration = info.get('duration', 0)
 
-                logger.info(f"[PROCESS] Manual subs: {list(manual_subs.keys())}")
-
+                logger.info(f"[PROCESS] Manual subs: {list(manual_subs.keys())} | Duration: {video_duration}s")
+                
                 # Priority 1: Target language MANUAL subs exist
                 if target_lang in manual_subs:
                     send_sse('downloading', f'Found {target_lang} subtitles!', 20, step=2, total_steps=3)
@@ -716,7 +1099,11 @@ def process_video():
 
                 # Priority 3: Use Whisper
                 elif ENABLE_WHISPER:
-                    send_sse('whisper', 'Downloading audio...', 10, step=2, total_steps=4)
+                    # Calculate ETA for Whisper
+                    whisper_eta = estimate_whisper_time(video_duration)
+                    whisper_eta_str = format_eta(whisper_eta)
+                    
+                    send_sse('whisper', 'Downloading audio...', 10, step=2, total_steps=4, eta=whisper_eta_str)
                     source_type = 'whisper'
 
                     # Check cache first
@@ -726,41 +1113,39 @@ def process_video():
                         with open(cache_path, 'r', encoding='utf-8') as f:
                             whisper_result = json.load(f)
                     else:
-                        with tempfile.TemporaryDirectory() as temp_dir:
-                            ydl_opts = {
-                                'format': 'bestaudio[ext=m4a]/bestaudio/best',
-                                'outtmpl': os.path.join(temp_dir, 'audio.%(ext)s'),
-                                'postprocessors': [{
-                                    'key': 'FFmpegExtractAudio',
-                                    'preferredcodec': 'mp3',
-                                    'preferredquality': '128',
-                                }],
-                                'quiet': True,
-                                'no_warnings': True,
-                            }
+                        # Use persistent audio cache
+                        audio_file = ensure_audio_downloaded(video_id, url)
 
-                            if COOKIES_FILE and os.path.exists(COOKIES_FILE):
-                                ydl_opts['cookiefile'] = COOKIES_FILE
+                        if not audio_file:
+                            send_error('Audio download failed')
+                            return
 
-                            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                                ydl.download([url])
+                        # Validate audio
+                        is_valid, err_msg = validate_audio_file(audio_file)
+                        if not is_valid:
+                            logger.error(f"Audio validation failed: {err_msg}")
+                            send_error(f"Audio download failed: {err_msg}")
+                            return
 
-                            audio_file = None
-                            for f in os.listdir(temp_dir):
-                                if f.startswith('audio'):
-                                    audio_file = os.path.join(temp_dir, f)
-                                    break
+                        send_sse('whisper', 'Transcribing with Whisper...', 30, step=2, total_steps=4, eta=whisper_eta_str)
 
-                            if not audio_file:
-                                send_error('Audio download failed')
-                                return
-
-                            send_sse('whisper', 'Transcribing with Whisper...', 30, step=2, total_steps=4)
+                        try:
                             model = get_whisper_model()
-                            whisper_result = model.transcribe(audio_file, fp16=get_whisper_fp16())
+
+                            # Progress callback for diarization updates to frontend
+                            def whisper_progress(stage, message, pct):
+                                send_sse(stage, message, pct, step=2, total_steps=4)
+
+                            whisper_result = _run_whisper_process(audio_file, progress_callback=whisper_progress)
 
                             with open(cache_path, 'w', encoding='utf-8') as f:
                                 json.dump(whisper_result, f, indent=2)
+                        except Exception as whisper_error:
+                            logger.error(f"Whisper transcription failed: {whisper_error}")
+                            import traceback
+                            traceback.print_exc()
+                            send_error(f"Transcription failed: {str(whisper_error)[:100]}")
+                            return
 
                     send_sse('whisper', 'Transcription complete', 50, step=2, total_steps=4)
 
@@ -769,8 +1154,10 @@ def process_video():
                         subtitles.append({
                             'start': int(seg['start'] * 1000),
                             'end': int(seg['end'] * 1000),
-                            'text': seg['text'].strip()
+                            'text': seg['text'].strip(),
+                            'speaker': seg.get('speaker')
                         })
+
 
                 # Fallback: YouTube auto
                 elif auto_subs:
@@ -791,7 +1178,11 @@ def process_video():
 
                 # Step 2: Translate if needed
                 if needs_translation:
-                    send_sse('translating', f'Translating {len(subtitles)} subtitles...', 55, step=3, total_steps=4)
+                    # Calculate initial translation ETA
+                    trans_eta_sec = estimate_translation_time(len(subtitles))
+                    trans_eta_str = format_eta(trans_eta_sec)
+                    
+                    send_sse('translating', f'Translating {len(subtitles)} subtitles...', 55, step=3, total_steps=4, eta=trans_eta_str)
 
                     def on_translate_progress(done, total, pct, eta=""):
                         # Calculate overall percent: translation is 55-95% of total progress
@@ -933,8 +1324,101 @@ def await_download_subtitles(video_id, lang, tracks):
     return subtitles
 
 
+
+def ensure_audio_downloaded(video_id, url):
+    """Download audio to persistent cache if not exists.
+
+    Uses a robust approach:
+    1. Check for any existing audio file with common extensions
+    2. Download with yt-dlp (no postprocessing to avoid naming issues)
+    3. Scan directory for the downloaded file
+    """
+    audio_cache_dir = os.path.join(CACHE_DIR, "audio")
+    os.makedirs(audio_cache_dir, exist_ok=True)
+
+    # Use a safe filename
+    safe_vid_id = "".join([c for c in video_id if c.isalnum() or c in ('-', '_')])
+
+    # Check if audio already exists (any audio format)
+    possible_exts = ['m4a', 'mp3', 'wav', 'webm', 'opus', 'ogg', 'aac']
+
+    for ext in possible_exts:
+        p = os.path.join(audio_cache_dir, f"{safe_vid_id}.{ext}")
+        if os.path.exists(p) and os.path.getsize(p) > 1000:  # Ensure file is not empty
+            logger.info(f"[AUDIO CACHE] Using cached audio: {p}")
+            return p
+
+    # Also check for files starting with video_id (yt-dlp might add extra chars)
+    for f in os.listdir(audio_cache_dir):
+        if f.startswith(safe_vid_id) and any(f.endswith(ext) for ext in possible_exts):
+            p = os.path.join(audio_cache_dir, f)
+            if os.path.getsize(p) > 1000:
+                logger.info(f"[AUDIO CACHE] Found cached audio (variant): {p}")
+                return p
+
+    # Download audio to cache - simpler approach without postprocessing
+    logger.info(f"[AUDIO CACHE] Downloading audio for {video_id}...")
+
+    # Use simple format - let yt-dlp pick the best audio and keep it as-is
+    ydl_opts = {
+        'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
+        'outtmpl': os.path.join(audio_cache_dir, f"{safe_vid_id}.%(ext)s"),
+        'quiet': False,  # Show some output for debugging
+        'no_warnings': False,
+        'extract_audio': True,
+        # Skip postprocessing - it causes naming issues
+        # 'postprocessors': [{
+        #     'key': 'FFmpegExtractAudio',
+        #     'preferredcodec': 'm4a',
+        # }],
+    }
+
+    if COOKIES_FILE and os.path.exists(COOKIES_FILE):
+        ydl_opts['cookiefile'] = COOKIES_FILE
+        logger.info(f"[AUDIO CACHE] Using cookies file: {COOKIES_FILE}")
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+
+            # Get the actual downloaded filename from info
+            if info:
+                # yt-dlp stores the final filename in 'requested_downloads'
+                downloads = info.get('requested_downloads', [])
+                if downloads and downloads[0].get('filepath'):
+                    downloaded_file = downloads[0]['filepath']
+                    if os.path.exists(downloaded_file):
+                        logger.info(f"[AUDIO CACHE] Downloaded: {downloaded_file}")
+                        return downloaded_file
+
+        # Fallback: scan the directory for the file
+        logger.info("[AUDIO CACHE] Scanning directory for downloaded file...")
+        for f in os.listdir(audio_cache_dir):
+            if f.startswith(safe_vid_id):
+                p = os.path.join(audio_cache_dir, f)
+                if os.path.getsize(p) > 1000:
+                    logger.info(f"[AUDIO CACHE] Found downloaded file: {p}")
+                    return p
+
+        # Last resort: check with original extensions
+        for ext in possible_exts:
+            p = os.path.join(audio_cache_dir, f"{safe_vid_id}.{ext}")
+            if os.path.exists(p) and os.path.getsize(p) > 1000:
+                logger.info(f"[AUDIO CACHE] Found with extension {ext}: {p}")
+                return p
+
+        logger.error("[AUDIO CACHE] Download completed but file not found!")
+        return None
+
+    except Exception as e:
+        logger.error(f"[AUDIO CACHE] Download failed: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
 def await_whisper_transcribe(video_id, url):
-    """Transcribe video using Whisper."""
+    """Transcribe video using Whisper with persistent audio caching."""
     cache_path = get_cache_path(video_id, 'whisper')
 
     if os.path.exists(cache_path):
@@ -944,49 +1428,39 @@ def await_whisper_transcribe(video_id, url):
     else:
         logger.info("[PROCESS] Running Whisper transcription...")
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            ydl_opts = {
-                'format': 'bestaudio[ext=m4a]/bestaudio/best',
-                'outtmpl': os.path.join(temp_dir, 'audio.%(ext)s'),
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '128',
-                }],
-                'quiet': True,
-                'no_warnings': True,
-            }
+        final_audio_path = ensure_audio_downloaded(video_id, url)
+        if not final_audio_path or not os.path.exists(final_audio_path):
+            logger.error("Could not find downloaded audio file")
+            return []
 
-            if COOKIES_FILE and os.path.exists(COOKIES_FILE):
-                ydl_opts['cookiefile'] = COOKIES_FILE
-
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-
-            audio_file = None
-            for f in os.listdir(temp_dir):
-                if f.startswith('audio'):
-                    audio_file = os.path.join(temp_dir, f)
-                    break
-
-            if not audio_file:
-                logger.error("[PROCESS] Audio download failed")
-                return []
-
-            model = get_whisper_model()
-            whisper_result = model.transcribe(audio_file, fp16=get_whisper_fp16())
-
-            # Cache
-            with open(cache_path, 'w', encoding='utf-8') as f:
-                json.dump(whisper_result, f, indent=2)
+        # Run Whisper on the cached audio file
+        try:
+            whisper_result = _run_whisper_process(final_audio_path)
+            
+            # Cache the result
+            try:
+                with open(cache_path, 'w', encoding='utf-8') as f:
+                    json.dump(whisper_result, f, indent=2)
+            except TypeError:
+                # Handle case where result contains non-serializable objects
+                # (though _run_whisper_process should return dicts)
+                logger.error("Failed to serialize Whisper result to cache")
+                pass
+                
+        except Exception as e:
+            logger.error(f"Whisper transcription failed: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
 
     # Convert to subtitle format
     subtitles = []
-    for seg in whisper_result.get('segments', []):
+    for segment in whisper_result.get('segments', []):
         subtitles.append({
-            'start': int(seg['start'] * 1000),
-            'end': int(seg['end'] * 1000),
-            'text': seg['text'].strip()
+            'start': int(segment['start'] * 1000),
+            'end': int(segment['end'] * 1000),
+            'text': segment['text'].strip(),
+            'speaker': segment.get('speaker') # Include speaker info
         })
 
     return subtitles
@@ -1004,6 +1478,92 @@ def get_historical_batch_time():
     except:
         pass
     return 3.0  # Default 3 seconds per batch
+
+
+
+def format_eta(seconds):
+    """Format seconds into human readable time."""
+    if not seconds:
+        return ""
+    if seconds < 60:
+        return f"{int(seconds)}s"
+    elif seconds < 3600:
+        mins = int(seconds // 60)
+        secs = int(seconds % 60)
+        return f"{mins}m {secs}s"
+    else:
+        hours = int(seconds // 3600)
+        mins = int((seconds % 3600) // 60)
+        return f"{hours}h {mins}m"
+
+
+def estimate_whisper_time(duration_seconds):
+    """Estimate Whisper transcription time based on video duration and hardware."""
+    device = get_whisper_device()
+
+    # Heuristics based on real-world usage
+    if device == "cuda":
+        # NVIDIA GPU is very fast (~0.05x - 0.1x real time)
+        factor = 0.1
+    elif WHISPER_BACKEND == "mlx-whisper":
+        # mlx-whisper on Apple Silicon Metal GPU - very fast!
+        # Performance similar to CUDA, maybe slightly slower
+        model_factors = {
+            'tiny': 0.05,      # Extremely fast
+            'tiny.en': 0.05,
+            'base': 0.08,
+            'base.en': 0.08,
+            'small': 0.12,
+            'small.en': 0.12,
+            'medium': 0.2,
+            'medium.en': 0.2,
+            'large': 0.35,
+            'large-v2': 0.35,
+            'large-v3': 0.35,
+            'large-v3-turbo': 0.25,  # Turbo is faster
+        }
+        factor = model_factors.get(WHISPER_MODEL_SIZE, 0.1)
+    elif WHISPER_BACKEND == "faster-whisper":
+        # faster-whisper with CTranslate2 is ~4x faster than vanilla whisper on CPU
+        model_factors = {
+            'tiny': 0.08,   # Very fast
+            'base': 0.12,
+            'small': 0.2,
+            'medium': 0.4,
+            'large': 0.8,
+            'large-v2': 0.8,
+            'large-v3': 0.8,
+        }
+        factor = model_factors.get(WHISPER_MODEL_SIZE, 0.15)
+    else:
+        # Original openai-whisper on CPU - slower
+        model_factors = {
+            'tiny': 0.3,
+            'base': 0.5,
+            'small': 0.8,
+            'medium': 1.5,
+            'large': 3.0,
+            'large-v2': 3.0,
+            'large-v3': 3.0,
+        }
+        factor = model_factors.get(WHISPER_MODEL_SIZE, 0.5)
+
+    return duration_seconds * factor
+
+
+def estimate_translation_time(subtitle_count):
+    """Estimate translation time based on subtitle count."""
+    # Historical average is ~3s per batch of 25
+    # Parallel processing with 3 workers
+    batch_size = 25
+    max_workers = 3
+    avg_batch_time = get_historical_batch_time()
+    
+    total_batches = (subtitle_count + batch_size - 1) // batch_size
+    # Effective batches (parallelized)
+    effective_batches = (total_batches + max_workers - 1) // max_workers
+    
+    return effective_batches * avg_batch_time
 
 
 def save_batch_time_history(batch_times):
@@ -1069,18 +1629,25 @@ def await_translate_subtitles(subtitles, target_lang, progress_callback=None):
 
         numbered_subs = "\n".join([f"{i+1}. {s['text']}" for i, s in enumerate(batch)])
 
-        system_prompt = "You are a professional subtitle translator."
+        system_prompt = f"You are a professional subtitle translator. You ONLY output {t_name}. Never output Chinese unless the target language is Chinese."
         user_prompt = f"""Translate these {len(batch)} subtitles to {t_name}.
 
-IMPORTANT: Return exactly {len(batch)} numbered translations, one per line.
+TARGET LANGUAGE: {t_name} (code: {target_lang})
+CRITICAL: Your output MUST be in {t_name}. Do NOT output Chinese, Japanese, or any other language except {t_name}.
+
+Return exactly {len(batch)} numbered translations, one per line.
+Format: "1. [translation in {t_name}]"
 
 Rules:
-- Return ONLY translations, numbered 1 to {len(batch)}
+- Output ONLY in {t_name} language
+- Return numbered translations 1 to {len(batch)}
 - Keep concise for subtitles
-- No explanations
+- No explanations or notes
 
-Subtitles:
-{numbered_subs}"""
+Subtitles to translate:
+{numbered_subs}
+
+Remember: Output MUST be in {t_name} only."""
 
         translations = []
         for attempt in range(MAX_RETRIES + 1):
@@ -1144,18 +1711,6 @@ Subtitles:
         batch_duration = time.time() - batch_start
         return batch_idx, translations if translations else [], False, batch_duration
 
-    def format_eta(seconds):
-        """Format seconds into human readable time."""
-        if seconds < 60:
-            return f"{int(seconds)}s"
-        elif seconds < 3600:
-            mins = int(seconds // 60)
-            secs = int(seconds % 60)
-            return f"{mins}m {secs}s"
-        else:
-            hours = int(seconds // 3600)
-            mins = int((seconds % 3600) // 60)
-            return f"{hours}h {mins}m"
 
     def process_batches(batch_list, round_num=1):
         """Process a list of batches in parallel."""

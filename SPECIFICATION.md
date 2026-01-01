@@ -49,6 +49,7 @@ A Chrome extension + Python backend that translates YouTube video subtitles in r
 - **API Configuration**: URL, Key, Model
 - **Force AI Generation**: Use Whisper instead of YouTube captions
 - **Default Language**: Target translation language
+- **Internationalization (i18n)**: Full support for multiple UI languages (English and Spanish included)
 - **Cache Management**: View and clear translation cache
 
 ### YouTube Integration

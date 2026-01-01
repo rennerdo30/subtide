@@ -23,49 +23,69 @@ let subtitleSettings = {
 // Multilingual status messages for cool animation effect
 const STATUS_MESSAGES = {
     translating: [
-        { lang: 'en', text: 'Translating...' },
-        { lang: 'ja', text: '翻訳中...' },
-        { lang: 'ko', text: '번역 중...' },
-        { lang: 'zh', text: '翻译中...' },
-        { lang: 'es', text: 'Traduciendo...' },
+        { lang: 'en', text: 'Translating subtitles into your language...' },
+        { lang: 'ja', text: '字幕をあなたの言語に翻訳しています...' },
+        { lang: 'ko', text: '자막을 사용자의 언어로 번역 중...' },
+        { lang: 'zh', text: '正在将字幕翻译为您选择的语言...' },
+        { lang: 'es', text: 'Traduciendo subtítulos a su idioma...' },
+        { lang: 'fr', text: 'Traduction des sous-titres dans votre langue...' },
+        { lang: 'de', text: 'Untertitel werden in Ihre Sprache übersetzt...' },
+        { lang: 'pt', text: 'Traduzindo legendas para o seu idioma...' },
+        { lang: 'ru', text: 'Перевод субтитров на ваш язык...' },
     ],
     loading: [
-        { lang: 'en', text: 'Loading...' },
-        { lang: 'ja', text: '読み込み中...' },
-        { lang: 'zh', text: '加载中...' },
+        { lang: 'en', text: 'Loading AI model and components...' },
+        { lang: 'ja', text: 'AIモデルとコンポーネントを読み込み中...' },
+        { lang: 'zh', text: '正在加载 AI 模型和组件...' },
+        { lang: 'fr', text: 'Chargement du modèle AI et des composants...' },
+        { lang: 'de', text: 'KI-Modell und Komponenten werden geladen...' },
     ],
     processing: [
-        { lang: 'en', text: 'Processing...' },
-        { lang: 'ja', text: '処理中...' },
-        { lang: 'zh', text: '处理中...' },
+        { lang: 'en', text: 'Optimizing video for AI translation...' },
+        { lang: 'ja', text: 'AI翻訳用にビデオを最適化しています...' },
+        { lang: 'zh', text: '正在为 AI 翻译优化视频...' },
+        { lang: 'ko', text: 'AI 번역을 위해 동영상을 최적화하는 중...' },
+        { lang: 'es', text: 'Optimizando el video para la traducción por IA...' },
+        { lang: 'fr', text: 'Optimisation de la vidéo pour la traduction par IA...' },
+        { lang: 'de', text: 'Video für die KI-Übersetzung optimieren...' },
     ],
     transcribing: [
-        { lang: 'en', text: 'Transcribing...' },
-        { lang: 'ja', text: '文字起こし中...' },
-        { lang: 'ko', text: '기록 중...' },
-        { lang: 'zh', text: '转录中...' },
-        { lang: 'es', text: 'Transcribiendo...' },
+        { lang: 'en', text: 'Generating AI-powered transcriptions...' },
+        { lang: 'ja', text: 'AIによる文字起こしを生成しています...' },
+        { lang: 'ko', text: 'AI 기반 스크립트를 생성하는 중...' },
+        { lang: 'zh', text: '正在生成 AI 驱动的转录内容...' },
+        { lang: 'es', text: 'Generando transcripciones mediante IA...' },
+        { lang: 'fr', text: 'Génération de transcriptions par IA...' },
+        { lang: 'de', text: 'KI-gestützte Transkriptionen werden erstellt...' },
+        { lang: 'pt', text: 'Gerando transcrições alimentadas por IA...' },
+        { lang: 'ru', text: 'Генерация транскрипции с помощью ИИ...' },
     ],
     checking: [
-        { lang: 'en', text: 'Checking...' },
-        { lang: 'ja', text: '確認中...' },
-        { lang: 'ko', text: '확인 중...' },
-        { lang: 'zh', text: '检查中...' },
-        { lang: 'es', text: 'Comprobando...' },
+        { lang: 'en', text: 'Verifying subtitle tracks and segments...' },
+        { lang: 'ja', text: '字幕トラックとセグメントを確認しています...' },
+        { lang: 'ko', text: '자막 트랙 및 세그먼트 확인 중...' },
+        { lang: 'zh', text: '正在验证字幕轨道和分段...' },
+        { lang: 'es', text: 'Verificando pistas de subtítulos y segmentos...' },
+        { lang: 'fr', text: 'Vérification des pistes de sous-titres...' },
+        { lang: 'de', text: 'Untertitelspuren und Segmente werden geprüft...' },
     ],
     downloading: [
-        { lang: 'en', text: 'Downloading...' },
-        { lang: 'ja', text: 'ダウンロード中...' },
-        { lang: 'ko', text: '다운로드 중...' },
-        { lang: 'zh', text: '下载中...' },
-        { lang: 'es', text: 'Descargando...' },
+        { lang: 'en', text: 'Retrieving audio data for analysis...' },
+        { lang: 'ja', text: '分析用のオーディオデータを取得しています...' },
+        { lang: 'ko', text: '분석을 위한 오디오 데이터를 가져오는 중...' },
+        { lang: 'zh', text: '正在检索音频数据以供分析...' },
+        { lang: 'es', text: 'Obteniendo datos de audio para el análisis...' },
+        { lang: 'fr', text: 'Récupération des données audio pour analyse...' },
+        { lang: 'de', text: 'Audiodaten werden zur Analyse abgerufen...' },
     ],
     generic: [
-        { lang: 'en', text: 'Working...' },
-        { lang: 'ja', text: '作業中...' },
-        { lang: 'ko', text: '작업 중...' },
-        { lang: 'zh', text: '工作中...' },
-        { lang: 'es', text: 'Trabajando...' },
+        { lang: 'en', text: 'Completing your request, please wait...' },
+        { lang: 'ja', text: 'リクエストを完了しています、お待ちください...' },
+        { lang: 'ko', text: '요청을 완료하고 있습니다. 잠시만 기다려 주세요...' },
+        { lang: 'zh', text: '正在完成您的请求，请稍候...' },
+        { lang: 'es', text: 'Completando su solicitud, espere...' },
+        { lang: 'fr', text: 'Traitement de votre demande, veuillez patienter...' },
+        { lang: 'de', text: 'Ihre Anfrage wird abgeschlossen...' },
     ],
 };
 let statusAnimationInterval = null;
@@ -141,10 +161,33 @@ async function setupPage(videoId) {
     console.log('[VideoTranslate] Tier:', userTier);
     console.log('[VideoTranslate] Subtitle settings:', subtitleSettings);
 
+    // Try to inject UI with error handling
     waitForControls().then(controls => {
         injectUI(controls);
         watchControls(controls);
+    }).catch(err => {
+        console.error('[VideoTranslate] Failed to find controls:', err);
+        // Retry after a delay
+        setTimeout(() => {
+            const retryControls = document.querySelector('.ytp-right-controls');
+            if (retryControls) {
+                injectUI(retryControls);
+                watchControls(retryControls);
+            }
+        }, 2000);
     });
+
+    // Periodic check to ensure UI stays injected (YouTube can remove it)
+    setInterval(() => {
+        if (!document.querySelector('.vt-container')) {
+            const controls = document.querySelector('.ytp-right-controls');
+            if (controls && controls.offsetParent !== null) {
+                console.log('[VideoTranslate] Periodic re-injection');
+                injectUI(controls);
+            }
+        }
+    }, 5000);
+
 
     // For Tier 1/2: Pre-fetch subtitles so they're ready when user clicks translate
     // For Tier 3: We'll do everything in one call when user clicks translate
@@ -155,16 +198,26 @@ async function setupPage(videoId) {
 
 
 
-function waitForControls() {
-    return new Promise((resolve) => {
+function waitForControls(maxRetries = 30) {
+    return new Promise((resolve, reject) => {
+        let retries = 0;
         const check = () => {
             const controls = document.querySelector('.ytp-right-controls');
-            if (controls) resolve(controls);
-            else setTimeout(check, 500);
+            // Ensure controls exist and are visible
+            if (controls && controls.offsetParent !== null) {
+                resolve(controls);
+            } else if (retries < maxRetries) {
+                retries++;
+                setTimeout(check, 500);
+            } else {
+                console.warn('[VideoTranslate] Controls not found after max retries');
+                reject(new Error('Controls not found'));
+            }
         };
         check();
     });
 }
+
 
 
 function waitForPlayer() {
@@ -244,8 +297,10 @@ function parseSubtitles(data) {
             subtitles.push({
                 start: seg.start * 1000,
                 end: seg.end * 1000,
-                text: seg.text.trim()
+                text: seg.text.trim(),
+                speaker: seg.speaker
             });
+
         }
         return mergeSegments(subtitles);
     }
@@ -282,10 +337,11 @@ function mergeSegments(subs, maxGap = 500, maxDur = 8000) {
         const gap = next.start - curr.end;
         const newDur = next.end - curr.start;
 
-        if (gap <= maxGap && newDur <= maxDur) {
+        if (gap <= maxGap && newDur <= maxDur && curr.speaker === next.speaker) {
             curr.end = next.end;
             curr.text += ' ' + next.text;
         } else {
+
             merged.push(curr);
             curr = { ...next };
         }
@@ -342,7 +398,10 @@ function injectUI(controlsElement) {
         statusPanel.innerHTML = `
             <div class="vt-status-content">
                 <div class="vt-step-indicator"></div>
-                <span class="vt-status-text"></span>
+                <div class="vt-status-main">
+                    <span class="vt-status-text"></span>
+                    <span class="vt-sub-status"></span>
+                </div>
                 <div class="vt-progress-bar">
                     <div class="vt-progress-fill"></div>
                 </div>
@@ -400,15 +459,15 @@ function injectUI(controlsElement) {
                     </div>
                 </div>
                 <div class="vt-submenu" data-for="lang" style="display: none;">
-                    <div class="vt-submenu-item" data-val="en">English</div>
-                    <div class="vt-submenu-item" data-val="ja">Japanese</div>
-                    <div class="vt-submenu-item" data-val="ko">Korean</div>
-                    <div class="vt-submenu-item" data-val="zh-CN">Chinese</div>
-                    <div class="vt-submenu-item" data-val="es">Spanish</div>
-                    <div class="vt-submenu-item" data-val="fr">French</div>
-                    <div class="vt-submenu-item" data-val="de">German</div>
-                    <div class="vt-submenu-item" data-val="pt">Portuguese</div>
-                    <div class="vt-submenu-item" data-val="ru">Russian</div>
+                    <div class="vt-submenu-item" data-val="en">${chrome.i18n.getMessage('langEn')}</div>
+                    <div class="vt-submenu-item" data-val="ja">${chrome.i18n.getMessage('langJa')}</div>
+                    <div class="vt-submenu-item" data-val="ko">${chrome.i18n.getMessage('langKo')}</div>
+                    <div class="vt-submenu-item" data-val="zh-CN">${chrome.i18n.getMessage('langZhCN')}</div>
+                    <div class="vt-submenu-item" data-val="es">${chrome.i18n.getMessage('langEs')}</div>
+                    <div class="vt-submenu-item" data-val="fr">${chrome.i18n.getMessage('langFr')}</div>
+                    <div class="vt-submenu-item" data-val="de">${chrome.i18n.getMessage('langDe')}</div>
+                    <div class="vt-submenu-item" data-val="pt">${chrome.i18n.getMessage('langPt')}</div>
+                    <div class="vt-submenu-item" data-val="ru">${chrome.i18n.getMessage('langRu')}</div>
                 </div>
                 <div class="vt-submenu" data-for="size" style="display: none;">
                     <div class="vt-submenu-item" data-val="small">Small</div>
@@ -465,8 +524,15 @@ function injectUI(controlsElement) {
                 cyan: chrome.i18n.getMessage('colorCyan')
             },
             lang: {
-                'en': 'English', 'ja': 'Japanese', 'ko': 'Korean', 'zh-CN': 'Chinese',
-                'es': 'Spanish', 'fr': 'French', 'de': 'German', 'pt': 'Portuguese', 'ru': 'Russian'
+                'en': chrome.i18n.getMessage('langEn'),
+                'ja': chrome.i18n.getMessage('langJa'),
+                'ko': chrome.i18n.getMessage('langKo'),
+                'zh-CN': chrome.i18n.getMessage('langZhCN'),
+                'es': chrome.i18n.getMessage('langEs'),
+                'fr': chrome.i18n.getMessage('langFr'),
+                'de': chrome.i18n.getMessage('langDe'),
+                'pt': chrome.i18n.getMessage('langPt'),
+                'ru': chrome.i18n.getMessage('langRu')
             }
         };
 
@@ -593,7 +659,7 @@ function injectUI(controlsElement) {
 
     mainBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const panel = player.querySelector('.vt-settings-panel');
+        const panel = document.querySelector('.vt-settings-panel');
         if (panel) {
             panel.classList.toggle('show');
 
@@ -609,17 +675,26 @@ function injectUI(controlsElement) {
         }
     });
 
-    // Close menu on outside click
-    document.addEventListener('click', (e) => {
-        const panel = player.querySelector('.vt-settings-panel');
-        if (panel && !container.contains(e.target) && !panel.contains(e.target)) {
-            panel.classList.remove('show');
-        }
-    });
+    // Close menu on outside click - managed more safely
+    if (!window._vtGlobalClickAttached) {
+        document.addEventListener('click', (e) => {
+            const panel = document.querySelector('.vt-settings-panel');
+            const container = document.querySelector('.vt-container');
+            if (panel && panel.classList.contains('show')) {
+                const isClickInside = container?.contains(e.target) || panel?.contains(e.target);
+                if (!isClickInside) {
+                    panel.classList.remove('show');
+                }
+            }
+        });
+        window._vtGlobalClickAttached = true;
+    }
+
 
     addStyles();
     setupSync();
 }
+
 
 /**
  * Translate video subtitles
@@ -718,6 +793,8 @@ function updateStatus(text, type = '', percent = null, options = {}) {
     }
 
     if (panel && textEl) {
+        const subStatusEl = panel.querySelector('.vt-sub-status');
+
         // Update step indicator (e.g., "Step 2/4")
         if (stepIndicator) {
             if (options.step && options.totalSteps) {
@@ -728,9 +805,20 @@ function updateStatus(text, type = '', percent = null, options = {}) {
             }
         }
 
-        // Determine if we should animate with multilingual text
-        // Animate for any "loading" type status that isn't just a short success message
-        const shouldAnimate = type === 'loading' && text.length > 0;
+        // Always show the specific text as sub-status if we are animating
+        // or as main text if we are not.
+        const isSuccess = type === 'success';
+        const isError = type === 'error';
+        const shouldAnimate = type === 'loading' && (options.animationKey || text.length > 0);
+
+        if (subStatusEl) {
+            if (shouldAnimate && text) {
+                subStatusEl.textContent = text;
+                subStatusEl.style.display = 'block';
+            } else {
+                subStatusEl.style.display = 'none';
+            }
+        }
 
         if (shouldAnimate) {
             // Determine which message set to use
@@ -746,44 +834,30 @@ function updateStatus(text, type = '', percent = null, options = {}) {
                 messageSet = STATUS_MESSAGES.generic;
             }
 
-            // Start with the exact message currently being shown (english usually)
-            // But we actually want to cycle through translations OF that specific message if possible.
-            // Since we only have pre-defined sets, we will use the pre-defined sets but we should try to match the *concept*.
-
-            // If the text is "Transcribing with Whisper...", we don't have exact translations for that.
-            // So relying on the specific 'translating'/'loading'/'processing' sets is safer.
-            // However, the user complained that "Transcribing with whisper..." was just that.
-            // This means `shouldAnimate` was false or it didn't match the sets well.
-
-            // Let's redefine `shouldAnimate` loosely and always use a fallback set if needed.
-
             textEl.classList.add('vt-text-fade');
 
             // Start with target language if available, otherwise browser language
             const browserLang = navigator.language.split('-')[0];
             const targetLang = (selectedLanguage || browserLang).split('-')[0];
-            const startIndex = messageSet.findIndex(m => m.lang === targetLang) || 0;
-            currentStatusIndex = startIndex;
+            const startIndex = messageSet.findIndex(m => m.lang === targetLang);
+            currentStatusIndex = startIndex >= 0 ? startIndex : 0;
 
             // Set initial text
             textEl.textContent = messageSet[currentStatusIndex].text;
-            textEl.classList.add('vt-text-fade');
+            textEl.style.opacity = '1';
 
             // Cycle through languages
-            // Strategy: Show primary language (target or browser) 75% of the time (3x more than others combined)
             let cycleCount = 0;
             statusAnimationInterval = setInterval(() => {
                 cycleCount++;
 
-                // 3x as often = 75% of the time (3 primary : 1 other)
                 const showPrimary = (cycleCount % 4 !== 0);
 
                 let nextIndex;
                 if (showPrimary) {
                     nextIndex = messageSet.findIndex(m => m.lang === targetLang);
-                    if (nextIndex === -1) nextIndex = 0; // Fallback to EN if primary not in set
+                    if (nextIndex === -1) nextIndex = 0;
                 } else {
-                    // Pick a different language for variety
                     const others = messageSet.filter(m => m.lang !== targetLang);
                     if (others.length > 0) {
                         const randomOther = others[Math.floor(Math.random() * others.length)];
@@ -799,11 +873,12 @@ function updateStatus(text, type = '', percent = null, options = {}) {
                 setTimeout(() => {
                     textEl.textContent = messageSet[currentStatusIndex].text;
                     textEl.style.opacity = '1';
-                }, 100); // Fast fade transition
-            }, 800); // Fast cycle speed as requested
+                }, 100);
+            }, 1500);
         } else {
             // Static text
             textEl.textContent = text;
+            textEl.style.opacity = '1';
             textEl.classList.remove('vt-text-fade');
         }
 
@@ -862,9 +937,29 @@ function updateStatus(text, type = '', percent = null, options = {}) {
     }
 }
 
+const SPEAKER_COLORS = [
+    '#00bcd4', // Cyan
+    '#ffeb3b', // Yellow
+    '#4caf50', // Green
+    '#ff9800', // Orange
+    '#e91e63', // Pink
+    '#9c27b0', // Purple
+];
+
+function getSpeakerColor(speakerId) {
+    if (!speakerId) return null;
+    const match = speakerId.match(/\d+/);
+    if (match) {
+        const index = parseInt(match[0]);
+        return SPEAKER_COLORS[index % SPEAKER_COLORS.length];
+    }
+    return null;
+}
+
 /**
  * Show subtitle overlay
  */
+
 function showOverlay() {
     let overlay = document.querySelector('.vt-overlay');
     if (!overlay) {
@@ -902,7 +997,18 @@ function setupSync() {
             // Use translatedText, fallback to original if empty
             const displayText = sub.translatedText || sub.text;
             textEl.textContent = displayText || '';
+
+            // Apply speaker color if available
+            const speakerColor = getSpeakerColor(sub.speaker);
+            if (speakerColor) {
+                textEl.style.color = speakerColor;
+            } else {
+                // Fallback to chosen setting
+                const styleValues = getSubtitleStyleValues();
+                textEl.style.color = styleValues.color;
+            }
         } else if (textEl) {
+
             textEl.textContent = '';
         }
     };
@@ -1032,18 +1138,40 @@ function addStyles() {
             display: flex !important;
             flex-direction: column !important;
             align-items: center !important;
-            background: rgba(0,0,0,0.9) !important;
-            padding: 10px 20px !important;
-            border-radius: 6px !important;
-            min-width: 200px !important;
+            background: rgba(0,0,0,0.92) !important;
+            padding: 12px 24px !important;
+            border-radius: 8px !important;
+            min-width: 280px !important;
+            max-width: 450px !important;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+            border: 1px solid rgba(255,255,255,0.1) !important;
+        }
+        .vt-status-main {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            margin-bottom: 10px !important;
+            gap: 4px !important;
+            width: 100% !important;
         }
         .vt-status-text {
             color: #fff !important;
-            font-size: 13px !important;
+            font-size: 14px !important;
+            font-weight: 500 !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-            margin-bottom: 6px !important;
             transition: opacity 0.15s ease !important;
             opacity: 1 !important;
+            line-height: 1.4 !important;
+            text-align: center !important;
+        }
+        .vt-sub-status {
+            color: rgba(255,255,255,0.6) !important;
+            font-size: 11px !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            display: none;
+            line-height: 1.3 !important;
+            text-align: center !important;
+            font-style: italic !important;
         }
         .vt-text-fade {
             min-width: 100px !important;
@@ -1064,15 +1192,25 @@ function addStyles() {
             transition: width 0.3s ease !important;
             width: 0%;
         }
+        @keyframes vt-pulse {
+            0% { opacity: 0.4; transform: scale(0.98); }
+            50% { opacity: 1; transform: scale(1); }
+            100% { opacity: 0.4; transform: scale(0.98); }
+        }
         .vt-step-indicator {
-            color: rgba(255,255,255,0.6) !important;
+            color: #4caf50 !important;
             font-size: 10px !important;
-            font-weight: 600 !important;
+            font-weight: 700 !important;
             text-transform: uppercase !important;
-            letter-spacing: 0.5px !important;
+            letter-spacing: 1px !important;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
-            margin-bottom: 4px !important;
+            margin-bottom: 6px !important;
             display: none;
+            animation: vt-pulse 2s infinite ease-in-out !important;
+            background: rgba(74, 175, 80, 0.1) !important;
+            padding: 2px 6px !important;
+            border-radius: 4px !important;
+            border: 1px solid rgba(74, 175, 80, 0.2) !important;
         }
         .vt-status-details {
             display: flex !important;

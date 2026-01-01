@@ -14,9 +14,9 @@ BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}╔════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║     Video Translate Backend Server     ║${NC}"
-echo -e "${BLUE}╚════════════════════════════════════════╝${NC}"
+echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║       Video Translate Backend Server       ║${NC}"
+echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
 echo ""
 
 # Check if venv exists
@@ -38,12 +38,14 @@ if [ -f ".env" ]; then
     set +a
 fi
 
-# Kill any existing process on port 5001
+# Kill any existing process on port 5001 OR matching app.py
+echo -e "${YELLOW}Cleaning up old processes...${NC}"
 if lsof -i:5001 -t &>/dev/null; then
-    echo -e "${YELLOW}Stopping existing server on port 5001...${NC}"
     kill -9 $(lsof -t -i:5001) 2>/dev/null || true
-    sleep 1
 fi
+# Also kill by name just in case
+pkill -f "python app.py" || true
+sleep 1
 
 # Default configuration
 export ENABLE_WHISPER="${ENABLE_WHISPER:-true}"
@@ -181,9 +183,44 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Detect hardware
+HARDWARE="CPU"
+if python3 -c "import torch; exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
+    HARDWARE="CUDA (NVIDIA GPU)"
+elif python3 -c "import torch; exit(0 if torch.backends.mps.is_available() else 1)" 2>/dev/null; then
+    HARDWARE="MPS (Apple Silicon GPU)"
+fi
+
+# Detect whisper backend (priority: mlx-whisper > faster-whisper > openai-whisper)
+WHISPER_BACKEND=$(python3 -c "
+import platform
+import sys
+
+# Check for mlx-whisper first (Apple Silicon only)
+if platform.system() == 'Darwin' and platform.machine() == 'arm64':
+    try:
+        import mlx_whisper
+        print('mlx-whisper (Metal GPU - Apple Silicon)')
+        sys.exit(0)
+    except ImportError:
+        pass
+
+# Check for faster-whisper
+try:
+    from faster_whisper import WhisperModel
+    print('faster-whisper (CTranslate2 - optimized)')
+    sys.exit(0)
+except ImportError:
+    pass
+
+print('openai-whisper')
+" 2>/dev/null || echo "openai-whisper")
+
 # Show configuration
 echo -e "${GREEN}Configuration:${NC}"
+echo "  • Hardware: $HARDWARE"
 echo "  • Whisper: $ENABLE_WHISPER (model: $WHISPER_MODEL)"
+echo "  • Backend: $WHISPER_BACKEND"
 if [ -n "$SERVER_API_KEY" ]; then
     echo -e "  • Tier 3: ${GREEN}Enabled${NC}"
     echo "    └─ API URL: ${SERVER_API_URL:-https://api.openai.com/v1}"

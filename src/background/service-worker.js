@@ -241,7 +241,7 @@ async function callLLMDirect(prompt, config) {
 
     if (!response.ok) {
         const error = await response.text();
-        throw new Error(`LLM API error: ${response.status} - ${error}`);
+        throw new Error(chrome.i18n.getMessage('llmApiError', [response.status.toString(), error]));
     }
 
     const data = await response.json();
@@ -283,9 +283,12 @@ async function translateDirectLLM(subtitles, sourceLanguage, targetLanguage, con
 
         if (onProgress) {
             onProgress({
-                current: Math.min(i + BATCH_SIZE, subtitles.length),
-                total: subtitles.length,
-                percentage: Math.round((Math.min(i + BATCH_SIZE, subtitles.length) / subtitles.length) * 100),
+                stage: 'translating',
+                message: `Translating batch ${batchNum}/${totalBatches}...`,
+                percent: Math.round((Math.min(i + BATCH_SIZE, subtitles.length) / subtitles.length) * 100),
+                step: 1, // Tier 1/2 is usually just 1 step in this flow
+                totalSteps: 1,
+                batchInfo: { current: batchNum, total: totalBatches }
             });
         }
 
@@ -354,7 +357,7 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
             clearTimeout(timeoutId);
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                reject(new Error(errorData.error || `Backend error: ${response.status}`));
+                reject(new Error(errorData.error || chrome.i18n.getMessage('failed')));
                 return;
             }
 
@@ -416,7 +419,7 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
                 }
             }
 
-            reject(new Error('Stream ended without result'));
+            reject(new Error(chrome.i18n.getMessage('streamNoResult')));
         }).catch(reject);
     });
 }
@@ -459,7 +462,7 @@ async function handleMessage(message, sender) {
         case 'process':
             // Tier 3 only: Combined subtitle + translation
             if (config.tier !== 'tier3') {
-                throw new Error('Combined processing only available for Tier 3');
+                throw new Error(chrome.i18n.getMessage('tier3Only'));
             }
             return await handleTier3Process(message, sender, config);
 
@@ -489,7 +492,7 @@ async function handleMessage(message, sender) {
             }
 
         default:
-            throw new Error(`Unknown action: ${message.action}`);
+            throw new Error(chrome.i18n.getMessage('unknownAction', [message.action]));
     }
 }
 
@@ -510,7 +513,7 @@ async function handleTranslation(message, sender, config) {
     // Tier 1 & 2: Direct LLM call (API key never leaves extension)
     if (config.tier !== 'tier3') {
         if (!config.apiKey) {
-            throw new Error('API key required. Configure in extension settings.');
+            throw new Error(chrome.i18n.getMessage('apiKeyRequired'));
         }
 
         const translations = await translateDirectLLM(
@@ -518,7 +521,15 @@ async function handleTranslation(message, sender, config) {
             sourceLanguage,
             targetLanguage,
             config,
-            null // TODO: progress callback
+            (p) => {
+                const tabId = sender?.tab?.id;
+                if (tabId) {
+                    chrome.tabs.sendMessage(tabId, {
+                        action: 'progress',
+                        ...p
+                    }).catch(() => { });
+                }
+            }
         );
 
         await cacheTranslation(videoId, sourceLanguage, targetLanguage, translations);
@@ -526,7 +537,7 @@ async function handleTranslation(message, sender, config) {
     }
 
     // Tier 3 shouldn't use this path - use 'process' action instead
-    throw new Error('Tier 3 should use combined process endpoint');
+    throw new Error(chrome.i18n.getMessage('tier3ProcessPath'));
 }
 
 /**

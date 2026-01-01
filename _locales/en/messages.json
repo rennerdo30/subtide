@@ -260,5 +260,66 @@
     },
     "menuBack": {
         "message": "Subtitles"
+    },
+    "llmApiError": {
+        "message": "LLM API error: $STATUS$ - $ERROR$",
+        "placeholders": {
+            "status": {
+                "content": "$1"
+            },
+            "error": {
+                "content": "$2"
+            }
+        }
+    },
+    "tier3Only": {
+        "message": "Combined processing only available for Tier 3"
+    },
+    "apiKeyRequired": {
+        "message": "API key required. Configure in extension settings."
+    },
+    "tier3ProcessPath": {
+        "message": "Tier 3 should use combined process endpoint"
+    },
+    "unknownAction": {
+        "message": "Unknown action: $ACTION$",
+        "placeholders": {
+            "action": {
+                "content": "$1"
+            }
+        }
+    },
+    "streamNoResult": {
+        "message": "Stream ended without result"
+    },
+    "apiUrlNotConfigured": {
+        "message": "API URL not configured"
+    },
+    "langEn": {
+        "message": "English"
+    },
+    "langJa": {
+        "message": "Japanese"
+    },
+    "langKo": {
+        "message": "Korean"
+    },
+    "langZhCN": {
+        "message": "Chinese"
+    },
+    "langEs": {
+        "message": "Spanish"
+    },
+    "langFr": {
+        "message": "French"
+    },
+    "langDe": {
+        "message": "German"
+    },
+    "langPt": {
+        "message": "Portuguese"
+    },
+    "langRu": {
+        "message": "Russian"
     }
 }

@@ -133,7 +133,7 @@ async function callLLMAPI(prompt, config) {
 
     if (!response.ok) {
         const error = await response.text();
-        throw new Error(`LLM API error: ${response.status} - ${error}`);
+        throw new Error(chrome.i18n.getMessage('llmApiError', [response.status.toString(), error]));
     }
 
     const data = await response.json();
@@ -285,7 +285,7 @@ async function translateBatch(subtitles, sourceLanguage, targetLanguage, config)
 export async function translateSubtitles(subtitles, sourceLanguage, targetLanguage, onProgress) {
     const config = await getConfig();
     if (!config.apiUrl) {
-        throw new Error('API URL not configured');
+        throw new Error(chrome.i18n.getMessage('apiUrlNotConfigured'));
     }
 
 
