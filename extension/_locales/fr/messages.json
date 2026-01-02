@@ -1,0 +1,337 @@
+{
+    "extensionName": {
+        "message": "Traduction Vidéo"
+    },
+    "extensionDescription": {
+        "message": "Traduisez les sous-titres vidéo à l'aide de l'IA. Prend en charge toute API compatible OpenAI."
+    },
+    "backendStatusTitle": {
+        "message": "État du Serveur"
+    },
+    "statusChecking": {
+        "message": "Vérification..."
+    },
+    "statusConnected": {
+        "message": "Connecté"
+    },
+    "statusOffline": {
+        "message": "Hors ligne"
+    },
+    "backendDisconnected": {
+        "message": "Backend Déconnecté"
+    },
+    "backendInstructionHelp": {
+        "message": "Exécutez python app.py dans le dossier backend."
+    },
+    "retry": {
+        "message": "Réessayer"
+    },
+    "serviceTier": {
+        "message": "Niveau de Service"
+    },
+    "subscriptionPlan": {
+        "message": "Plan d'Abonnement"
+    },
+    "tierFree": {
+        "message": "🆓 Gratuit — Sous-titres YouTube Uniquement"
+    },
+    "tierBasic": {
+        "message": "⚡ Basique — Génération IA (Votre Clé)"
+    },
+    "tierPro": {
+        "message": "👑 Pro — Entièrement Géré"
+    },
+    "tierHint1": {
+        "message": "Utilise les sous-titres générés automatiquement par YouTube. Nécessite votre propre clé API pour la traduction."
+    },
+    "tierHint2": {
+        "message": "Utilise Whisper AI pour la transcription. Nécessite votre propre clé API."
+    },
+    "tierHint3": {
+        "message": "Service entièrement géré. Aucune clé API nécessaire — nous nous occupons de tout !"
+    },
+    "backendUrl": {
+        "message": "URL Backend"
+    },
+    "backendUrlHint": {
+        "message": "URL du serveur de traduction"
+    },
+    "apiConfiguration": {
+        "message": "Configuration API"
+    },
+    "provider": {
+        "message": "Fournisseur"
+    },
+    "customEndpoint": {
+        "message": "Endpoint Personnalisé"
+    },
+    "apiUrl": {
+        "message": "URL de l'API"
+    },
+    "apiUrlHint": {
+        "message": "Endpoint API compatible OpenAI"
+    },
+    "apiKey": {
+        "message": "Clé API"
+    },
+    "model": {
+        "message": "Modèle"
+    },
+    "modelHint": {
+        "message": "ex: gpt-4o-mini, claude-3-haiku, llama-3.1-70b"
+    },
+    "forceGen": {
+        "message": "Forcer la Transcription IA"
+    },
+    "forceGenHint": {
+        "message": "Utiliser Whisper pour générer les sous-titres au lieu de ceux de YouTube"
+    },
+    "translation": {
+        "message": "Traduction"
+    },
+    "targetLanguage": {
+        "message": "Langue Cible"
+    },
+    "cache": {
+        "message": "Cache"
+    },
+    "cacheCountZero": {
+        "message": "0 traduction en cache"
+    },
+    "cacheCountOne": {
+        "message": "1 traduction en cache"
+    },
+    "cacheCountSome": {
+        "message": "$COUNT$ traductions en cache",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "clear": {
+        "message": "Effacer"
+    },
+    "clearDone": {
+        "message": "Fait"
+    },
+    "clearError": {
+        "message": "Erreur"
+    },
+    "saveConfig": {
+        "message": "Enregistrer la Configuration"
+    },
+    "saving": {
+        "message": "Enregistrement..."
+    },
+    "saved": {
+        "message": "Enregistré !"
+    },
+    "saveError": {
+        "message": "Erreur !"
+    },
+    "translateVideo": {
+        "message": "Traduire la Vidéo"
+    },
+    "subtitleStyle": {
+        "message": "Style des Sous-titres"
+    },
+    "liveTranslation": {
+        "message": "Traduction en Direct"
+    },
+    "liveTranslate": {
+        "message": "Traduction en Direct (Bêta)"
+    },
+    "size": {
+        "message": "Taille"
+    },
+    "position": {
+        "message": "Position"
+    },
+    "background": {
+        "message": "Arrière-plan"
+    },
+    "textColor": {
+        "message": "Couleur du Texte"
+    },
+    "sizeSmall": {
+        "message": "Petit"
+    },
+    "sizeMedium": {
+        "message": "Moyen"
+    },
+    "sizeLarge": {
+        "message": "Grand"
+    },
+    "sizeExtraLarge": {
+        "message": "Très Grand"
+    },
+    "sizeHuge": {
+        "message": "Énorme"
+    },
+    "sizeGigantic": {
+        "message": "Gigantesque"
+    },
+    "posBottom": {
+        "message": "Bas"
+    },
+    "posTop": {
+        "message": "Haut"
+    },
+    "bgDark": {
+        "message": "Foncé"
+    },
+    "bgDarker": {
+        "message": "Plus Foncé"
+    },
+    "bgTransparent": {
+        "message": "Semi-transparent"
+    },
+    "bgNone": {
+        "message": "Aucun"
+    },
+    "colorWhite": {
+        "message": "Blanc"
+    },
+    "colorYellow": {
+        "message": "Jaune"
+    },
+    "colorCyan": {
+        "message": "Cyan"
+    },
+    "reqTier2": {
+        "message": "Nécessite le Niveau 2 ou supérieur"
+    },
+    "loading": {
+        "message": "Chargement..."
+    },
+    "processing": {
+        "message": "Traitement..."
+    },
+    "translating": {
+        "message": "Traduction..."
+    },
+    "working": {
+        "message": "Travail en cours..."
+    },
+    "success": {
+        "message": "Succès"
+    },
+    "failed": {
+        "message": "Échec"
+    },
+    "noSubtitles": {
+        "message": "Aucun sous-titre disponible"
+    },
+    "noTranslations": {
+        "message": "Aucune traduction reçue"
+    },
+    "stepProgress": {
+        "message": "Étape $CURRENT$/$TOTAL$",
+        "placeholders": {
+            "current": {
+                "content": "$1"
+            },
+            "total": {
+                "content": "$2"
+            }
+        }
+    },
+    "batchProgress": {
+        "message": "Lot $CURRENT$/$TOTAL$",
+        "placeholders": {
+            "current": {
+                "content": "$1"
+            },
+            "total": {
+                "content": "$2"
+            }
+        }
+    },
+    "eta": {
+        "message": "Temps estimé : $TIME$",
+        "placeholders": {
+            "time": {
+                "content": "$1"
+            }
+        }
+    },
+    "subsCount": {
+        "message": "$COUNT$ sous-titres",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "cachedSuccess": {
+        "message": "En cache ✓"
+    },
+    "doneSuccess": {
+        "message": "Terminé ✓"
+    },
+    "menuBack": {
+        "message": "Sous-titres"
+    },
+    "llmApiError": {
+        "message": "Erreur API LLM : $STATUS$ - $ERROR$",
+        "placeholders": {
+            "status": {
+                "content": "$1"
+            },
+            "error": {
+                "content": "$2"
+            }
+        }
+    },
+    "tier3Only": {
+        "message": "Le traitement combiné est disponible uniquement pour le Niveau 3"
+    },
+    "apiKeyRequired": {
+        "message": "Clé API requise. Configurez-la dans les paramètres de l'extension."
+    },
+    "tier3ProcessPath": {
+        "message": "Le Niveau 3 doit utiliser le point de terminaison de processus combiné"
+    },
+    "unknownAction": {
+        "message": "Action inconnue : $ACTION$",
+        "placeholders": {
+            "action": {
+                "content": "$1"
+            }
+        }
+    },
+    "streamNoResult": {
+        "message": "Le flux s'est terminé sans résultat"
+    },
+    "apiUrlNotConfigured": {
+        "message": "URL API non configurée"
+    },
+    "langEn": {
+        "message": "Anglais"
+    },
+    "langJa": {
+        "message": "Japonais"
+    },
+    "langKo": {
+        "message": "Coréen"
+    },
+    "langZhCN": {
+        "message": "Chinois"
+    },
+    "langEs": {
+        "message": "Espagnol"
+    },
+    "langFr": {
+        "message": "Français"
+    },
+    "langDe": {
+        "message": "Allemand"
+    },
+    "langPt": {
+        "message": "Portugais"
+    },
+    "langRu": {
+        "message": "Russe"
+    }
+}

@@ -207,6 +207,8 @@ function createSubmenusHTML() {
             { val: 'medium', label: 'Medium' },
             { val: 'large', label: 'Large' },
             { val: 'xlarge', label: 'Extra Large' },
+            { val: 'huge', label: 'Huge' },
+            { val: 'gigantic', label: 'Gigantic' },
         ],
         position: [
             { val: 'bottom', label: 'Bottom' },
@@ -267,7 +269,9 @@ function getValueLabels() {
             small: chrome.i18n.getMessage('sizeSmall'),
             medium: chrome.i18n.getMessage('sizeMedium'),
             large: chrome.i18n.getMessage('sizeLarge'),
-            xlarge: chrome.i18n.getMessage('sizeExtraLarge')
+            xlarge: chrome.i18n.getMessage('sizeExtraLarge'),
+            huge: chrome.i18n.getMessage('sizeHuge'),
+            gigantic: chrome.i18n.getMessage('sizeGigantic')
         },
         position: {
             bottom: chrome.i18n.getMessage('posBottom'),

@@ -227,6 +227,12 @@ async function translateVideo(targetLang) {
             throw new Error(chrome.i18n.getMessage('noTranslations'));
         }
 
+        // Analyze subtitle density for adaptive tolerances
+        analyzeSubtitleDensity(translatedSubtitles);
+
+        // Initialize windowed access for very long videos
+        initSubtitleWindow(translatedSubtitles);
+
         updateStatus(result.cached ? chrome.i18n.getMessage('cachedSuccess') : chrome.i18n.getMessage('doneSuccess'), 'success');
 
         // Hide status panel after success

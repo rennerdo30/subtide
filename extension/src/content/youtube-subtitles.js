@@ -74,28 +74,312 @@ function mergeSegments(subs, maxGap = 500, maxDur = 8000) {
 }
 
 /**
+ * Density analysis result for adaptive tolerance calculation
+ */
+let subtitleDensity = {
+    avgDuration: 3000,      // Average subtitle duration in ms
+    avgGap: 500,            // Average gap between subtitles in ms
+    minGap: 100,            // Minimum gap found
+    subsPerMinute: 10,      // Subtitles per minute (density metric)
+    toleranceStart: 50,     // Computed: show subtitle early
+    toleranceEnd: 100,      // Computed: keep subtitle longer
+    lookahead: 150,         // Computed: look ahead for next subtitle
+    gapBridge: 300,         // Computed: max gap to bridge
+    isHighDensity: false,   // Flag for rapid-fire dialogue
+    isLowDensity: false,    // Flag for sparse subtitles
+};
+
+/**
+ * Windowed subtitle access for very long videos
+ */
+let subtitleWindow = {
+    isEnabled: false,       // Only enabled for 1000+ subtitles
+    windowSize: 200,        // Number of subtitles in active window
+    windowStart: 0,         // Start index of current window
+    windowEnd: 0,           // End index of current window
+    fullList: null,         // Reference to full subtitle list
+    activeList: null,       // Currently active window slice
+    lastAccessTime: 0,      // For tracking access patterns
+};
+
+/**
+ * Analyze subtitle density and calculate adaptive tolerances
+ * @param {Array} subs - Subtitle array to analyze
+ * @returns {Object} Density analysis result
+ */
+function analyzeSubtitleDensity(subs) {
+    if (!subs || subs.length < 2) {
+        console.log('[VideoTranslate] Not enough subtitles for density analysis');
+        return subtitleDensity;
+    }
+
+    const durations = [];
+    const gaps = [];
+    let totalDuration = 0;
+
+    for (let i = 0; i < subs.length; i++) {
+        const sub = subs[i];
+        const duration = sub.end - sub.start;
+        durations.push(duration);
+        totalDuration += duration;
+
+        if (i < subs.length - 1) {
+            const gap = subs[i + 1].start - sub.end;
+            if (gap > 0) gaps.push(gap);
+        }
+    }
+
+    // Calculate statistics
+    const avgDuration = durations.reduce((a, b) => a + b, 0) / durations.length;
+    const avgGap = gaps.length > 0 ? gaps.reduce((a, b) => a + b, 0) / gaps.length : 500;
+    const minGap = gaps.length > 0 ? Math.min(...gaps) : 100;
+
+    // Calculate video duration from subtitles
+    const videoDuration = subs[subs.length - 1].end - subs[0].start;
+    const subsPerMinute = (subs.length / videoDuration) * 60000;
+
+    // Determine density classification
+    // High density: >20 subs/min or avg gap < 200ms (rapid dialogue)
+    const isHighDensity = subsPerMinute > 20 || avgGap < 200;
+    // Low density: <5 subs/min or avg gap > 2000ms (sparse subtitles)
+    const isLowDensity = subsPerMinute < 5 || avgGap > 2000;
+
+    // Calculate adaptive tolerances based on density
+    let toleranceStart, toleranceEnd, lookahead, gapBridge;
+
+    if (isHighDensity) {
+        // Tight tolerances for rapid-fire dialogue to prevent overlap
+        toleranceStart = Math.min(30, minGap * 0.3);
+        toleranceEnd = Math.min(50, minGap * 0.4);
+        lookahead = Math.min(80, avgGap * 0.5);
+        gapBridge = Math.min(150, avgGap * 0.8);
+        console.log('[VideoTranslate] High density detected - using tight tolerances');
+    } else if (isLowDensity) {
+        // Generous tolerances for sparse subtitles
+        toleranceStart = 100;
+        toleranceEnd = 200;
+        lookahead = 300;
+        gapBridge = 500;
+        console.log('[VideoTranslate] Low density detected - using generous tolerances');
+    } else {
+        // Normal density - balanced tolerances
+        toleranceStart = Math.max(30, Math.min(80, avgGap * 0.15));
+        toleranceEnd = Math.max(50, Math.min(150, avgGap * 0.25));
+        lookahead = Math.max(100, Math.min(250, avgGap * 0.4));
+        gapBridge = Math.max(200, Math.min(400, avgGap * 0.6));
+        console.log('[VideoTranslate] Normal density - using balanced tolerances');
+    }
+
+    subtitleDensity = {
+        avgDuration: Math.round(avgDuration),
+        avgGap: Math.round(avgGap),
+        minGap: Math.round(minGap),
+        subsPerMinute: Math.round(subsPerMinute * 10) / 10,
+        toleranceStart: Math.round(toleranceStart),
+        toleranceEnd: Math.round(toleranceEnd),
+        lookahead: Math.round(lookahead),
+        gapBridge: Math.round(gapBridge),
+        isHighDensity,
+        isLowDensity,
+    };
+
+    console.log('[VideoTranslate] Density analysis:', subtitleDensity);
+    return subtitleDensity;
+}
+
+/**
+ * Initialize windowed subtitle access for very long videos
+ * @param {Array} subs - Full subtitle array
+ */
+function initSubtitleWindow(subs) {
+    const WINDOW_THRESHOLD = 1000; // Enable windowing for 1000+ subtitles
+
+    if (!subs || subs.length < WINDOW_THRESHOLD) {
+        subtitleWindow.isEnabled = false;
+        subtitleWindow.fullList = subs;
+        subtitleWindow.activeList = subs;
+        return;
+    }
+
+    console.log(`[VideoTranslate] Enabling windowed access for ${subs.length} subtitles`);
+
+    subtitleWindow = {
+        isEnabled: true,
+        windowSize: 200,
+        windowStart: 0,
+        windowEnd: Math.min(200, subs.length),
+        fullList: subs,
+        activeList: subs.slice(0, 200),
+        lastAccessTime: performance.now(),
+    };
+}
+
+/**
+ * Update subtitle window based on current playback position
+ * @param {number} currentIndex - Current subtitle index in full list
+ */
+function updateSubtitleWindow(currentIndex) {
+    if (!subtitleWindow.isEnabled) return;
+
+    const now = performance.now();
+    // Avoid updating too frequently (every 500ms max)
+    if (now - subtitleWindow.lastAccessTime < 500) return;
+
+    const halfWindow = Math.floor(subtitleWindow.windowSize / 2);
+    const idealStart = Math.max(0, currentIndex - halfWindow);
+    const idealEnd = Math.min(subtitleWindow.fullList.length, currentIndex + halfWindow);
+
+    // Only update if we're near the window edges (within 20% of boundary)
+    const edgeThreshold = Math.floor(subtitleWindow.windowSize * 0.2);
+    const distanceToStart = currentIndex - subtitleWindow.windowStart;
+    const distanceToEnd = subtitleWindow.windowEnd - currentIndex;
+
+    if (distanceToStart < edgeThreshold || distanceToEnd < edgeThreshold) {
+        subtitleWindow.windowStart = idealStart;
+        subtitleWindow.windowEnd = idealEnd;
+        subtitleWindow.activeList = subtitleWindow.fullList.slice(idealStart, idealEnd);
+        subtitleWindow.lastAccessTime = now;
+        console.log(`[VideoTranslate] Window updated: ${idealStart}-${idealEnd}`);
+    }
+}
+
+/**
+ * Get active subtitle list (windowed for long videos)
+ * @returns {Array} Active subtitle list
+ */
+function getActiveSubtitles() {
+    return subtitleWindow.activeList || translatedSubtitles;
+}
+
+/**
+ * Convert window-local index to full list index
+ * @param {number} localIndex - Index within active window
+ * @returns {number} Index in full subtitle list
+ */
+function toFullIndex(localIndex) {
+    if (!subtitleWindow.isEnabled || localIndex < 0) return localIndex;
+    return subtitleWindow.windowStart + localIndex;
+}
+
+/**
+ * Convert full list index to window-local index
+ * @param {number} fullIndex - Index in full subtitle list
+ * @returns {number} Index within active window, or -1 if outside window
+ */
+function toLocalIndex(fullIndex) {
+    if (!subtitleWindow.isEnabled || fullIndex < 0) return fullIndex;
+    if (fullIndex < subtitleWindow.windowStart || fullIndex >= subtitleWindow.windowEnd) {
+        return -1; // Outside window, will trigger window update
+    }
+    return fullIndex - subtitleWindow.windowStart;
+}
+
+/**
+ * Sync state for tracking playback
+ */
+let syncState = {
+    animationFrameId: null,
+    lastVideoTime: -1,
+    lastSyncTime: 0,
+    currentSubIndex: -1,      // Index in full list
+    currentLocalIndex: -1,    // Index in active window
+    isStalled: false,
+    stallStartTime: 0,
+    playbackRate: 1,
+};
+
+/**
  * Setup video time sync for subtitle display
+ * Uses requestAnimationFrame for smooth, frequent updates (~60fps)
  */
 function setupSync() {
     const video = document.querySelector('video');
     if (!video) return;
 
-    // Remove existing listeners if any
-    if (video._vtSyncHandler) {
-        video.removeEventListener('timeupdate', video._vtSyncHandler);
-        video.removeEventListener('seeked', video._vtSyncHandler);
+    // Cancel any existing animation frame
+    if (syncState.animationFrameId) {
+        cancelAnimationFrame(syncState.animationFrameId);
+        syncState.animationFrameId = null;
     }
 
-    video._vtSyncHandler = () => {
-        if (!translatedSubtitles?.length) return;
+    // Reset sync state
+    syncState = {
+        animationFrameId: null,
+        lastVideoTime: -1,
+        lastSyncTime: 0,
+        currentSubIndex: -1,
+        isStalled: false,
+        stallStartTime: 0,
+        playbackRate: video.playbackRate || 1,
+    };
+
+    // Remove existing event listeners
+    if (video._vtSyncHandler) {
+        video.removeEventListener('seeked', video._vtSyncHandler);
+        video.removeEventListener('ratechange', video._vtRateHandler);
+        video.removeEventListener('waiting', video._vtWaitingHandler);
+        video.removeEventListener('playing', video._vtPlayingHandler);
+    }
+
+    /**
+     * Main sync loop using requestAnimationFrame
+     * This provides ~60fps updates vs ~4fps with timeupdate
+     */
+    const syncLoop = () => {
+        if (!translatedSubtitles?.length) {
+            syncState.animationFrameId = requestAnimationFrame(syncLoop);
+            return;
+        }
 
         const time = video.currentTime * 1000;
+        const now = performance.now();
 
-        // Binary search for better performance on large subtitle lists
-        const sub = findSubtitleAtTime(translatedSubtitles, time);
+        // Detect if video is stalled (time hasn't changed for 200ms while playing)
+        if (!video.paused && !video.ended) {
+            if (Math.abs(time - syncState.lastVideoTime) < 1) {
+                // Video time hasn't changed
+                if (!syncState.isStalled && now - syncState.lastSyncTime > 200) {
+                    syncState.isStalled = true;
+                    syncState.stallStartTime = now;
+                    console.log('[VideoTranslate] Detected buffering/stall');
+                }
+            } else {
+                // Video is playing normally
+                if (syncState.isStalled) {
+                    console.log('[VideoTranslate] Resumed from stall');
+                    syncState.isStalled = false;
+                }
+                syncState.lastSyncTime = now;
+            }
+        }
+
+        syncState.lastVideoTime = time;
+
+        // Skip sync updates during stall to prevent flickering
+        if (syncState.isStalled) {
+            syncState.animationFrameId = requestAnimationFrame(syncLoop);
+            return;
+        }
+
+        // Use windowed access for performance on long videos
+        const activeSubs = getActiveSubtitles();
+        const localIndex = subtitleWindow.isEnabled ? toLocalIndex(syncState.currentSubIndex) : syncState.currentSubIndex;
+
+        // Use optimized subtitle lookup with adaptive tolerance
+        const sub = findSubtitleAtTimeWithTolerance(activeSubs, time, localIndex);
 
         const textEl = document.querySelector('.vt-text');
         if (textEl && sub) {
+            // Track current subtitle index for optimized lookups
+            const foundLocalIndex = activeSubs.indexOf(sub);
+            const fullIndex = subtitleWindow.isEnabled ? toFullIndex(foundLocalIndex) : foundLocalIndex;
+            syncState.currentSubIndex = fullIndex;
+
+            // Update window position if using windowed access
+            if (subtitleWindow.isEnabled && fullIndex >= 0) {
+                updateSubtitleWindow(fullIndex);
+            }
+
             const styleValues = getSubtitleStyleValues();
 
             // Build display text with optional speaker label
@@ -108,7 +392,10 @@ function setupSync() {
                 displayText = `[S${speakerNum}] ${displayText}`;
             }
 
-            textEl.textContent = displayText || '';
+            // Only update DOM if content actually changed
+            if (textEl.textContent !== displayText) {
+                textEl.textContent = displayText || '';
+            }
 
             // Apply speaker color based on settings
             const useSpeakerColor = styleValues.useSpeakerColor ||
@@ -121,16 +408,67 @@ function setupSync() {
             } else {
                 textEl.style.setProperty('color', styleValues.color || '#fff', 'important');
             }
-        } else if (textEl) {
+        } else if (textEl && textEl.textContent !== '') {
             textEl.textContent = '';
+            syncState.currentSubIndex = -1;
         }
+
+        syncState.animationFrameId = requestAnimationFrame(syncLoop);
     };
 
-    // Listen to timeupdate for regular playback
-    video.addEventListener('timeupdate', video._vtSyncHandler);
-
-    // Listen to seeked for immediate sync after seeking
+    // Handle seeking - reset state and force immediate sync
+    video._vtSyncHandler = () => {
+        syncState.lastVideoTime = -1;
+        syncState.currentSubIndex = -1;
+        syncState.isStalled = false;
+    };
     video.addEventListener('seeked', video._vtSyncHandler);
+
+    // Handle playback rate changes
+    video._vtRateHandler = () => {
+        syncState.playbackRate = video.playbackRate;
+        console.log('[VideoTranslate] Playback rate changed to:', video.playbackRate);
+    };
+    video.addEventListener('ratechange', video._vtRateHandler);
+
+    // Handle buffering/waiting events
+    video._vtWaitingHandler = () => {
+        syncState.isStalled = true;
+        console.log('[VideoTranslate] Video waiting (buffering)');
+    };
+    video.addEventListener('waiting', video._vtWaitingHandler);
+
+    // Handle playing after buffer
+    video._vtPlayingHandler = () => {
+        if (syncState.isStalled) {
+            syncState.isStalled = false;
+            syncState.lastSyncTime = performance.now();
+            console.log('[VideoTranslate] Video playing (resumed from buffer)');
+        }
+    };
+    video.addEventListener('playing', video._vtPlayingHandler);
+
+    // Start the sync loop
+    syncState.animationFrameId = requestAnimationFrame(syncLoop);
+    console.log('[VideoTranslate] Subtitle sync started with requestAnimationFrame');
+}
+
+/**
+ * Stop the subtitle sync loop
+ */
+function stopSync() {
+    if (syncState.animationFrameId) {
+        cancelAnimationFrame(syncState.animationFrameId);
+        syncState.animationFrameId = null;
+    }
+
+    const video = document.querySelector('video');
+    if (video) {
+        if (video._vtSyncHandler) video.removeEventListener('seeked', video._vtSyncHandler);
+        if (video._vtRateHandler) video.removeEventListener('ratechange', video._vtRateHandler);
+        if (video._vtWaitingHandler) video.removeEventListener('waiting', video._vtWaitingHandler);
+        if (video._vtPlayingHandler) video.removeEventListener('playing', video._vtPlayingHandler);
+    }
 }
 
 /**
@@ -162,6 +500,89 @@ function findSubtitleAtTime(subs, time) {
 }
 
 /**
+ * Find subtitle at given time with adaptive tolerance and last-index optimization
+ * This prevents flickering at segment boundaries and provides smoother transitions
+ * Uses adaptive tolerances calculated from subtitle density analysis
+ * @param {Array} subs - Sorted subtitle array
+ * @param {number} time - Current time in ms
+ * @param {number} lastIndex - Last known subtitle index for optimization
+ * @returns {Object|null} Matching subtitle or null
+ */
+function findSubtitleAtTimeWithTolerance(subs, time, lastIndex = -1) {
+    if (!subs || subs.length === 0) return null;
+
+    // Use adaptive tolerances from density analysis
+    const TOLERANCE_START = subtitleDensity.toleranceStart;
+    const TOLERANCE_END = subtitleDensity.toleranceEnd;
+    const LOOKAHEAD = subtitleDensity.lookahead;
+    const GAP_BRIDGE = subtitleDensity.gapBridge;
+
+    // First, check if we're still in the current subtitle (optimization for sequential playback)
+    if (lastIndex >= 0 && lastIndex < subs.length) {
+        const current = subs[lastIndex];
+        // Add tolerance to end time to prevent premature switching
+        if (time >= current.start - TOLERANCE_START && time <= current.end + TOLERANCE_END) {
+            return current;
+        }
+
+        // Check the next subtitle (common case during playback)
+        if (lastIndex + 1 < subs.length) {
+            const next = subs[lastIndex + 1];
+            if (time >= next.start - TOLERANCE_START && time <= next.end + TOLERANCE_END) {
+                return next;
+            }
+        }
+
+        // Check previous subtitle (for small backwards jumps)
+        if (lastIndex > 0) {
+            const prev = subs[lastIndex - 1];
+            if (time >= prev.start - TOLERANCE_START && time <= prev.end + TOLERANCE_END) {
+                return prev;
+            }
+        }
+    }
+
+    // Binary search for new position
+    let left = 0;
+    let right = subs.length - 1;
+    let result = null;
+
+    while (left <= right) {
+        const mid = Math.floor((left + right) / 2);
+        const sub = subs[mid];
+
+        // Check with tolerance
+        if (time >= sub.start - TOLERANCE_START && time <= sub.end + TOLERANCE_END) {
+            result = sub;
+            break;
+        } else if (time < sub.start - TOLERANCE_START) {
+            right = mid - 1;
+        } else {
+            left = mid + 1;
+        }
+    }
+
+    // If no exact match found, check if we're in a gap but close to next subtitle
+    if (!result && left < subs.length) {
+        const nextSub = subs[left];
+        // If we're within lookahead range of the next subtitle, wait (don't return null)
+        // This prevents gaps from flickering the subtitle display
+        if (nextSub.start - time <= LOOKAHEAD && nextSub.start - time > 0) {
+            // We're in a small gap, keep showing the previous subtitle if it exists
+            if (left > 0) {
+                const prevSub = subs[left - 1];
+                // Only keep previous if the gap isn't too large (use adaptive gap bridge)
+                if (time - prevSub.end <= GAP_BRIDGE) {
+                    return prevSub;
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
+/**
  * Show subtitle overlay on video
  */
 function showOverlay() {
@@ -185,10 +606,12 @@ function showOverlay() {
 function getSubtitleStyleValues() {
     // Font sizes
     const sizes = {
-        small: '16px',
-        medium: '20px',
-        large: '24px',
-        xlarge: '28px',
+        small: '20px',
+        medium: '28px',
+        large: '36px',
+        xlarge: '48px',
+        huge: '64px',
+        gigantic: '80px',
     };
 
     // Background styles

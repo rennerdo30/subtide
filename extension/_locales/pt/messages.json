@@ -1,108 +1,108 @@
 {
     "extensionName": {
-        "message": "Traductor de Video"
+        "message": "Tradutor de Vídeo"
     },
     "extensionDescription": {
-        "message": "Traduce subtítulos de video usando IA. Soporta cualquier API compatible con OpenAI."
+        "message": "Traduza legendas de vídeo usando IA. Suporta qualquer API compatível com OpenAI."
     },
     "backendStatusTitle": {
-        "message": "Estado del Servidor"
+        "message": "Status do Servidor"
     },
     "statusChecking": {
-        "message": "Comprobando..."
+        "message": "Verificando..."
     },
     "statusConnected": {
         "message": "Conectado"
     },
     "statusOffline": {
-        "message": "Desconectado"
+        "message": "Offline"
     },
     "backendDisconnected": {
         "message": "Backend Desconectado"
     },
     "backendInstructionHelp": {
-        "message": "Ejecuta python app.py en la carpeta backend."
+        "message": "Execute python app.py na pasta backend."
     },
     "retry": {
-        "message": "Reintentar"
+        "message": "Tentar novamente"
     },
     "serviceTier": {
-        "message": "Nivel de Servicio"
+        "message": "Nível de Serviço"
     },
     "subscriptionPlan": {
-        "message": "Plan de Suscripción"
+        "message": "Plano de Assinatura"
     },
     "tierFree": {
-        "message": "🆓 Gratis — Solo Subtítulos de YouTube"
+        "message": "🆓 Grátis — Apenas Legendas do YouTube"
     },
     "tierBasic": {
-        "message": "⚡ Básico — Generación por IA (Tu propia clave)"
+        "message": "⚡ Básico — Geração por IA (Sua Chave)"
     },
     "tierPro": {
-        "message": "👑 Pro — Totalmente Gestionado"
+        "message": "👑 Pro — Totalmente Gerenciado"
     },
     "tierHint1": {
-        "message": "Usa los subtítulos generados automáticamente por YouTube. Requiere tu propia clave API para la traducción."
+        "message": "Usa legendas geradas automaticamente pelo YouTube. Requer sua própria chave API para tradução."
     },
     "tierHint2": {
-        "message": "Usa Whisper AI para la transcripción. Requiere tu propia clave API."
+        "message": "Usa Whisper AI para transcrição. Requer sua própria chave API."
     },
     "tierHint3": {
-        "message": "Servicio totalmente gestionado. ¡No necesitas clave API, nosotros nos encargamos de todo!"
+        "message": "Serviço totalmente gerenciado. Nenhuma chave API necessária — nós cuidamos de tudo!"
     },
     "backendUrl": {
-        "message": "URL del Backend"
+        "message": "URL do Backend"
     },
     "backendUrlHint": {
-        "message": "URL del servidor backend de traducción"
+        "message": "URL do servidor backend de tradução"
     },
     "apiConfiguration": {
-        "message": "Configuración de API"
+        "message": "Configuração da API"
     },
     "provider": {
-        "message": "Proveedor"
+        "message": "Provedor"
     },
     "customEndpoint": {
         "message": "Endpoint Personalizado"
     },
     "apiUrl": {
-        "message": "URL de la API"
+        "message": "URL da API"
     },
     "apiUrlHint": {
-        "message": "Endpoint de API compatible con OpenAI"
+        "message": "Endpoint de API compatível com OpenAI"
     },
     "apiKey": {
-        "message": "Clave API"
+        "message": "Chave API"
     },
     "model": {
         "message": "Modelo"
     },
     "modelHint": {
-        "message": "ej. gpt-4o-mini, claude-3-haiku, llama-3.1-70b"
+        "message": "ex: gpt-4o-mini, claude-3-haiku, llama-3.1-70b"
     },
     "forceGen": {
-        "message": "Forzar Transcripción por IA"
+        "message": "Forçar Transcrição por IA"
     },
     "forceGenHint": {
-        "message": "Usar Whisper para generar subtítulos en lugar de los de YouTube"
+        "message": "Usar Whisper para gerar legendas em vez das do YouTube"
     },
     "translation": {
-        "message": "Traducción"
+        "message": "Tradução"
     },
     "targetLanguage": {
         "message": "Idioma de Destino"
     },
     "cache": {
-        "message": "Caché"
+        "message": "Cache"
     },
     "cacheCountZero": {
-        "message": "0 traducciones en caché"
+        "message": "0 traduções em cache"
     },
     "cacheCountOne": {
-        "message": "1 traducción en caché"
+        "message": "1 tradução em cache"
     },
     "cacheCountSome": {
-        "message": "$COUNT$ traducciones en caché",
+        "message": "$COUNT$ traduções em cache",
         "placeholders": {
             "count": {
                 "content": "$1"
@@ -110,55 +110,55 @@
         }
     },
     "clear": {
-        "message": "Limpiar"
+        "message": "Limpar"
     },
     "clearDone": {
-        "message": "Hecho"
+        "message": "Feito"
     },
     "clearError": {
-        "message": "Error"
+        "message": "Erro"
     },
     "saveConfig": {
-        "message": "Guardar Configuración"
+        "message": "Salvar Configuração"
     },
     "saving": {
-        "message": "Guardando..."
+        "message": "Salvando..."
     },
     "saved": {
-        "message": "¡Guardado!"
+        "message": "Salvo!"
     },
     "saveError": {
-        "message": "¡Error!"
+        "message": "Erro!"
     },
     "translateVideo": {
-        "message": "Traducir Video"
+        "message": "Traduzir Vídeo"
     },
     "subtitleStyle": {
-        "message": "Estilo de Subtítulos"
+        "message": "Estilo da Legenda"
     },
     "liveTranslation": {
-        "message": "Traducción en Vivo"
+        "message": "Tradução em Tempo Real"
     },
     "liveTranslate": {
-        "message": "Traducción en Vivo (Beta)"
+        "message": "Tradução Ao Vivo (Beta)"
     },
     "size": {
-        "message": "Tamaño"
+        "message": "Tamanho"
     },
     "position": {
-        "message": "Posición"
+        "message": "Posição"
     },
     "background": {
-        "message": "Fondo"
+        "message": "Fundo"
     },
     "textColor": {
-        "message": "Color del Texto"
+        "message": "Cor do Texto"
     },
     "sizeSmall": {
-        "message": "Pequeño"
+        "message": "Pequeno"
     },
     "sizeMedium": {
-        "message": "Mediano"
+        "message": "Médio"
     },
     "sizeLarge": {
         "message": "Grande"
@@ -173,61 +173,61 @@
         "message": "Gigantesco"
     },
     "posBottom": {
-        "message": "Abajo"
+        "message": "Inferior"
     },
     "posTop": {
-        "message": "Arriba"
+        "message": "Superior"
     },
     "bgDark": {
-        "message": "Oscuro"
+        "message": "Escuro"
     },
     "bgDarker": {
-        "message": "Más Oscuro"
+        "message": "Mais Escuro"
     },
     "bgTransparent": {
         "message": "Semitransparente"
     },
     "bgNone": {
-        "message": "Ninguno"
+        "message": "Nenhum"
     },
     "colorWhite": {
-        "message": "Blanco"
+        "message": "Branco"
     },
     "colorYellow": {
-        "message": "Amarillo"
+        "message": "Amarelo"
     },
     "colorCyan": {
-        "message": "Cian"
+        "message": "Ciano"
     },
     "reqTier2": {
-        "message": "Requiere Nivel 2 o superior"
+        "message": "Requer Nível 2 ou superior"
     },
     "loading": {
-        "message": "Cargando..."
+        "message": "Carregando..."
     },
     "processing": {
-        "message": "Procesando..."
+        "message": "Processando..."
     },
     "translating": {
-        "message": "Traduciendo..."
+        "message": "Traduzindo..."
     },
     "working": {
-        "message": "Trabajando..."
+        "message": "Trabalhando..."
     },
     "success": {
-        "message": "Éxito"
+        "message": "Sucesso"
     },
     "failed": {
-        "message": "Falló"
+        "message": "Falhou"
     },
     "noSubtitles": {
-        "message": "No hay subtítulos disponibles"
+        "message": "Nenhuma legenda disponível"
     },
     "noTranslations": {
-        "message": "No se recibieron traducciones"
+        "message": "Nenhuma tradução recebida"
     },
     "stepProgress": {
-        "message": "Paso $CURRENT$/$TOTAL$",
+        "message": "Passo $CURRENT$/$TOTAL$",
         "placeholders": {
             "current": {
                 "content": "$1"
@@ -249,7 +249,7 @@
         }
     },
     "eta": {
-        "message": "Tiempo estimado: $TIME$",
+        "message": "Tempo estimado: $TIME$",
         "placeholders": {
             "time": {
                 "content": "$1"
@@ -257,7 +257,7 @@
         }
     },
     "subsCount": {
-        "message": "$COUNT$ subs",
+        "message": "$COUNT$ legendas",
         "placeholders": {
             "count": {
                 "content": "$1"
@@ -265,16 +265,16 @@
         }
     },
     "cachedSuccess": {
-        "message": "En caché ✓"
+        "message": "Em cache ✓"
     },
     "doneSuccess": {
-        "message": "Hecho ✓"
+        "message": "Feito ✓"
     },
     "menuBack": {
-        "message": "Subtítulos"
+        "message": "Legendas"
     },
     "llmApiError": {
-        "message": "Error de API LLM: $STATUS$ - $ERROR$",
+        "message": "Erro na API LLM: $STATUS$ - $ERROR$",
         "placeholders": {
             "status": {
                 "content": "$1"
@@ -285,16 +285,16 @@
         }
     },
     "tier3Only": {
-        "message": "El procesamiento combinado solo está disponible para Nivel 3"
+        "message": "Processamento combinado disponível apenas para Nível 3"
     },
     "apiKeyRequired": {
-        "message": "Se requiere clave API. Configúrala en los ajustes de la extensión."
+        "message": "Chave API necessária. Configure nas configurações da extensão."
     },
     "tier3ProcessPath": {
-        "message": "El Nivel 3 debe usar el endpoint de proceso combinado"
+        "message": "Nível 3 deve usar o endpoint de processo combinado"
     },
     "unknownAction": {
-        "message": "Acción desconocida: $ACTION$",
+        "message": "Ação desconhecida: $ACTION$",
         "placeholders": {
             "action": {
                 "content": "$1"
@@ -302,36 +302,36 @@
         }
     },
     "streamNoResult": {
-        "message": "El stream terminó sin resultados"
+        "message": "O stream terminou sem resultado"
     },
     "apiUrlNotConfigured": {
-        "message": "URL de API no configurada"
+        "message": "URL da API não configurada"
     },
     "langEn": {
-        "message": "Inglés"
+        "message": "Inglês"
     },
     "langJa": {
-        "message": "Japonés"
+        "message": "Japonês"
     },
     "langKo": {
         "message": "Coreano"
     },
     "langZhCN": {
-        "message": "Chino"
+        "message": "Chinês"
     },
     "langEs": {
-        "message": "Español"
+        "message": "Espanhol"
     },
     "langFr": {
-        "message": "Francés"
+        "message": "Francês"
     },
     "langDe": {
-        "message": "Alemán"
+        "message": "Alemão"
     },
     "langPt": {
-        "message": "Portugués"
+        "message": "Português"
     },
     "langRu": {
-        "message": "Ruso"
+        "message": "Russo"
     }
 }

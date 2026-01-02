@@ -1,108 +1,108 @@
 {
     "extensionName": {
-        "message": "Video Translate"
+        "message": "Video Übersetzer"
     },
     "extensionDescription": {
-        "message": "Translate video subtitles using AI. Supports any OpenAI-compatible API."
+        "message": "Video-Untertitel mit KI übersetzen. Unterstützt jede OpenAI-kompatible API."
     },
     "backendStatusTitle": {
-        "message": "Backend Server Status"
+        "message": "Server Status"
     },
     "statusChecking": {
-        "message": "Checking..."
+        "message": "Prüfen..."
     },
     "statusConnected": {
-        "message": "Connected"
+        "message": "Verbunden"
     },
     "statusOffline": {
         "message": "Offline"
     },
     "backendDisconnected": {
-        "message": "Backend Disconnected"
+        "message": "Backend nicht verbunden"
     },
     "backendInstructionHelp": {
-        "message": "Run python app.py in the backend folder."
+        "message": "Führen Sie python app.py im Backend-Ordner aus."
     },
     "retry": {
-        "message": "Retry"
+        "message": "Wiederholen"
     },
     "serviceTier": {
-        "message": "Service Tier"
+        "message": "Service-Level"
     },
     "subscriptionPlan": {
-        "message": "Subscription Plan"
+        "message": "Abo-Plan"
     },
     "tierFree": {
-        "message": "🆓 Free — YouTube Captions Only"
+        "message": "🆓 Kostenlos — Nur YouTube-Untertitel"
     },
     "tierBasic": {
-        "message": "⚡ Basic — AI Generation (Own Key)"
+        "message": "⚡ Basic — KI-Generierung (Eigener Key)"
     },
     "tierPro": {
-        "message": "👑 Pro — Fully Managed"
+        "message": "👑 Pro — Voll verwaltet"
     },
     "tierHint1": {
-        "message": "Uses YouTube's auto-generated captions. Requires your own API key for translation."
+        "message": "Nutzt YouTubes automatisch generierte Untertitel. Erfordert eigenen API-Key für Übersetzung."
     },
     "tierHint2": {
-        "message": "Uses Whisper AI for transcription. Requires your own API key."
+        "message": "Nutzt Whisper AI für Transkription. Erfordert eigenen API-Key."
     },
     "tierHint3": {
-        "message": "Fully managed service. No API key needed — we handle everything!"
+        "message": "Voll verwalteter Service. Kein API-Key nötig — wir kümmern uns um alles!"
     },
     "backendUrl": {
         "message": "Backend URL"
     },
     "backendUrlHint": {
-        "message": "URL of the translation backend server"
+        "message": "URL des Übersetzungs-Backend-Servers"
     },
     "apiConfiguration": {
-        "message": "API Configuration"
+        "message": "API-Konfiguration"
     },
     "provider": {
-        "message": "Provider"
+        "message": "Anbieter"
     },
     "customEndpoint": {
-        "message": "Custom Endpoint"
+        "message": "Benutzerdefinierter Endpunkt"
     },
     "apiUrl": {
         "message": "API URL"
     },
     "apiUrlHint": {
-        "message": "OpenAI-compatible API endpoint"
+        "message": "OpenAI-kompatibler API-Endpunkt"
     },
     "apiKey": {
         "message": "API Key"
     },
     "model": {
-        "message": "Model"
+        "message": "Modell"
     },
     "modelHint": {
-        "message": "e.g., gpt-4o-mini, claude-3-haiku, llama-3.1-70b"
+        "message": "z.B. gpt-4o-mini, claude-3-haiku, llama-3.1-70b"
     },
     "forceGen": {
-        "message": "Force AI Transcription"
+        "message": "KI-Transkription erzwingen"
     },
     "forceGenHint": {
-        "message": "Use Whisper to generate subtitles instead of YouTube captions"
+        "message": "Whisper verwenden, um Untertitel zu generieren statt YouTube"
     },
     "translation": {
-        "message": "Translation"
+        "message": "Übersetzung"
     },
     "targetLanguage": {
-        "message": "Target Language"
+        "message": "Zielsprache"
     },
     "cache": {
         "message": "Cache"
     },
     "cacheCountZero": {
-        "message": "0 translations cached"
+        "message": "0 Übersetzungen im Cache"
     },
     "cacheCountOne": {
-        "message": "1 translation cached"
+        "message": "1 Übersetzung im Cache"
     },
     "cacheCountSome": {
-        "message": "$COUNT$ translations cached",
+        "message": "$COUNT$ Übersetzungen im Cache",
         "placeholders": {
             "count": {
                 "content": "$1"
@@ -110,124 +110,124 @@
         }
     },
     "clear": {
-        "message": "Clear"
+        "message": "Leeren"
     },
     "clearDone": {
-        "message": "Done"
+        "message": "Fertig"
     },
     "clearError": {
-        "message": "Error"
+        "message": "Fehler"
     },
     "saveConfig": {
-        "message": "Save Configuration"
+        "message": "Konfiguration speichern"
     },
     "saving": {
-        "message": "Saving..."
+        "message": "Speichern..."
     },
     "saved": {
-        "message": "Saved!"
+        "message": "Gespeichert!"
     },
     "saveError": {
-        "message": "Error!"
+        "message": "Fehler!"
     },
     "translateVideo": {
-        "message": "Translate Video"
+        "message": "Video übersetzen"
     },
     "subtitleStyle": {
-        "message": "Subtitle Style"
+        "message": "Untertitel-Stil"
     },
     "liveTranslation": {
-        "message": "Live Translation"
+        "message": "Live-Übersetzung"
     },
     "liveTranslate": {
-        "message": "Live Translate (Beta)"
+        "message": "Live-Übersetzung (Beta)"
     },
     "size": {
-        "message": "Size"
+        "message": "Größe"
     },
     "position": {
         "message": "Position"
     },
     "background": {
-        "message": "Background"
+        "message": "Hintergrund"
     },
     "textColor": {
-        "message": "Text Color"
+        "message": "Textfarbe"
     },
     "sizeSmall": {
-        "message": "Small"
+        "message": "Klein"
     },
     "sizeMedium": {
-        "message": "Medium"
+        "message": "Mittel"
     },
     "sizeLarge": {
-        "message": "Large"
+        "message": "Groß"
     },
     "sizeExtraLarge": {
-        "message": "Extra Large"
+        "message": "Extra Groß"
     },
     "sizeHuge": {
-        "message": "Huge"
+        "message": "Riesig"
     },
     "sizeGigantic": {
-        "message": "Gigantic"
+        "message": "Gigantisch"
     },
     "posBottom": {
-        "message": "Bottom"
+        "message": "Unten"
     },
     "posTop": {
-        "message": "Top"
+        "message": "Oben"
     },
     "bgDark": {
-        "message": "Dark"
+        "message": "Dunkel"
     },
     "bgDarker": {
-        "message": "Darker"
+        "message": "Dunkler"
     },
     "bgTransparent": {
-        "message": "Semi-transparent"
+        "message": "Halbtransparent"
     },
     "bgNone": {
-        "message": "None"
+        "message": "Keiner"
     },
     "colorWhite": {
-        "message": "White"
+        "message": "Weiß"
     },
     "colorYellow": {
-        "message": "Yellow"
+        "message": "Gelb"
     },
     "colorCyan": {
         "message": "Cyan"
     },
     "reqTier2": {
-        "message": "Requires Tier 2 or higher"
+        "message": "Erfordert Tier 2 oder höher"
     },
     "loading": {
-        "message": "Loading..."
+        "message": "Laden..."
     },
     "processing": {
-        "message": "Processing..."
+        "message": "Verarbeiten..."
     },
     "translating": {
-        "message": "Translating..."
+        "message": "Übersetzen..."
     },
     "working": {
-        "message": "Working..."
+        "message": "Arbeiten..."
     },
     "success": {
-        "message": "Success"
+        "message": "Erfolg"
     },
     "failed": {
-        "message": "Failed"
+        "message": "Fehlgeschlagen"
     },
     "noSubtitles": {
-        "message": "No subtitles available"
+        "message": "Keine Untertitel verfügbar"
     },
     "noTranslations": {
-        "message": "No translations received"
+        "message": "Keine Übersetzungen empfangen"
     },
     "stepProgress": {
-        "message": "Step $CURRENT$/$TOTAL$",
+        "message": "Schritt $CURRENT$/$TOTAL$",
         "placeholders": {
             "current": {
                 "content": "$1"
@@ -249,7 +249,7 @@
         }
     },
     "eta": {
-        "message": "ETA: $TIME$",
+        "message": "Verbleibende Zeit: $TIME$",
         "placeholders": {
             "time": {
                 "content": "$1"
@@ -257,7 +257,7 @@
         }
     },
     "subsCount": {
-        "message": "$COUNT$ subs",
+        "message": "$COUNT$ Untertitel",
         "placeholders": {
             "count": {
                 "content": "$1"
@@ -265,16 +265,16 @@
         }
     },
     "cachedSuccess": {
-        "message": "Cached ✓"
+        "message": "Im Cache ✓"
     },
     "doneSuccess": {
-        "message": "Done ✓"
+        "message": "Fertig ✓"
     },
     "menuBack": {
-        "message": "Subtitles"
+        "message": "Untertitel"
     },
     "llmApiError": {
-        "message": "LLM API error: $STATUS$ - $ERROR$",
+        "message": "LLM API Fehler: $STATUS$ - $ERROR$",
         "placeholders": {
             "status": {
                 "content": "$1"
@@ -285,16 +285,16 @@
         }
     },
     "tier3Only": {
-        "message": "Combined processing only available for Tier 3"
+        "message": "Kombinierte Verarbeitung nur für Tier 3 verfügbar"
     },
     "apiKeyRequired": {
-        "message": "API key required. Configure in extension settings."
+        "message": "API Key erforderlich. Konfigurieren Sie diesen in den Erweiterungseinstellungen."
     },
     "tier3ProcessPath": {
-        "message": "Tier 3 should use combined process endpoint"
+        "message": "Tier 3 sollte den kombinierten Prozess-Endpunkt verwenden"
     },
     "unknownAction": {
-        "message": "Unknown action: $ACTION$",
+        "message": "Unbekannte Aktion: $ACTION$",
         "placeholders": {
             "action": {
                 "content": "$1"
@@ -302,36 +302,36 @@
         }
     },
     "streamNoResult": {
-        "message": "Stream ended without result"
+        "message": "Stream endete ohne Ergebnis"
     },
     "apiUrlNotConfigured": {
-        "message": "API URL not configured"
+        "message": "API URL nicht konfiguriert"
     },
     "langEn": {
-        "message": "English"
+        "message": "Englisch"
     },
     "langJa": {
-        "message": "Japanese"
+        "message": "Japanisch"
     },
     "langKo": {
-        "message": "Korean"
+        "message": "Koreanisch"
     },
     "langZhCN": {
-        "message": "Chinese"
+        "message": "Chinesisch"
     },
     "langEs": {
-        "message": "Spanish"
+        "message": "Spanisch"
     },
     "langFr": {
-        "message": "French"
+        "message": "Französisch"
     },
     "langDe": {
-        "message": "German"
+        "message": "Deutsch"
     },
     "langPt": {
-        "message": "Portuguese"
+        "message": "Portugiesisch"
     },
     "langRu": {
-        "message": "Russian"
+        "message": "Russisch"
     }
 }

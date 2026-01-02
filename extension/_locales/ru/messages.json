@@ -1,0 +1,337 @@
+{
+    "extensionName": {
+        "message": "Видео Переводчик"
+    },
+    "extensionDescription": {
+        "message": "Переводите субтитры видео с помощью ИИ. Поддерживает любой API, совместимый с OpenAI."
+    },
+    "backendStatusTitle": {
+        "message": "Статус Сервера"
+    },
+    "statusChecking": {
+        "message": "Проверка..."
+    },
+    "statusConnected": {
+        "message": "Подключено"
+    },
+    "statusOffline": {
+        "message": "Оффлайн"
+    },
+    "backendDisconnected": {
+        "message": "Бэкенд Отключен"
+    },
+    "backendInstructionHelp": {
+        "message": "Запустите python app.py в папке backend."
+    },
+    "retry": {
+        "message": "Повторить"
+    },
+    "serviceTier": {
+        "message": "Уровень Сервиса"
+    },
+    "subscriptionPlan": {
+        "message": "План Подписки"
+    },
+    "tierFree": {
+        "message": "🆓 Бесплатно — Только субтитры YouTube"
+    },
+    "tierBasic": {
+        "message": "⚡ Базовый — ИИ-генерация (Свой ключ)"
+    },
+    "tierPro": {
+        "message": "👑 Про — Полностью Управляемый"
+    },
+    "tierHint1": {
+        "message": "Использует автоматически созданные субтитры YouTube. Требуется ваш собственный API-ключ для перевода."
+    },
+    "tierHint2": {
+        "message": "Использует Whisper AI для транскрипции. Требуется ваш собственный API-ключ."
+    },
+    "tierHint3": {
+        "message": "Полностью управляемый сервис. API-ключ не нужен — мы берем все на себя!"
+    },
+    "backendUrl": {
+        "message": "URL Бэкенда"
+    },
+    "backendUrlHint": {
+        "message": "URL сервера перевода"
+    },
+    "apiConfiguration": {
+        "message": "Конфигурация API"
+    },
+    "provider": {
+        "message": "Провайдер"
+    },
+    "customEndpoint": {
+        "message": "Пользовательский Эндпоинт"
+    },
+    "apiUrl": {
+        "message": "URL API"
+    },
+    "apiUrlHint": {
+        "message": "API-эндпоинт, совместимый с OpenAI"
+    },
+    "apiKey": {
+        "message": "API Ключ"
+    },
+    "model": {
+        "message": "Модель"
+    },
+    "modelHint": {
+        "message": "напр. gpt-4o-mini, claude-3-haiku, llama-3.1-70b"
+    },
+    "forceGen": {
+        "message": "Принудительная ИИ-транскрипция"
+    },
+    "forceGenHint": {
+        "message": "Использовать Whisper для создания субтитров вместо YouTube"
+    },
+    "translation": {
+        "message": "Перевод"
+    },
+    "targetLanguage": {
+        "message": "Целевой Язык"
+    },
+    "cache": {
+        "message": "Кэш"
+    },
+    "cacheCountZero": {
+        "message": "0 переводов в кэше"
+    },
+    "cacheCountOne": {
+        "message": "1 перевод в кэше"
+    },
+    "cacheCountSome": {
+        "message": "$COUNT$ переводов в кэше",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "clear": {
+        "message": "Очистить"
+    },
+    "clearDone": {
+        "message": "Готово"
+    },
+    "clearError": {
+        "message": "Ошибка"
+    },
+    "saveConfig": {
+        "message": "Сохранить Конфигурацию"
+    },
+    "saving": {
+        "message": "Сохранение..."
+    },
+    "saved": {
+        "message": "Сохранено!"
+    },
+    "saveError": {
+        "message": "Ошибка!"
+    },
+    "translateVideo": {
+        "message": "Перевести Видео"
+    },
+    "subtitleStyle": {
+        "message": "Стиль Субтитров"
+    },
+    "liveTranslation": {
+        "message": "Живой Перевод"
+    },
+    "liveTranslate": {
+        "message": "Живой Перевод (Бета)"
+    },
+    "size": {
+        "message": "Размер"
+    },
+    "position": {
+        "message": "Позиция"
+    },
+    "background": {
+        "message": "Фон"
+    },
+    "textColor": {
+        "message": "Цвет Текста"
+    },
+    "sizeSmall": {
+        "message": "Маленький"
+    },
+    "sizeMedium": {
+        "message": "Средний"
+    },
+    "sizeLarge": {
+        "message": "Большой"
+    },
+    "sizeExtraLarge": {
+        "message": "Очень Большой"
+    },
+    "sizeHuge": {
+        "message": "Огромный"
+    },
+    "sizeGigantic": {
+        "message": "Гигантский"
+    },
+    "posBottom": {
+        "message": "Снизу"
+    },
+    "posTop": {
+        "message": "Сверху"
+    },
+    "bgDark": {
+        "message": "Темный"
+    },
+    "bgDarker": {
+        "message": "Более Темный"
+    },
+    "bgTransparent": {
+        "message": "Полупрозрачный"
+    },
+    "bgNone": {
+        "message": "Нет"
+    },
+    "colorWhite": {
+        "message": "Белый"
+    },
+    "colorYellow": {
+        "message": "Желтый"
+    },
+    "colorCyan": {
+        "message": "Голубой"
+    },
+    "reqTier2": {
+        "message": "Требуется Уровень 2 или выше"
+    },
+    "loading": {
+        "message": "Загрузка..."
+    },
+    "processing": {
+        "message": "Обработка..."
+    },
+    "translating": {
+        "message": "Перевод..."
+    },
+    "working": {
+        "message": "Работаем..."
+    },
+    "success": {
+        "message": "Успех"
+    },
+    "failed": {
+        "message": "Ошибка"
+    },
+    "noSubtitles": {
+        "message": "Нет доступных субтитров"
+    },
+    "noTranslations": {
+        "message": "Переводы не получены"
+    },
+    "stepProgress": {
+        "message": "Шаг $CURRENT$/$TOTAL$",
+        "placeholders": {
+            "current": {
+                "content": "$1"
+            },
+            "total": {
+                "content": "$2"
+            }
+        }
+    },
+    "batchProgress": {
+        "message": "Пакет $CURRENT$/$TOTAL$",
+        "placeholders": {
+            "current": {
+                "content": "$1"
+            },
+            "total": {
+                "content": "$2"
+            }
+        }
+    },
+    "eta": {
+        "message": "Осталось времени: $TIME$",
+        "placeholders": {
+            "time": {
+                "content": "$1"
+            }
+        }
+    },
+    "subsCount": {
+        "message": "$COUNT$ субтитров",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "cachedSuccess": {
+        "message": "В кэше ✓"
+    },
+    "doneSuccess": {
+        "message": "Готово ✓"
+    },
+    "menuBack": {
+        "message": "Субтитры"
+    },
+    "llmApiError": {
+        "message": "Ошибка LLM API: $STATUS$ - $ERROR$",
+        "placeholders": {
+            "status": {
+                "content": "$1"
+            },
+            "error": {
+                "content": "$2"
+            }
+        }
+    },
+    "tier3Only": {
+        "message": "Комбинированная обработка доступна только для Уровня 3"
+    },
+    "apiKeyRequired": {
+        "message": "Требуется API-ключ. Настройте его в параметрах расширения."
+    },
+    "tier3ProcessPath": {
+        "message": "Уровень 3 должен использовать комбинированный эндпоинт процесса"
+    },
+    "unknownAction": {
+        "message": "Неизвестное действие: $ACTION$",
+        "placeholders": {
+            "action": {
+                "content": "$1"
+            }
+        }
+    },
+    "streamNoResult": {
+        "message": "Поток завершился без результата"
+    },
+    "apiUrlNotConfigured": {
+        "message": "URL API не настроен"
+    },
+    "langEn": {
+        "message": "Английский"
+    },
+    "langJa": {
+        "message": "Японский"
+    },
+    "langKo": {
+        "message": "Корейский"
+    },
+    "langZhCN": {
+        "message": "Китайский"
+    },
+    "langEs": {
+        "message": "Испанский"
+    },
+    "langFr": {
+        "message": "Французский"
+    },
+    "langDe": {
+        "message": "Немецкий"
+    },
+    "langPt": {
+        "message": "Португальский"
+    },
+    "langRu": {
+        "message": "Русский"
+    }
+}

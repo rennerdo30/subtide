@@ -1,0 +1,337 @@
+{
+    "extensionName": {
+        "message": "비디오 번역"
+    },
+    "extensionDescription": {
+        "message": "AI를 사용하여 비디오 자막을 번역합니다. OpenAI 호환 API를 지원합니다."
+    },
+    "backendStatusTitle": {
+        "message": "백엔드 서버 상태"
+    },
+    "statusChecking": {
+        "message": "확인 중..."
+    },
+    "statusConnected": {
+        "message": "연결됨"
+    },
+    "statusOffline": {
+        "message": "오프라인"
+    },
+    "backendDisconnected": {
+        "message": "백엔드 연결 끊김"
+    },
+    "backendInstructionHelp": {
+        "message": "백엔드 폴더에서 python app.py를 실행하세요."
+    },
+    "retry": {
+        "message": "재시도"
+    },
+    "serviceTier": {
+        "message": "서비스 등급"
+    },
+    "subscriptionPlan": {
+        "message": "구독 플랜"
+    },
+    "tierFree": {
+        "message": "🆓 무료 — YouTube 자막만"
+    },
+    "tierBasic": {
+        "message": "⚡ 베이직 — AI 생성 (개인 키)"
+    },
+    "tierPro": {
+        "message": "👑 프로 — 완전 관리형"
+    },
+    "tierHint1": {
+        "message": "YouTube 자동 생성 자막을 사용합니다. 번역을 위해 자체 API 키가 필요합니다."
+    },
+    "tierHint2": {
+        "message": "Whisper AI를 사용하여 자막을 생성합니다. 자체 API 키가 필요합니다."
+    },
+    "tierHint3": {
+        "message": "완전 관리형 서비스입니다. API 키가 필요 없으며 모든 것을 처리해 드립니다!"
+    },
+    "backendUrl": {
+        "message": "백엔드 URL"
+    },
+    "backendUrlHint": {
+        "message": "번역 백엔드 서버 URL"
+    },
+    "apiConfiguration": {
+        "message": "API 구성"
+    },
+    "provider": {
+        "message": "공급자"
+    },
+    "customEndpoint": {
+        "message": "사용자 지정 엔드포인트"
+    },
+    "apiUrl": {
+        "message": "API URL"
+    },
+    "apiUrlHint": {
+        "message": "OpenAI 호환 API 엔드포인트"
+    },
+    "apiKey": {
+        "message": "API 키"
+    },
+    "model": {
+        "message": "모델"
+    },
+    "modelHint": {
+        "message": "예: gpt-4o-mini, claude-3-haiku, llama-3.1-70b"
+    },
+    "forceGen": {
+        "message": "AI 자막 생성 강제"
+    },
+    "forceGenHint": {
+        "message": "YouTube 자막 대신 Whisper를 사용하여 자막을 생성합니다"
+    },
+    "translation": {
+        "message": "번역"
+    },
+    "targetLanguage": {
+        "message": "대상 언어"
+    },
+    "cache": {
+        "message": "캐시"
+    },
+    "cacheCountZero": {
+        "message": "캐시된 번역: 0"
+    },
+    "cacheCountOne": {
+        "message": "캐시된 번역: 1"
+    },
+    "cacheCountSome": {
+        "message": "캐시된 번역: $COUNT$",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "clear": {
+        "message": "지우기"
+    },
+    "clearDone": {
+        "message": "완료"
+    },
+    "clearError": {
+        "message": "오류"
+    },
+    "saveConfig": {
+        "message": "설정 저장"
+    },
+    "saving": {
+        "message": "저장 중..."
+    },
+    "saved": {
+        "message": "저장되었습니다!"
+    },
+    "saveError": {
+        "message": "오류!"
+    },
+    "translateVideo": {
+        "message": "비디오 번역"
+    },
+    "subtitleStyle": {
+        "message": "자막 스타일"
+    },
+    "liveTranslation": {
+        "message": "실시간 번역"
+    },
+    "liveTranslate": {
+        "message": "실시간 번역 (베타)"
+    },
+    "size": {
+        "message": "크기"
+    },
+    "position": {
+        "message": "위치"
+    },
+    "background": {
+        "message": "배경"
+    },
+    "textColor": {
+        "message": "텍스트 색상"
+    },
+    "sizeSmall": {
+        "message": "작게"
+    },
+    "sizeMedium": {
+        "message": "중간"
+    },
+    "sizeLarge": {
+        "message": "크게"
+    },
+    "sizeExtraLarge": {
+        "message": "아주 크게"
+    },
+    "sizeHuge": {
+        "message": "엄청 크게"
+    },
+    "sizeGigantic": {
+        "message": "거대하게"
+    },
+    "posBottom": {
+        "message": "하단"
+    },
+    "posTop": {
+        "message": "상단"
+    },
+    "bgDark": {
+        "message": "어둡게"
+    },
+    "bgDarker": {
+        "message": "더 어둡게"
+    },
+    "bgTransparent": {
+        "message": "반투명"
+    },
+    "bgNone": {
+        "message": "없음"
+    },
+    "colorWhite": {
+        "message": "흰색"
+    },
+    "colorYellow": {
+        "message": "노란색"
+    },
+    "colorCyan": {
+        "message": "청록색"
+    },
+    "reqTier2": {
+        "message": "등급 2 이상 필요"
+    },
+    "loading": {
+        "message": "로딩 중..."
+    },
+    "processing": {
+        "message": "처리 중..."
+    },
+    "translating": {
+        "message": "번역 중..."
+    },
+    "working": {
+        "message": "작업 중..."
+    },
+    "success": {
+        "message": "성공"
+    },
+    "failed": {
+        "message": "실패"
+    },
+    "noSubtitles": {
+        "message": "자막 없음"
+    },
+    "noTranslations": {
+        "message": "번역을 받지 못했습니다"
+    },
+    "stepProgress": {
+        "message": "단계 $CURRENT$/$TOTAL$",
+        "placeholders": {
+            "current": {
+                "content": "$1"
+            },
+            "total": {
+                "content": "$2"
+            }
+        }
+    },
+    "batchProgress": {
+        "message": "배치 $CURRENT$/$TOTAL$",
+        "placeholders": {
+            "current": {
+                "content": "$1"
+            },
+            "total": {
+                "content": "$2"
+            }
+        }
+    },
+    "eta": {
+        "message": "남은 시간: $TIME$",
+        "placeholders": {
+            "time": {
+                "content": "$1"
+            }
+        }
+    },
+    "subsCount": {
+        "message": "$COUNT$ 자막",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "cachedSuccess": {
+        "message": "캐시됨 ✓"
+    },
+    "doneSuccess": {
+        "message": "완료 ✓"
+    },
+    "menuBack": {
+        "message": "자막"
+    },
+    "llmApiError": {
+        "message": "LLM API 오류: $STATUS$ - $ERROR$",
+        "placeholders": {
+            "status": {
+                "content": "$1"
+            },
+            "error": {
+                "content": "$2"
+            }
+        }
+    },
+    "tier3Only": {
+        "message": "통합 처리는 등급 3에서만 사용할 수 있습니다"
+    },
+    "apiKeyRequired": {
+        "message": "API 키가 필요합니다. 확장 프로그램 설정에서 구성하세요."
+    },
+    "tier3ProcessPath": {
+        "message": "등급 3은 통합 프로세스 엔드포인트를 사용해야 합니다"
+    },
+    "unknownAction": {
+        "message": "알 수 없는 작업: $ACTION$",
+        "placeholders": {
+            "action": {
+                "content": "$1"
+            }
+        }
+    },
+    "streamNoResult": {
+        "message": "스트림이 결과 없이 종료되었습니다"
+    },
+    "apiUrlNotConfigured": {
+        "message": "API URL이 구성되지 않았습니다"
+    },
+    "langEn": {
+        "message": "영어"
+    },
+    "langJa": {
+        "message": "일본어"
+    },
+    "langKo": {
+        "message": "한국어"
+    },
+    "langZhCN": {
+        "message": "중국어"
+    },
+    "langEs": {
+        "message": "스페인어"
+    },
+    "langFr": {
+        "message": "프랑스어"
+    },
+    "langDe": {
+        "message": "독일어"
+    },
+    "langPt": {
+        "message": "포르투갈어"
+    },
+    "langRu": {
+        "message": "러시아어"
+    }
+}

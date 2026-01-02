@@ -56,6 +56,29 @@
 - **Fix**: Updated test to directly replace the model attribute after service initialization
 - **Impact**: All 10 tests now pass on Apple Silicon Macs
 
+### Subtitle Font Size Too Small
+- **Issue**: Default subtitle font sizes (16px-28px) were too small for many users
+- **Fix**: Increased base sizes (now 20px-48px) and added "Huge" (64px) and "Gigantic" (80px) options
+- **Impact**: Improved readability and more customization options for users on large screens
+
+### Subtitle Synchronization Going Out of Sync
+- **Issue**: Subtitles would go out of sync with video during playback, especially after buffering/seeking
+- **Root Causes**:
+  - `timeupdate` event only fires ~4 times/second, causing visible delays
+  - No detection or handling of video buffering/stalling
+  - No handling for playback rate changes
+  - Tight subtitle boundaries caused flickering between segments
+- **Fix**: Complete rewrite of sync mechanism:
+  - Replaced `timeupdate` with `requestAnimationFrame` loop (~60fps updates)
+  - Added buffering/stall detection that pauses subtitle updates during stalls
+  - Added playback rate change tracking
+  - Implemented adaptive tolerance-based subtitle lookup (dynamically adjusts based on subtitle density)
+  - Added gap bridging to prevent flickering during small timing gaps
+  - Optimized lookups using last-known position for sequential playback
+  - Added windowed access for very long videos (1000+ subtitles) with 200-subtitle sliding window
+- **Impact**: Smoother, more accurate subtitle synchronization that stays in sync during buffering and playback speed changes
+
+
 ## Known Limitations ⚠️
 
 ### YouTube Rate Limiting

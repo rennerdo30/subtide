@@ -1,0 +1,337 @@
+{
+    "extensionName": {
+        "message": "视频翻译"
+    },
+    "extensionDescription": {
+        "message": "使用AI翻译视频字幕。支持任何OpenAI兼容的API。"
+    },
+    "backendStatusTitle": {
+        "message": "后端服务器状态"
+    },
+    "statusChecking": {
+        "message": "检查中..."
+    },
+    "statusConnected": {
+        "message": "已连接"
+    },
+    "statusOffline": {
+        "message": "离线"
+    },
+    "backendDisconnected": {
+        "message": "后端未连接"
+    },
+    "backendInstructionHelp": {
+        "message": "请在backend文件夹中运行 python app.py。"
+    },
+    "retry": {
+        "message": "重试"
+    },
+    "serviceTier": {
+        "message": "服务等级"
+    },
+    "subscriptionPlan": {
+        "message": "订阅计划"
+    },
+    "tierFree": {
+        "message": "🆓 免费 — 仅YouTube字幕"
+    },
+    "tierBasic": {
+        "message": "⚡ 基础 — AI生成 (自有Key)"
+    },
+    "tierPro": {
+        "message": "👑 专业 — 全托管"
+    },
+    "tierHint1": {
+        "message": "使用YouTube自动生成的字幕。需要您自己的API密钥进行翻译。"
+    },
+    "tierHint2": {
+        "message": "使用Whisper AI生成字幕。需要您自己的API密钥。"
+    },
+    "tierHint3": {
+        "message": "全托管服务。无需API密钥，我们处理一切！"
+    },
+    "backendUrl": {
+        "message": "后端URL"
+    },
+    "backendUrlHint": {
+        "message": "翻译后端服务器的URL"
+    },
+    "apiConfiguration": {
+        "message": "API配置"
+    },
+    "provider": {
+        "message": "提供商"
+    },
+    "customEndpoint": {
+        "message": "自定义端点"
+    },
+    "apiUrl": {
+        "message": "API URL"
+    },
+    "apiUrlHint": {
+        "message": "OpenAI兼容的API端点"
+    },
+    "apiKey": {
+        "message": "API密钥"
+    },
+    "model": {
+        "message": "模型"
+    },
+    "modelHint": {
+        "message": "例如：gpt-4o-mini, claude-3-haiku, llama-3.1-70b"
+    },
+    "forceGen": {
+        "message": "强制AI转录"
+    },
+    "forceGenHint": {
+        "message": "使用Whisper生成字幕，而不是YouTube字幕"
+    },
+    "translation": {
+        "message": "翻译"
+    },
+    "targetLanguage": {
+        "message": "目标语言"
+    },
+    "cache": {
+        "message": "缓存"
+    },
+    "cacheCountZero": {
+        "message": "缓存了 0 个翻译"
+    },
+    "cacheCountOne": {
+        "message": "缓存了 1 个翻译"
+    },
+    "cacheCountSome": {
+        "message": "缓存了 $COUNT$ 个翻译",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "clear": {
+        "message": "清除"
+    },
+    "clearDone": {
+        "message": "完成"
+    },
+    "clearError": {
+        "message": "错误"
+    },
+    "saveConfig": {
+        "message": "保存配置"
+    },
+    "saving": {
+        "message": "保存中..."
+    },
+    "saved": {
+        "message": "已保存！"
+    },
+    "saveError": {
+        "message": "错误！"
+    },
+    "translateVideo": {
+        "message": "翻译视频"
+    },
+    "subtitleStyle": {
+        "message": "字幕样式"
+    },
+    "liveTranslation": {
+        "message": "实时翻译"
+    },
+    "liveTranslate": {
+        "message": "实时翻译 (Beta)"
+    },
+    "size": {
+        "message": "大小"
+    },
+    "position": {
+        "message": "位置"
+    },
+    "background": {
+        "message": "背景"
+    },
+    "textColor": {
+        "message": "文字颜色"
+    },
+    "sizeSmall": {
+        "message": "小"
+    },
+    "sizeMedium": {
+        "message": "中"
+    },
+    "sizeLarge": {
+        "message": "大"
+    },
+    "sizeExtraLarge": {
+        "message": "特大"
+    },
+    "sizeHuge": {
+        "message": "巨大"
+    },
+    "sizeGigantic": {
+        "message": "超大"
+    },
+    "posBottom": {
+        "message": "底部"
+    },
+    "posTop": {
+        "message": "顶部"
+    },
+    "bgDark": {
+        "message": "深色"
+    },
+    "bgDarker": {
+        "message": "更深"
+    },
+    "bgTransparent": {
+        "message": "半透明"
+    },
+    "bgNone": {
+        "message": "无"
+    },
+    "colorWhite": {
+        "message": "白色"
+    },
+    "colorYellow": {
+        "message": "黄色"
+    },
+    "colorCyan": {
+        "message": "青色"
+    },
+    "reqTier2": {
+        "message": "需要等级 2 或更高"
+    },
+    "loading": {
+        "message": "加载中..."
+    },
+    "processing": {
+        "message": "处理中..."
+    },
+    "translating": {
+        "message": "翻译中..."
+    },
+    "working": {
+        "message": "工作中..."
+    },
+    "success": {
+        "message": "成功"
+    },
+    "failed": {
+        "message": "失败"
+    },
+    "noSubtitles": {
+        "message": "无字幕可用"
+    },
+    "noTranslations": {
+        "message": "未收到翻译"
+    },
+    "stepProgress": {
+        "message": "步骤 $CURRENT$/$TOTAL$",
+        "placeholders": {
+            "current": {
+                "content": "$1"
+            },
+            "total": {
+                "content": "$2"
+            }
+        }
+    },
+    "batchProgress": {
+        "message": "批次 $CURRENT$/$TOTAL$",
+        "placeholders": {
+            "current": {
+                "content": "$1"
+            },
+            "total": {
+                "content": "$2"
+            }
+        }
+    },
+    "eta": {
+        "message": "预计剩余时间: $TIME$",
+        "placeholders": {
+            "time": {
+                "content": "$1"
+            }
+        }
+    },
+    "subsCount": {
+        "message": "$COUNT$ 字幕",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "cachedSuccess": {
+        "message": "已缓存 ✓"
+    },
+    "doneSuccess": {
+        "message": "完成 ✓"
+    },
+    "menuBack": {
+        "message": "字幕"
+    },
+    "llmApiError": {
+        "message": "LLM API错误: $STATUS$ - $ERROR$",
+        "placeholders": {
+            "status": {
+                "content": "$1"
+            },
+            "error": {
+                "content": "$2"
+            }
+        }
+    },
+    "tier3Only": {
+        "message": "组合处理仅适用于等级 3"
+    },
+    "apiKeyRequired": {
+        "message": "需要API密钥。请在扩展设置中配置。"
+    },
+    "tier3ProcessPath": {
+        "message": "等级 3 应使用组合处理端点"
+    },
+    "unknownAction": {
+        "message": "未知操作: $ACTION$",
+        "placeholders": {
+            "action": {
+                "content": "$1"
+            }
+        }
+    },
+    "streamNoResult": {
+        "message": "流结束且无结果"
+    },
+    "apiUrlNotConfigured": {
+        "message": "API URL未配置"
+    },
+    "langEn": {
+        "message": "英语"
+    },
+    "langJa": {
+        "message": "日语"
+    },
+    "langKo": {
+        "message": "韩语"
+    },
+    "langZhCN": {
+        "message": "中文"
+    },
+    "langEs": {
+        "message": "西班牙语"
+    },
+    "langFr": {
+        "message": "法语"
+    },
+    "langDe": {
+        "message": "德语"
+    },
+    "langPt": {
+        "message": "葡萄牙语"
+    },
+    "langRu": {
+        "message": "俄语"
+    }
+}

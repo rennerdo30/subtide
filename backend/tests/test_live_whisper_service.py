@@ -3,27 +3,34 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import queue
 import sys
+import platform
+import pytest
 
-# Mock modules before importing the service
-mock_faster_whisper = MagicMock()
-mock_whisper_service = MagicMock()
-mock_translation_service = MagicMock()
-mock_mlx = MagicMock()
-mock_mlx_whisper = MagicMock()
+# Import LiveWhisperService only on macOS to avoid MLX import errors on Linux
+if platform.system() == 'Darwin':
+    # Mock modules before importing the service
+    mock_faster_whisper = MagicMock()
+    mock_whisper_service = MagicMock()
+    mock_translation_service = MagicMock()
+    mock_mlx = MagicMock()
+    mock_mlx_whisper = MagicMock()
 
-with patch.dict('sys.modules', {
-    'faster_whisper': mock_faster_whisper,
-    'backend.services.whisper_service': mock_whisper_service,
-    'backend.services.translation_service': mock_translation_service,
-    'mlx': mock_mlx,
-    'mlx.core': mock_mlx.core,
-    'mlx_whisper': mock_mlx_whisper,
-    'mlx_whisper.load_models': mock_mlx_whisper.load_models,
-    'mlx_whisper.decoding': mock_mlx_whisper.decoding,
-    'mlx_whisper.audio': mock_mlx_whisper.audio
-}):
-    from backend.services.live_whisper_service import LiveWhisperService
+    with patch.dict('sys.modules', {
+        'faster_whisper': mock_faster_whisper,
+        'backend.services.whisper_service': mock_whisper_service,
+        'backend.services.translation_service': mock_translation_service,
+        'mlx': mock_mlx,
+        'mlx.core': mock_mlx.core,
+        'mlx_whisper': mock_mlx_whisper,
+        'mlx_whisper.load_models': mock_mlx_whisper.load_models,
+        'mlx_whisper.decoding': mock_mlx_whisper.decoding,
+        'mlx_whisper.audio': mock_mlx_whisper.audio
+    }):
+        from backend.services.live_whisper_service import LiveWhisperService
+else:
+    LiveWhisperService = None
 
+@pytest.mark.skipif(platform.system() != 'Darwin', reason="MLX is only available on macOS")
 class TestLiveWhisperService(unittest.TestCase):
     def setUp(self):
         self.mock_socketio = MagicMock()
