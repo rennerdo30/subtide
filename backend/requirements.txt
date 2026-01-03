@@ -20,3 +20,6 @@ yt-dlp
 
 # Configuration
 python-dotenv
+
+# Data Processing
+numpy
