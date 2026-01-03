@@ -114,10 +114,77 @@ services:
       - production
       - with-redis
 
+  # --------------------------------------------------------------------------
+  # RunPod GPU (NVIDIA CUDA) - Local Testing
+  # --------------------------------------------------------------------------
+  runpod:
+    build:
+      context: .
+      dockerfile: Dockerfile.runpod
+      target: production
+    ports:
+      - "5001:5001"
+    environment:
+      - PLATFORM=runpod
+      - WHISPER_BACKEND=faster-whisper
+      - DIARIZATION_BACKEND=nemo
+      - ENABLE_WHISPER=true
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - SERVER_API_KEY=${SERVER_API_KEY}
+      - SERVER_MODEL=${SERVER_MODEL:-gpt-4o-mini}
+      - SERVER_API_URL=${SERVER_API_URL:-https://api.openai.com/v1}
+      - HF_TOKEN=${HF_TOKEN}
+      - LOG_LEVEL=INFO
+    volumes:
+      - video-translate-cache:/app/cache
+      - runpod-models:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    profiles:
+      - gpu
+
+  # --------------------------------------------------------------------------
+  # RunPod Serverless (for local testing of serverless handler)
+  # --------------------------------------------------------------------------
+  runpod-serverless:
+    build:
+      context: .
+      dockerfile: Dockerfile.runpod
+      target: serverless
+    environment:
+      - PLATFORM=runpod
+      - WHISPER_BACKEND=faster-whisper
+      - DIARIZATION_BACKEND=nemo
+      - ENABLE_WHISPER=true
+      - WHISPER_MODEL=${WHISPER_MODEL:-base}
+      - SERVER_API_KEY=${SERVER_API_KEY}
+      - SERVER_MODEL=${SERVER_MODEL:-gpt-4o-mini}
+      - HF_TOKEN=${HF_TOKEN}
+    volumes:
+      - video-translate-cache:/app/cache
+      - runpod-models:/root/.cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    profiles:
+      - gpu
+      - serverless
+
 volumes:
   video-translate-cache:
   whisper-models:
   redis-data:
+  runpod-models:
 
 # ============================================================================
 # Quick Start:
@@ -129,6 +196,14 @@ volumes:
 #    export SERVER_API_KEY=sk-your-api-key
 #    docker-compose --profile production up tier3 -d
 #
-# 3. View logs:
+# 3. RunPod GPU (local testing with NVIDIA GPU):
+#    export SERVER_API_KEY=sk-your-api-key
+#    docker-compose --profile gpu up runpod -d
+#
+# 4. View logs:
 #    docker-compose logs -f
+#
+# For RunPod.io deployment, use:
+#    docker build -f Dockerfile.runpod --target serverless -t video-translate-runpod .
+#    docker push <your-registry>/video-translate-runpod
 # ============================================================================

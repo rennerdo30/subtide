@@ -4,3 +4,4 @@ __pycache__
 backend/.env
 *.log
 .trae
+.coverage

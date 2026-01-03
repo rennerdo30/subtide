@@ -1,19 +1,22 @@
+# Video Translate Backend - Base Requirements
+# Shared dependencies for all platforms
+
+# Web framework
 flask
 flask-cors
 flask-limiter
-yt-dlp
-openai
-openai-whisper
-mlx-whisper
-pyannote.audio
-requests
 gunicorn
-python-dotenv
+
+# Real-time communication
 flask-socketio
 simple-websocket
-torchaudio
-onnxruntime
 
-pytest
-pytest-mock
-pytest-cov
+# API clients
+openai
+requests
+
+# YouTube
+yt-dlp
+
+# Configuration
+python-dotenv

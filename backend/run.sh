@@ -24,13 +24,43 @@ echo -e "${BLUE}║       Video Translate Backend Server       ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
 echo ""
 
+# Detect platform for requirements selection
+detect_platform() {
+    if [ "$(uname)" = "Darwin" ] && [ "$(uname -m)" = "arm64" ]; then
+        echo "macos"
+    elif python3 -c "import torch; exit(0 if torch.cuda.is_available() else 1)" 2>/dev/null; then
+        echo "linux-cuda"
+    else
+        echo "linux-cpu"
+    fi
+}
+
+DETECTED_PLATFORM=$(detect_platform)
+
 # Check if venv exists
 if [ ! -d "venv" ]; then
     echo -e "${YELLOW}Creating virtual environment...${NC}"
     python3 -m venv venv
     source venv/bin/activate
-    echo -e "${YELLOW}Installing dependencies...${NC}"
-    pip install -r requirements.txt
+
+    echo -e "${YELLOW}Installing dependencies for platform: ${DETECTED_PLATFORM}${NC}"
+
+    # Install platform-specific requirements
+    if [ "$DETECTED_PLATFORM" = "macos" ]; then
+        if [ -f "requirements-macos.txt" ]; then
+            pip install -r requirements-macos.txt
+        else
+            pip install -r requirements.txt
+            pip install mlx-whisper pyannote.audio torch torchaudio
+        fi
+    elif [ "$DETECTED_PLATFORM" = "linux-cuda" ]; then
+        # For local CUDA development (not RunPod)
+        pip install -r requirements.txt
+        pip install openai-whisper pyannote.audio torch torchaudio
+    else
+        pip install -r requirements.txt
+        pip install openai-whisper pyannote.audio torch torchaudio
+    fi
 else
     source venv/bin/activate
 fi
@@ -237,11 +267,25 @@ if platform.system() == 'Darwin' and platform.machine() == 'arm64':
 print('openai-whisper')
 " 2>/dev/null || echo "openai-whisper")
 
+# Determine Whisper backend based on platform
+if [ "$DETECTED_PLATFORM" = "macos" ]; then
+    WHISPER_BACKEND_NAME="mlx-whisper (Metal GPU)"
+    DIARIZATION_BACKEND_NAME="pyannote (MPS/CPU)"
+elif [ "$DETECTED_PLATFORM" = "linux-cuda" ]; then
+    WHISPER_BACKEND_NAME="openai-whisper (CUDA)"
+    DIARIZATION_BACKEND_NAME="pyannote (CUDA)"
+else
+    WHISPER_BACKEND_NAME="openai-whisper (CPU)"
+    DIARIZATION_BACKEND_NAME="pyannote (CPU)"
+fi
+
 # Show configuration
 echo -e "${GREEN}Configuration:${NC}"
+echo "  • Platform: $DETECTED_PLATFORM"
 echo "  • Hardware: $HARDWARE"
 echo "  • Whisper: $ENABLE_WHISPER (model: $WHISPER_MODEL)"
-echo "  • Backend: $WHISPER_BACKEND"
+echo "  • Whisper Backend: $WHISPER_BACKEND_NAME"
+echo "  • Diarization: $DIARIZATION_BACKEND_NAME"
 if [ -n "$SERVER_API_KEY" ]; then
     echo -e "  • Tier 3: ${GREEN}Enabled${NC}"
     echo "    └─ API URL: ${SERVER_API_URL:-https://api.openai.com/v1}"

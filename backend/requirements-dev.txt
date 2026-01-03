@@ -1,0 +1,17 @@
+# Video Translate Backend - Development Requirements
+
+# Testing
+pytest
+pytest-mock
+pytest-cov
+pytest-asyncio
+
+# Code quality
+flake8
+black
+isort
+mypy
+
+# Development utilities
+watchdog
+ipython

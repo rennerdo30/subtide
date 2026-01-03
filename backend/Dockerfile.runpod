@@ -1,0 +1,143 @@
+# Video Translate Backend - RunPod/NVIDIA GPU Dockerfile
+# Optimized for NVIDIA CUDA GPUs with faster-whisper and NeMo
+
+# ============================================================================
+# Base stage with CUDA runtime
+# ============================================================================
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 AS base
+
+# Prevent interactive prompts during build
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3.11 \
+    python3.11-dev \
+    python3.11-venv \
+    python3-pip \
+    ffmpeg \
+    git \
+    curl \
+    libsndfile1 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set Python 3.11 as default
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
+    && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
+    && update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
+
+# Upgrade pip
+RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+
+WORKDIR /app
+
+# ============================================================================
+# Dependencies stage - Install all Python packages
+# ============================================================================
+FROM base AS dependencies
+
+# Install PyTorch with CUDA 12.1 support FIRST
+RUN pip install --no-cache-dir \
+    torch==2.2.0 \
+    torchaudio==2.2.0 \
+    --index-url https://download.pytorch.org/whl/cu121
+
+# Install faster-whisper for fast transcription
+RUN pip install --no-cache-dir faster-whisper
+
+# Install NeMo toolkit for fast diarization
+# Note: This is a large package, may take a while
+RUN pip install --no-cache-dir \
+    Cython \
+    nemo_toolkit[asr] || echo "NeMo install warning, continuing..."
+
+# Install ONNX Runtime with GPU support
+RUN pip install --no-cache-dir onnxruntime-gpu
+
+# Install RunPod SDK
+RUN pip install --no-cache-dir runpod
+
+# Fallback: pyannote for diarization if NeMo fails
+RUN pip install --no-cache-dir pyannote.audio || echo "pyannote install warning, continuing..."
+
+# Copy and install base requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ============================================================================
+# Production stage
+# ============================================================================
+FROM dependencies AS production
+
+# Copy application code
+COPY . .
+
+# Create cache directories
+RUN mkdir -p /app/cache \
+    /root/.cache/whisper \
+    /root/.cache/huggingface \
+    /root/.cache/torch
+
+# Set environment variables
+ENV PLATFORM=runpod
+ENV WHISPER_BACKEND=faster-whisper
+ENV DIARIZATION_BACKEND=nemo
+ENV ENABLE_WHISPER=true
+ENV WHISPER_MODEL=base
+ENV CUDA_VISIBLE_DEVICES=0
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Flask settings
+ENV FLASK_ENV=production
+ENV LOG_LEVEL=INFO
+
+EXPOSE 5001
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost:5001/health || exit 1
+
+# Default command: Run Flask server
+# Note: Using sync workers instead of gevent for better GPU memory handling
+CMD ["gunicorn", \
+     "--worker-class", "sync", \
+     "--workers", "1", \
+     "--threads", "4", \
+     "--bind", "0.0.0.0:5001", \
+     "--timeout", "600", \
+     "--keep-alive", "65", \
+     "--access-logfile", "-", \
+     "--error-logfile", "-", \
+     "app:app"]
+
+# ============================================================================
+# Serverless stage - For RunPod Serverless
+# ============================================================================
+FROM dependencies AS serverless
+
+# Copy application code
+COPY . .
+
+# Create cache directories
+RUN mkdir -p /app/cache \
+    /root/.cache/whisper \
+    /root/.cache/huggingface \
+    /root/.cache/torch
+
+# Set environment variables
+ENV PLATFORM=runpod
+ENV WHISPER_BACKEND=faster-whisper
+ENV DIARIZATION_BACKEND=nemo
+ENV ENABLE_WHISPER=true
+ENV WHISPER_MODEL=base
+ENV CUDA_VISIBLE_DEVICES=0
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+
+# Pre-download models to reduce cold start (optional, increases image size)
+# Uncomment to include models in image:
+# RUN python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu')"
+
+# Entry point for RunPod Serverless
+CMD ["python", "-u", "runpod_handler.py"]

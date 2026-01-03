@@ -1,4 +1,44 @@
 import os
+import platform
+
+
+def detect_platform():
+    """
+    Detect the runtime platform for backend selection.
+
+    Returns:
+        'runpod' - RunPod/NVIDIA GPU cloud
+        'macos' - Apple Silicon Mac
+        'linux-cuda' - Linux with NVIDIA GPU
+        'linux-cpu' - Linux without GPU
+        'windows' - Windows
+    """
+    # Allow explicit override
+    explicit_platform = os.getenv('PLATFORM')
+    if explicit_platform:
+        return explicit_platform
+
+    # Detect Apple Silicon
+    if platform.system() == 'Darwin' and platform.machine() == 'arm64':
+        return 'macos'
+
+    # Detect Windows
+    if platform.system() == 'Windows':
+        return 'windows'
+
+    # Check for CUDA availability
+    try:
+        import torch
+        if torch.cuda.is_available():
+            return 'linux-cuda'
+    except ImportError:
+        pass
+
+    return 'linux-cpu'
+
+
+# Platform detection
+PLATFORM = detect_platform()
 
 # Base paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -60,3 +100,36 @@ WHISPER_NO_SPEECH_THRESHOLD = float(os.getenv('WHISPER_NO_SPEECH_THRESHOLD', '0.
 WHISPER_COMPRESSION_RATIO_THRESHOLD = float(os.getenv('WHISPER_COMPRESSION_RATIO_THRESHOLD', '2.4'))
 WHISPER_LOGPROB_THRESHOLD = float(os.getenv('WHISPER_LOGPROB_THRESHOLD', '-1.0'))
 WHISPER_CONDITION_ON_PREVIOUS = os.getenv('WHISPER_CONDITION_ON_PREVIOUS', 'true').lower() == 'true'
+
+# ============================================================================
+# Platform-Specific Backend Selection
+# ============================================================================
+
+def get_whisper_backend_type():
+    """Get the appropriate Whisper backend for this platform."""
+    override = os.getenv('WHISPER_BACKEND')
+    if override:
+        return override
+
+    if PLATFORM == 'runpod':
+        return 'faster-whisper'
+    elif PLATFORM == 'macos':
+        return 'mlx-whisper'
+    else:
+        return 'openai-whisper'
+
+
+def get_diarization_backend_type():
+    """Get the appropriate diarization backend for this platform."""
+    override = os.getenv('DIARIZATION_BACKEND')
+    if override:
+        return override
+
+    if PLATFORM == 'runpod':
+        return 'nemo'
+    else:
+        return 'pyannote'
+
+
+WHISPER_BACKEND = get_whisper_backend_type()
+DIARIZATION_BACKEND = get_diarization_backend_type()

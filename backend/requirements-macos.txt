@@ -1,0 +1,20 @@
+# Video Translate Backend - macOS Requirements
+# For Apple Silicon (M1/M2/M3) with Metal GPU acceleration
+
+-r requirements.txt
+
+# Whisper - MLX for Metal GPU acceleration
+mlx-whisper
+
+# Speaker diarization
+pyannote.audio
+
+# PyTorch (CPU/MPS)
+torch
+torchaudio
+
+# Fallback whisper (for compatibility)
+openai-whisper
+
+# ONNX Runtime for silero-vad
+onnxruntime
