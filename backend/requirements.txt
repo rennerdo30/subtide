@@ -24,3 +24,9 @@ python-dotenv
 # Data Processing
 numpy
 soundfile
+
+# AI / ML Core
+torch
+torchaudio
+openai-whisper
+pyannote.audio
