@@ -1,279 +1,136 @@
 # RunPod Deployment Guide
 
-Deploy Video Translate backend on RunPod.io for fast GPU-accelerated transcription and translation.
+Deploy Video Translate on RunPod.io for fast, cost-effective GPU acceleration.
 
-## Performance Comparison
+## 🚀 Quick Summary
 
-| Component | macOS (MLX) | RunPod (NVIDIA) | Speedup |
-|-----------|-------------|-----------------|---------|
-| Whisper (1hr audio) | ~6 min | ~1.5 min | **4x** |
-| Diarization (1hr audio) | ~24 min | ~1 min | **24x** |
-| **Total Processing** | **~30 min** | **~2.5 min** | **12x** |
-
-## Cost Estimates (Serverless RTX 4090)
-
-| Video Length | Processing Time | Cost |
-|-------------|-----------------|------|
-| 10 min video | ~30 sec | ~$0.013 |
-| 30 min video | ~1.5 min | ~$0.04 |
-| 1 hour video | ~3 min | ~$0.08 |
+| Feature | Serverless Endpoint | Dedicated Pod |
+|---------|---------------------|---------------|
+| **Best For** | Variable/clean loads, Tier 3 (Batch) | Continuous use, **Tier 4 (Streaming)** |
+| **Cost** | Pay-per-second, scales to zero | Flat hourly rate |
+| **Setup** | Easy, managed | Full control, accessible IP |
+| **Streaming** | Limited (JSON chunks) | **Full SSE Support (Tier 4)** |
 
 ---
 
-## Deployment Options
+## 🔒 Authentication (New!)
 
-### Option 1: Serverless (Recommended)
+The extension now supports **Secure API Keys** for RunPod endpoints.
 
-Pay only when processing requests. Auto-scales to zero.
+1. **Dedicated Pods**: You can protect your pod using a reverse proxy or by passing your internal `SERVER_API_KEY` if configured.
+2. **Serverless**: Uses standard RunPod API Keys (`Authorization: Bearer rpa_...`).
 
-#### 1. Get the Docker Image
+To use authentication:
+1. Open Extension **Settings**.
+2. Select **Tier 4 (Stream)** or **Tier 3**.
+3. Set **Provider** to **Custom / RunPod**.
+4. Enter your **Endpoint URL**.
+5. Enter your **RunPod API Key** in the "API Key" field.
 
-**Option A: Use Pre-built Image (Recommended)**
+---
 
-Pre-built images are available from GitHub Container Registry:
+## 🛠 Deployment Options
+
+### Option 1: Dedicated Pod (Recommended for Tier 4 Streaming)
+
+This runs the full Flask backend, providing native SSE support for the "live streaming" subtitle experience (`/api/stream`).
+
+#### 1. Deploy
+1. Go to [RunPod Pods](https://www.runpod.io/console/pods).
+2. Click **Deploy**.
+3. Choose **RTX 4090** (Best value) or **RTX 3090**.
+4. **Customize Deployment**:
+   - **Container Image**: `ghcr.io/rennerdo30/video-translate-runpod-server:latest`
+   - **Expose Port**: `5001` (HTTP)
+   - **Environment Variables**:
+     ```env
+     SERVER_API_KEY=sk-your-openai-key   # Required for translation
+     ENABLE_WHISPER=true
+     WHISPER_MODEL=base
+     ENABLE_DIARIZATION=true
+     HF_TOKEN=hf_your-token             # Optional: for Diarization
+     ```
+
+#### 2. Get Backend Address
+1. Once running, click **Connect**.
+2. Find the **HTTP Service** mapped to port `5001`.
+3. It will look like: `https://pod-id-5001.proxy.runpod.net`
+4. **Copy this URL** into the Extension settings.
+
+---
+
+### Option 2: Serverless (Best for Tier 3 / Batch)
+
+Best for on-demand usage where you don't want to pay for idle time.
+
+#### 1. Create Template
+1. Go to [Templates](https://www.runpod.io/console/serverless/user/templates).
+2. Click **New Template**.
+3. **Container Image**: `ghcr.io/rennerdo30/video-translate-runpod:latest`
+4. **Container Disk**: `20 GB`.
+
+#### 2. Create Endpoint
+1. Go to [Serverless](https://www.runpod.io/console/serverless).
+2. Click **New Endpoint**.
+3. Select your template.
+4. **Min Workers**: `0` (Scales to zero to save cost).
+5. **Max Workers**: `3`.
+6. **FlashBoot**: Enabled (Faster starts).
+
+#### 3. Get Endpoint Details
+1. Click on your new Endpoint.
+2. Copy the **Endpoint ID** (e.g., `vllm-xyz123`).
+3. Your **Endpoint URL** is: `https://api.runpod.ai/v2/{endpoint_id}`.
+
+---
+
+### Option 3: Connect GitHub Repo (RunPod Serverless Repos)
+
+Build directly from your Git repository without managing Docker registries.
+
+1. Go to [RunPod Serverless](https://www.runpod.io/console/serverless).
+2. Click **New Endpoint**.
+3. Select **Import Git Repository**.
+4. Authorize GitHub (if needed) and select this repository.
+5. **Configuration**:
+   - **Dockerfile Path**: `backend/Dockerfile.runpod`
+   - **Context Directory**: leave default (Root)
+   - **Branch**: `main` (or your release branch)
+6. RunPod will auto-build the image from the source code.
+
+> **Note**: This uses `backend/Dockerfile.runpod` which is optimized to run from the repository root.
+
+---
+
+## 🏗 Building Your Own Image
+
+If you want to modify the backend and deploy your own version:
 
 ```bash
-# Serverless image
-docker pull ghcr.io/rennerdo30/video-translate-runpod:latest
+# Login to GitHub Registry (or DockerHub)
+docker login ghcr.io
 
-# Or specific version
-docker pull ghcr.io/rennerdo30/video-translate-runpod:v1.0.0
+# Build Serverless Image
+docker build -f Dockerfile -t ghcr.io/yourname/vt-runpod .
+
+# Build Dedicated Server Image
+# (Same Dockerfile, different entry command via docker-compose or override)
+# The default Dockerfile is hybrid, but we use targets for clarity in CI/CD.
 ```
 
-**Option B: Build Locally**
+The provided `Dockerfile` in the root is optimized for both use cases.
 
-```bash
-cd backend
+## 📦 Troubleshooting
 
-# Build for serverless
-docker build -f Dockerfile.runpod --target serverless -t video-translate-runpod .
+### 401 Unauthorized
+- Ensure you pasted your **RunPod API Key** into the Extension's API Key field.
+- Ensure your Serverless Endpoint allows your key scope.
 
-# Push to your registry
-docker tag video-translate-runpod your-username/video-translate-runpod
-docker push your-username/video-translate-runpod
-```
+### "Connection Refused" (Dedicated Pod)
+- Ensure the Pod is showing "Running".
+- Check that port `5001` is strictly exposed in the Pod settings.
+- Check logs: `docker logs <container_id>`.
 
-#### 2. Create RunPod Serverless Endpoint
-
-1. Go to [RunPod Serverless](https://www.runpod.io/console/serverless)
-2. Click "New Endpoint"
-3. Configure:
-   - **Container Image**: `your-username/video-translate-runpod`
-   - **GPU Type**: RTX 4090 (recommended) or A40
-   - **Min Workers**: 0 (scale to zero)
-   - **Max Workers**: 5 (adjust based on needs)
-   - **Idle Timeout**: 60 seconds
-   - **GPU Memory**: 24GB
-
-4. Add Environment Variables:
-   ```
-   SERVER_API_KEY=sk-your-openai-key
-   SERVER_MODEL=gpt-4o-mini
-   HF_TOKEN=hf_your-token  (for diarization)
-   WHISPER_MODEL=base
-   ```
-
-#### 3. Send Requests
-
-```bash
-curl -X POST https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/run \
-  -H "Authorization: Bearer YOUR_RUNPOD_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input": {
-      "video_id": "dQw4w9WgXcQ",
-      "target_lang": "ja",
-      "enable_diarization": true
-    }
-  }'
-```
-
-Response:
-```json
-{
-  "id": "job-123",
-  "status": "IN_QUEUE"
-}
-```
-
-Check status:
-```bash
-curl https://api.runpod.ai/v2/YOUR_ENDPOINT_ID/status/job-123 \
-  -H "Authorization: Bearer YOUR_RUNPOD_API_KEY"
-```
-
----
-
-### Option 2: Dedicated Pod
-
-Always-on instance for continuous workloads.
-
-#### 1. Get the Docker Image
-
-**Option A: Use Pre-built Image (Recommended)**
-
-```bash
-# Production server image
-docker pull ghcr.io/rennerdo30/video-translate-runpod-server:latest
-```
-
-**Option B: Build Locally**
-
-```bash
-cd backend
-docker build -f Dockerfile.runpod --target production -t video-translate-runpod-server .
-docker push your-username/video-translate-runpod-server
-```
-
-#### 2. Deploy on RunPod
-
-1. Go to [RunPod Pods](https://www.runpod.io/console/pods)
-2. Click "Deploy"
-3. Select GPU (RTX 4090 recommended)
-4. Use custom Docker image
-5. Configure environment variables
-
-The server will be available at `http://POD_IP:5001`
-
----
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PLATFORM` | Force platform detection | `runpod` |
-| `WHISPER_BACKEND` | Whisper implementation | `faster-whisper` |
-| `DIARIZATION_BACKEND` | Diarization implementation | `nemo` |
-| `WHISPER_MODEL` | Model size | `base` |
-| `ENABLE_DIARIZATION` | Enable speaker detection | `true` |
-| `SERVER_API_KEY` | OpenAI API key | Required |
-| `SERVER_MODEL` | Translation model | `gpt-4o-mini` |
-| `HF_TOKEN` | HuggingFace token | For diarization |
-
----
-
-## API Reference
-
-### Serverless Input
-
-```json
-{
-  "input": {
-    "video_id": "dQw4w9WgXcQ",
-    "target_lang": "ja",
-    "force_whisper": false,
-    "enable_diarization": true
-  }
-}
-```
-
-### Serverless Output
-
-```json
-{
-  "subtitles": [
-    {
-      "start": 0,
-      "end": 2500,
-      "text": "Hello world",
-      "translatedText": "こんにちは世界",
-      "speaker": "SPEAKER_00"
-    }
-  ],
-  "stats": {
-    "download_time": 5.2,
-    "transcribe_time": 12.5,
-    "diarize_time": 3.1,
-    "translate_time": 8.3,
-    "total_time": 29.1,
-    "segment_count": 150
-  }
-}
-```
-
----
-
-## Optimizations
-
-### Reduce Cold Start Time
-
-1. **Pre-bake models in image**:
-   Uncomment in Dockerfile.runpod:
-   ```dockerfile
-   RUN python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu')"
-   ```
-
-2. **Use Network Volumes**:
-   Mount `/root/.cache` to a RunPod network volume for persistent model caching.
-
-3. **Keep minimum workers**:
-   Set `Min Workers: 1` to keep at least one warm instance.
-
-### Reduce Costs
-
-1. Use `base` Whisper model (fastest, good accuracy)
-2. Disable diarization for simple videos
-3. Use serverless for variable workloads
-4. Set appropriate idle timeouts
-
----
-
-## Troubleshooting
-
-### "CUDA out of memory"
-
-- Use smaller Whisper model (`tiny` or `base`)
-- Reduce max_speakers for diarization
-- Use RTX 4090 (24GB) instead of smaller GPUs
-
-### "Model download timeout"
-
-- Pre-bake models in Docker image
-- Use network volumes for persistent cache
-- Increase worker timeout
-
-### "Diarization failed"
-
-- Ensure HF_TOKEN is set correctly
-- Check HuggingFace authentication
-- Fall back to pyannote if NeMo fails
-
----
-
-## Local Testing
-
-Test the RunPod setup locally with nvidia-docker:
-
-```bash
-cd backend
-
-# Build
-docker build -f Dockerfile.runpod --target production -t video-translate-runpod .
-
-# Run with GPU
-docker run --gpus all -p 5001:5001 \
-  -e SERVER_API_KEY=sk-xxx \
-  -e HF_TOKEN=hf_xxx \
-  video-translate-runpod
-
-# Test health
-curl http://localhost:5001/health
-```
-
----
-
-## Integration with Extension
-
-Update the extension to use RunPod endpoint:
-
-1. In extension settings, set Backend URL to your RunPod endpoint
-2. For serverless, the extension needs to handle async job polling
-3. For dedicated pod, use the pod's IP directly
-
----
-
-## Support
-
-- RunPod Documentation: https://docs.runpod.io
-- RunPod Discord: https://discord.gg/runpod
-- Project Issues: https://github.com/rennerdo30/video-translate/issues
+### Streaming Lag (Serverless)
+- Serverless cold starts can take 10-20s.
+- Use **Dedicated Pods** for instant, latency-sensitive streaming.

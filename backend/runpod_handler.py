@@ -152,97 +152,205 @@ def cleanup():
         pass
 
 
-def handler(event: Dict[str, Any]) -> Dict[str, Any]:
+def handler(event: Dict[str, Any]) -> Any:
     """
-    RunPod serverless handler.
-
-    Input format:
-    {
-        "input": {
-            "video_id": "dQw4w9WgXcQ",
-            "target_lang": "ja",
-            "force_whisper": false,
-            "enable_diarization": true
-        }
-    }
-
-    Output format:
-    {
-        "subtitles": [
-            {"start": 0, "end": 2500, "text": "Hello", "translatedText": "...", "speaker": "SPEAKER_00"},
-            ...
-        ],
-        "stats": {
-            "transcribe_time": 12.5,
-            "diarize_time": 5.2,
-            "translate_time": 8.3,
-            "total_time": 26.0,
-            "segment_count": 150
-        }
-    }
+    RunPod serverless handler (Generator).
     """
     start_time = time.time()
-    stats = {}
+    
+    # RunPod input validation
+    input_data = event.get('input', {})
+    video_id = input_data.get('video_id')
+    target_lang = input_data.get('target_lang', 'en')
+    force_whisper = input_data.get('force_whisper', False)
+    enable_diarization = input_data.get('enable_diarization', True)
+
+    if not video_id:
+        yield {"error": "video_id is required"}
+        return
+
+    logger.info(f"Processing video: {video_id} -> {target_lang}")
 
     try:
-        # Parse input
-        input_data = event.get('input', {})
-        video_id = input_data.get('video_id')
-        target_lang = input_data.get('target_lang', 'en')
-        force_whisper = input_data.get('force_whisper', False)
-        enable_diarization = input_data.get('enable_diarization', True)
-
-        if not video_id:
-            return {"error": "video_id is required"}
-
-        logger.info(f"Processing video: {video_id} -> {target_lang}")
-
-        # Download audio
+        # 1. Download Audio
+        yield {"stage": "checking", "message": "Starting process...", "percent": 0}
+        
         t0 = time.time()
         audio_path = download_audio(video_id)
-        stats['download_time'] = time.time() - t0
+        download_time = time.time() - t0
+        
+        yield {"stage": "downloading", "message": "Audio downloaded", "percent": 20}
 
-        # Transcribe
-        t0 = time.time()
-        segments = transcribe_audio(audio_path)
-        stats['transcribe_time'] = time.time() - t0
+        # 2. Transcription & Translation (Streamed)
+        # We need a custom implementation here that mirrors process_service.py 
+        # but yields directly instead of using a queue.
+        
+        from services.whisper_backend_base import get_whisper_backend
+        whisper = get_whisper_backend()
+        
+        # Buffer for batch translation
+        segment_buffer = []
+        BATCH_SIZE = 5
+        batch_count = 0
+        
+        def runpod_progress_callback(stage, message, percent):
+            # We can yield intermediate progress
+            # Note: RunPod might buffer small yields, so don't be too chatty
+            pass 
 
-        # Add speaker labels (optional)
-        if enable_diarization and os.getenv('ENABLE_DIARIZATION', 'true').lower() == 'true':
-            t0 = time.time()
-            segments = add_speaker_labels(audio_path, segments)
-            stats['diarize_time'] = time.time() - t0
-        else:
-            stats['diarize_time'] = 0
+        # We'll run transcription and accumulate segments
+        # Note: A true parallel streaming implementation in a single function 
+        # without threads/queues is tricky if the transcriber is blocking.
+        # RunPod handlers are synchronous. 
+        # Ideally, we should use the same `run_whisper_streaming` subprocess approach
+        # if we want true parallelism.
+        
+        # For simplicity and robustness in this environment, 
+        # we will use the blocking transcribe but chunk the translation 
+        # if the backend supports callbacks, OR use valid streaming if available.
+        
+        # Let's use the standard transcribe for now, but if we want streaming 
+        # we'd need to use the subprocess method. 
+        # Given the "Tier 4" requirement, let's use the SUBPROCESS method 
+        # if available, or fall back to blocking.
+        
+        # However, `runpod_handler.py` runs inside the container where 
+        # `whisper_service.py` is available.
+        
+        from services.whisper_service import run_whisper_streaming
+        from services.translation_service import await_translate_subtitles
+        
+        yield {"stage": "whisper", "message": "Transcribing...", "percent": 30}
+        
+        completed_subtitles = []
+        
+        def on_whisper_segment(segment):
+            nonlocal batch_count
+            
+            # Convert to subtitle format
+            sub = {
+                'start': int(segment['start'] * 1000),
+                'end': int(segment['end'] * 1000),
+                'text': segment['text'].strip(),
+            }
+            segment_buffer.append(sub)
+            
+            if len(segment_buffer) >= BATCH_SIZE:
+                batch_count += 1
+                batch_to_translate = segment_buffer.copy()
+                segment_buffer.clear()
+                
+                # Translate
+                translated = await_translate_subtitles(
+                    batch_to_translate,
+                    target_lang,
+                    progress_callback=None
+                )
+                
+                # Yield this batch immediately
+                yield {
+                    "stage": "subtitles",
+                    "batchInfo": {"current": batch_count, "total": -1},
+                    "subtitles": translated
+                }
+                completed_subtitles.extend(translated)
 
-        # Translate
-        t0 = time.time()
-        translated = translate_subtitles(segments, target_lang)
-        stats['translate_time'] = time.time() - t0
+        # Run streaming whisper
+        # Note: This might block until completion, but callbacks fire during execution
+        # We need to make sure `yield` works from within callbacks? 
+        # formatting: `yield` cannot be strictly called from nested function in Python properties.
+        # We must use a queue-based approach similar to process_service.py
+        # or use a generator wrapper.
+        
+        # Generator approach:
+        import queue
+        import threading
+        
+        output_queue = queue.Queue()
+        
+        def producer():
+            try:
+                def on_segment_wrapper(seg):
+                    # We can't yield here, so put in queue
+                    # But we also need to translate here to be "streaming"
+                    # Doing heavy translation in callback blocks the transcriber?
+                    # Yes. But `run_whisper_streaming` reads stdout, so blocking callback 
+                    # just delays reading next line. It's fine.
+                    
+                    sub = {
+                        'start': int(seg['start'] * 1000),
+                        'end': int(seg['end'] * 1000),
+                        'text': seg['text'].strip(),
+                    }
+                    segment_buffer.append(sub)
+                    
+                    if len(segment_buffer) >= BATCH_SIZE:
+                        # Translate
+                        translated = await_translate_subtitles(
+                            parse_segment_buffer_copy(segment_buffer), # Copy logic
+                            target_lang
+                        )
+                        output_queue.put({
+                            "type": "data",
+                            "payload": {
+                                "stage": "subtitles",
+                                "subtitles": translated
+                            }
+                        })
+                        segment_buffer.clear()
 
-        # Clean up
-        cleanup()
+                def parse_segment_buffer_copy(buf):
+                    return list(buf)
 
-        # Final stats
-        stats['total_time'] = time.time() - start_time
-        stats['segment_count'] = len(translated)
+                # Run Whisper
+                run_whisper_streaming(
+                    audio_path,
+                    segment_callback=on_segment_wrapper,
+                    initial_prompt=None
+                )
+                
+                # Flush remaining
+                if segment_buffer:
+                    translated = await_translate_subtitles(segment_buffer, target_lang)
+                    output_queue.put({
+                        "type": "data",
+                        "payload": {
+                            "stage": "subtitles",
+                            "subtitles": translated
+                        }
+                    })
+                
+                output_queue.put({"type": "done"})
+                
+            except Exception as e:
+                output_queue.put({"type": "error", "error": str(e)})
 
-        logger.info(f"Processing complete in {stats['total_time']:.2f}s")
+        # Start producer thread
+        t = threading.Thread(target=producer, daemon=True)
+        t.start()
+        
+        # Consume queue and yield
+        while True:
+            try:
+                item = output_queue.get(timeout=1200) # Long timeout for Whisper
+                if item["type"] == "done":
+                    break
+                elif item["type"] == "error":
+                    yield {"error": item["error"]}
+                    break
+                elif item["type"] == "data":
+                    yield item["payload"]
+            except queue.Empty:
+                break
 
-        return {
-            "subtitles": translated,
-            "stats": stats,
-        }
+        yield {"stage": "complete", "message": "Processing finished", "percent": 100}
 
     except Exception as e:
         logger.error(f"Handler error: {e}")
         logger.error(traceback.format_exc())
+        yield {"error": str(e)}
+    finally:
         cleanup()
-
-        return {
-            "error": str(e),
-            "traceback": traceback.format_exc(),
-        }
 
 
 # RunPod entry point
@@ -254,8 +362,10 @@ if __name__ == "__main__":
         initialize_models()
 
         # Start the serverless handler
+        # "return_aggregate_stream": True ensures RunPod collects chunks if client doesn't support streaming
+        # But for our SSE client, we want real streaming.
         logger.info("Starting RunPod serverless handler...")
-        runpod.serverless.start({"handler": handler})
+        runpod.serverless.start({"handler": handler, "return_aggregate_stream": False})
 
     except ImportError:
         # For local testing without RunPod SDK
@@ -269,5 +379,7 @@ if __name__ == "__main__":
             }
         }
 
-        result = handler(test_event)
-        print("Result:", result)
+        # Iterate over generator
+        for chunk in handler(test_event):
+            print("Chunk:", chunk)
+

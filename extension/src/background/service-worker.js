@@ -880,7 +880,7 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
  * Uses Server-Sent Events with subtitle data in each batch
  */
 async function processVideoTier4(videoId, targetLanguage, config, onProgress, onSubtitles, tabId) {
-    const { backendUrl, forceGen } = config;
+    const { backendUrl, forceGen, apiKey } = config;
 
     return new Promise((resolve, reject) => {
         const url = `${backendUrl}/api/stream`;
@@ -891,12 +891,18 @@ async function processVideoTier4(videoId, targetLanguage, config, onProgress, on
 
         const allSubtitles = [];
 
+        const headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'text/event-stream',
+        };
+
+        if (apiKey) {
+            headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+
         fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'text/event-stream',
-            },
+            headers: headers,
             body: JSON.stringify({
                 video_id: videoId,
                 target_lang: targetLanguage,

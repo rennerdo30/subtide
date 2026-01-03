@@ -211,11 +211,11 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
 
-      # Build RunPod serverless Docker image
+      # Build RunPod serverless Docker image (Uses root context)
       - name: Build and push RunPod serverless image
         uses: docker/build-push-action@v5
         with:
-          context: ./backend
+          context: .
           file: ./backend/Dockerfile.runpod
           target: serverless
           push: true
@@ -229,7 +229,7 @@ jobs:
       - name: Build and push RunPod production image
         uses: docker/build-push-action@v5
         with:
-          context: ./backend
+          context: .
           file: ./backend/Dockerfile.runpod
           target: production
           push: true

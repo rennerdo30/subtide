@@ -7,7 +7,7 @@ import shutil
 # Add backend to path so we can import modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from backend.app import app as flask_app
+from app import app as flask_app
 
 @pytest.fixture
 def app():
