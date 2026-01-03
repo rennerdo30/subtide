@@ -344,6 +344,70 @@ function addStyles() {
         .vt-main-btn:hover {
             opacity: 1 !important;
         }
+        /* Dual Subtitle Mode */
+        .vt-overlay.vt-dual-mode {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            gap: 4px !important;
+        }
+        .vt-text-original {
+            display: inline-block !important;
+            background: rgba(0,0,0,0.5) !important;
+            color: rgba(255,255,255,0.7) !important;
+            padding: 4px 12px !important;
+            border-radius: 4px !important;
+            font-size: calc(${styleValues.fontSize} * 0.7) !important;
+            font-family: ${styleValues.fontFamily} !important;
+            line-height: 1.3 !important;
+            font-style: italic !important;
+        }
+        .vt-text-translated {
+            display: inline-block !important;
+            background: ${styleValues.background} !important;
+            color: ${styleValues.color || '#fff'} !important;
+            padding: 8px 16px !important;
+            border-radius: 4px !important;
+            font-size: ${styleValues.fontSize} !important;
+            font-family: ${styleValues.fontFamily} !important;
+            line-height: 1.4 !important;
+            text-shadow: ${styleValues.textShadow} !important;
+            opacity: ${styleValues.opacity} !important;
+        }
+        /* Sync Offset Controls */
+        .vt-sync-controls {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 8px !important;
+            padding: 8px 16px !important;
+        }
+        .vt-sync-btn {
+            background: rgba(255,255,255,0.1) !important;
+            border: 1px solid rgba(255,255,255,0.2) !important;
+            color: #fff !important;
+            padding: 4px 12px !important;
+            border-radius: 4px !important;
+            cursor: pointer !important;
+            font-size: 12px !important;
+            font-family: 'YouTube Noto', Roboto, Arial, sans-serif !important;
+        }
+        .vt-sync-btn:hover {
+            background: rgba(255,255,255,0.2) !important;
+        }
+        .vt-sync-display {
+            color: rgba(255,255,255,0.7) !important;
+            font-size: 12px !important;
+            min-width: 50px !important;
+            text-align: center !important;
+        }
+        .vt-shortcut-hint {
+            color: rgba(255,255,255,0.4) !important;
+            font-size: 11px !important;
+            margin-left: auto !important;
+            padding-left: 12px !important;
+            font-family: monospace !important;
+        }
     `;
     document.head.appendChild(style);
 }

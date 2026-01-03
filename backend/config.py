@@ -52,3 +52,11 @@ MIN_SPEAKERS = int(os.getenv('MIN_SPEAKERS', '0')) or None  # 0 = auto-detect
 MAX_SPEAKERS = int(os.getenv('MAX_SPEAKERS', '0')) or None  # 0 = auto-detect
 DIARIZATION_SMOOTHING = os.getenv('DIARIZATION_SMOOTHING', 'true').lower() == 'true'
 MIN_SEGMENT_DURATION = float(os.getenv('MIN_SEGMENT_DURATION', '1.0'))  # Merge segments shorter than this
+
+# Whisper Transcription Thresholds
+# Lower values = more sensitive (captures more speech, but may include noise/hallucinations)
+# Higher values = stricter (cleaner output, but may miss soft speech)
+WHISPER_NO_SPEECH_THRESHOLD = float(os.getenv('WHISPER_NO_SPEECH_THRESHOLD', '0.4'))  # Default was 0.6
+WHISPER_COMPRESSION_RATIO_THRESHOLD = float(os.getenv('WHISPER_COMPRESSION_RATIO_THRESHOLD', '2.4'))
+WHISPER_LOGPROB_THRESHOLD = float(os.getenv('WHISPER_LOGPROB_THRESHOLD', '-1.0'))
+WHISPER_CONDITION_ON_PREVIOUS = os.getenv('WHISPER_CONDITION_ON_PREVIOUS', 'true').lower() == 'true'

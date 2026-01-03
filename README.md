@@ -18,10 +18,16 @@
 
 - 🎬 **Real-time Translation** — Translate YouTube subtitles on the fly
 - 🤖 **AI Transcription** — Generate subtitles with Whisper when none exist
+- ⚡ **Streaming Mode** — See subtitles within 15 seconds, not minutes (Tier 4)
 - 🌍 **12+ Languages** — Support for major world languages
 - 🔑 **Flexible API** — Works with OpenAI, OpenRouter, or any OpenAI-compatible API
 - 💾 **Smart Caching** — Translations are cached for instant replay
 - 🎨 **Beautiful UI** — Clean, modern dark theme interface
+- ⌨️ **Keyboard Shortcuts** — Toggle subtitles (T), switch mode (D), download (S)
+- 📺 **Dual Subtitles** — Show original + translated text simultaneously
+- 📥 **Subtitle Download** — Export as SRT, VTT, or TXT
+- 🎯 **Smart Language Detection** — Skip translation when source = target
+- 🧠 **Context-Aware Translation** — Merges partial sentences for better quality
 
 ## Quick Start
 
@@ -68,6 +74,7 @@ pip install -r requirements.txt
    - **Tier 1** — Standard (YouTube captions + your API key)
    - **Tier 2** — Enhanced (Whisper transcription + your API key)
    - **Tier 3** — Managed (Server handles API keys)
+   - **Tier 4** — Stream (Progressive translation, subtitles appear instantly)
 3. Enter your API key and model (for Tier 1 & 2)
 4. Save configuration
 
@@ -82,12 +89,15 @@ pip install -r requirements.txt
 
 This project is fully open-source with no paid plans. The "Tiers" refer to different technical configurations:
 
-| Feature | Tier 1 (Standard) | Tier 2 (Enhanced) | Tier 3 (Managed) |
-|---------|-------------------|-------------------|------------------|
-| YouTube Captions | ✅ | ✅ | ✅ |
-| Whisper Transcription | ❌ | ✅ | ✅ |
-| API Key Location | Browser (User's) | Browser (User's) | Server (Env Var) |
-| Force AI Generation | ❌ | ✅ | ✅ |
+| Feature | Tier 1 (Standard) | Tier 2 (Enhanced) | Tier 3 (Managed) | Tier 4 (Stream) |
+|---------|-------------------|-------------------|------------------|-----------------|
+| YouTube Captions | ✅ | ✅ | ✅ | ✅ |
+| Whisper Transcription | ❌ | ✅ | ✅ | ✅ |
+| API Key Location | Browser (User's) | Browser (User's) | Server (Env Var) | Server (Env Var) |
+| Force AI Generation | ❌ | ✅ | ✅ | ✅ |
+| Progressive Streaming | ❌ | ❌ | ❌ | ✅ |
+
+**Tier 4 (Stream)** provides the fastest experience — subtitles appear within seconds as each batch translates, instead of waiting for the entire video to finish processing.
 
 ## Supported Languages
 
@@ -106,7 +116,12 @@ docker-compose up video-translate-tier2
 
 # Fully managed (set your API key)
 SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
+
+# Streaming mode (same setup as tier3)
+SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
 ```
+
+> **Note**: Tier 4 uses the same backend configuration as Tier 3 but uses the `/api/stream` endpoint for progressive subtitle delivery.
 
 ## Tech Stack
 

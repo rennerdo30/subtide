@@ -19,13 +19,16 @@ A Chrome extension + Python backend that translates YouTube video subtitles in r
 
 ### Service Tiers
 
-| Feature | Tier 1 (Free) | Tier 2 (Basic) | Tier 3 (Pro) |
-|---------|---------------|----------------|--------------|
-| YouTube Subtitles | ✅ | ✅ | ✅ |
-| Whisper Transcription | ❌ | ✅ | ✅ |
-| Force AI Generation | ❌ | ✅ | ✅ |
-| LLM Translation | ✅ (Own Key) | ✅ (Own Key) | ✅ (Managed) |
-| API Key Required | Yes | Yes | No |
+| Feature | Tier 1 (Free) | Tier 2 (Basic) | Tier 3 (Pro) | Tier 4 (Stream) |
+|---------|---------------|----------------|--------------|-----------------|
+| YouTube Subtitles | ✅ | ✅ | ✅ | ✅ |
+| Whisper Transcription | ❌ | ✅ | ✅ | ✅ |
+| Force AI Generation | ❌ | ✅ | ✅ | ✅ |
+| LLM Translation | ✅ (Own Key) | ✅ (Own Key) | ✅ (Managed) | ✅ (Managed) |
+| API Key Required | Yes | Yes | No | No |
+| Progressive Streaming | ❌ | ❌ | ❌ | ✅ |
+
+**Tier 4 (Stream)** provides the fastest user experience by streaming translated subtitles progressively. Each batch of ~25 subtitles is sent to the client immediately when ready, allowing users to see subtitles within 3-5 seconds instead of waiting 30-60+ seconds for the entire translation to complete.
 
 ### Security Model
 
@@ -41,10 +44,15 @@ A Chrome extension + Python backend that translates YouTube video subtitles in r
   - Server uses its own managed API key
   - No user API key needed
 
+- **Tier 4**:
+  - Same as Tier 3, but with progressive streaming
+  - Subtitles are delivered batch-by-batch as they translate
+  - Uses `/api/stream` endpoint instead of `/api/process`
+
 ## Extension Features
 
 ### Popup Settings
-- **Service Tier Selection**: Choose between Free, Basic, or Pro tiers
+- **Service Tier Selection**: Choose between Free, Basic, Pro, or Stream tiers
 - **Provider Selection**: OpenAI, OpenRouter, or Custom endpoint
 - **API Configuration**: URL, Key, Model
 - **Force AI Generation**: Use Whisper instead of YouTube captions
@@ -193,6 +201,55 @@ Uses **Server-Sent Events (SSE)** for real-time progress updates.
 
 ---
 
+#### `POST /api/stream`
+Progressive streaming translation. Used by **Tier 4 only**.
+
+Same functionality as `/api/process` but streams translated subtitle batches immediately as they complete, instead of waiting for all translations to finish.
+
+**Body:**
+```json
+{
+  "video_id": "dQw4w9WgXcQ",
+  "target_lang": "ja",
+  "force_whisper": false
+}
+```
+
+**SSE Subtitle Events:**
+```json
+{
+  "stage": "subtitles",
+  "message": "Batch 3/10 ready",
+  "percent": 67,
+  "step": 3,
+  "totalSteps": 4,
+  "batchInfo": {"current": 3, "total": 10},
+  "subtitles": [
+    {"start": 50000, "end": 52500, "text": "Hello", "translatedText": "こんにちは"}
+  ]
+}
+```
+
+**Progress Stages:**
+| Stage | Description |
+|-------|-------------|
+| `checking` | Checking available subtitles |
+| `downloading` | Fetching subtitles or transcribing |
+| `subtitles` | Batch ready with subtitle data |
+| `complete` | All batches finished |
+
+**Performance (with Streaming Whisper):**
+| Metric | Tier 3 | Tier 4 |
+|--------|--------|--------|
+| Time to first subtitle | 60-120s | 10-20s |
+| Whisper wait time | Full transcription | Progressive |
+| Translation batches | All at once | 5 segments at a time |
+| User experience | Wait then display | Stream as ready |
+
+> **Note**: Tier 4 uses a subprocess-based Whisper runner that parses stdout in real-time, allowing translation to start while transcription is still running.
+
+---
+
 ### Deprecated Endpoints
 
 #### `POST /api/translate`
@@ -269,6 +326,121 @@ source venv/bin/activate
 pip install -r requirements.txt
 ./run.sh
 ```
+
+## Future Roadmap: Accuracy Improvements
+
+### Translation Accuracy
+
+1. **Context Window Optimization** => OK
+   - Include previous and next subtitle in translation context
+   - Helps LLM understand sentence continuity and speaker intent
+   - Implementation: Send 3 subtitles but only use middle translation
+
+2. **Multi-Pass Translation** => OK
+   - First pass: Direct translation
+   - Second pass: LLM reviews and refines for natural flow
+   - Trade-off: 2x API cost, but significantly better quality
+
+3. **Terminology Glossaries** => NO
+   - Allow users to upload domain-specific terms
+   - Useful for technical content, anime, gaming
+   - Implementation: Include glossary in system prompt
+
+4. **Language Detection Pre-Check** => OK
+   - Auto-detect source language before translation
+   - Prevents translating already-translated subtitles
+   - Use small model for detection (fast, cheap)
+
+5. **Sentence Boundary Detection** => OK
+   - Merge partial sentences split across subtitles
+   - Translate complete thoughts, then re-split
+   - Improves translation quality for complex sentences
+
+6. **Model Selection by Language Pair**
+   - Some models excel at specific language pairs
+   - Claude for Japanese/Korean, GPT-4 for European languages
+   - Allow per-language model configuration
+
+### Speaker Detection (Diarization) Accuracy
+
+1. **Pyannote 3.0 Upgrade** => OK
+   - Latest model has significant accuracy improvements
+   - Better handling of overlapping speech
+   - Requires HuggingFace token for access
+
+2. **Speaker Embedding Clustering** => OK
+   - Use speaker embeddings to improve clustering
+   - Re-cluster at end of processing to fix early errors
+   - Implementation: ECAPA-TDNN or WeSpeaker embeddings
+
+3. **Voice Activity Detection Tuning** => OK
+   - Adjust VAD onset/offset parameters per content type
+   - Music videos need higher threshold
+   - Podcasts can use lower threshold
+
+4. **Minimum Speaker Duration** => OK
+   - Filter out very short speaker segments (<0.5s)
+   - Reduces noise from diarization errors
+   - Configurable threshold per use case
+
+5. **Speaker Consistency Post-Processing** => OK
+   - If speaker changes for <1s, keep previous speaker
+   - Reduces "flickering" between speakers
+   - Improves perceived quality significantly
+
+6. **Audio Preprocessing** => OK
+   - Noise reduction before diarization
+   - Normalize audio levels
+   - Consider: RNNoise, DeepFilterNet
+
+7. **Fine-Tuning for Specific Content** => NO
+   - Train on anime dialogue patterns
+   - Train on podcast conversation patterns
+   - Domain-specific diarization models
+
+### Whisper Transcription Accuracy
+
+1. **Large-v3 Model** => NO for now!
+   - Significant accuracy improvement over base/small
+   - Trade-off: Slower processing, more memory
+   - Consider: Distil-Whisper for speed/quality balance
+
+2. **Initial Prompt Injection** => OK
+   - Provide video title/description as context
+   - Helps with proper nouns, technical terms
+   - Implementation: `initial_prompt` parameter
+
+3. **Language Forcing** => hä how do we then detect multiple languages
+   - Force source language instead of auto-detect
+   - Prevents language confusion in multilingual content
+   - Implementation: `language` parameter
+
+4. **Word-Level Timestamps** => OK
+   - Enable for more accurate timing
+   - Helps with subtitle synchronization
+   - Trade-off: Slightly slower processing
+
+5. **Hallucination Filtering** => OK
+   - Detect and remove repetitive text (Whisper hallucination)
+   - Filter segments with unusually high repetition
+   - Check for common hallucination patterns
+
+6. **Faster-Whisper Optimization** => NOT SUPPORTED BY MAC!! NO!!
+   - Use CTranslate2 backend for 4x speed
+   - INT8 quantization for lower memory
+   - Batched inference for multiple segments
+
+### Configuration Recommendations
+
+| Content Type | Whisper Model | Diarization | Translation Model |
+|-------------|---------------|-------------|-------------------|
+| Short videos (<10min) | large-v3 | On | GPT-4o |
+| Long videos (>30min) | distil-large-v3 | Optional | GPT-4o-mini |
+| Podcasts | large-v3 | On (tuned) | Claude 3 Haiku |
+| Anime | large-v3 | Off | Claude 3 Opus |
+| Music videos | base | Off | GPT-4o-mini |
+
+---
 
 ## Future Roadmap: Livestream Real-Time Translation (Proposed)
 

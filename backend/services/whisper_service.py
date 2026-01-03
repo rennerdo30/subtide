@@ -6,6 +6,7 @@ import functools
 import warnings
 import json
 import subprocess
+import re
 from typing import Optional, Dict, Any, List
 import time
 
@@ -88,6 +89,10 @@ from backend.config import (
     MAX_SPEAKERS,
     DIARIZATION_SMOOTHING,
     MIN_SEGMENT_DURATION,
+    WHISPER_NO_SPEECH_THRESHOLD,
+    WHISPER_COMPRESSION_RATIO_THRESHOLD,
+    WHISPER_LOGPROB_THRESHOLD,
+    WHISPER_CONDITION_ON_PREVIOUS,
 )
 from backend.utils.logging_utils import log_stage
 
@@ -316,11 +321,84 @@ def smooth_speaker_segments(segments: list) -> list:
     return smoothed
 
 
+def filter_hallucinations(segments: list) -> list:
+    """Filter out Whisper hallucinations (repeated text, common patterns).
+    
+    Whisper can hallucinate in silence, producing repeated phrases or
+    common patterns like 'Thank you for watching'.
+    """
+    if not segments:
+        return segments
+    
+    filtered = []
+    
+    # Common hallucination patterns (case-insensitive)
+    HALLUCINATION_PATTERNS = [
+        r'^(thank you for watching|thanks for watching)',
+        r'^(please subscribe|don\'t forget to subscribe)',
+        r'^(like and subscribe|subscribe to)',
+        r'^\[music\]$',
+        r'^\[applause\]$',
+        r'^\.+$',  # Just dots
+        r'^\s*$',  # Empty or whitespace
+    ]
+    
+    pattern_regexes = [re.compile(p, re.IGNORECASE) for p in HALLUCINATION_PATTERNS]
+    
+    for i, seg in enumerate(segments):
+        text = seg.get('text', '').strip()
+        
+        # Skip empty segments
+        if not text:
+            continue
+        
+        # Check for pattern matches
+        is_hallucination = False
+        for regex in pattern_regexes:
+            if regex.search(text):
+                is_hallucination = True
+                logger.debug(f"[HALLUCINATION] Pattern match: '{text[:50]}'")
+                break
+        
+        if is_hallucination:
+            continue
+        
+        # Check for excessive repetition within segment
+        words = text.split()
+        if len(words) >= 4:
+            # Check if same phrase repeats 3+ times
+            for phrase_len in range(1, min(5, len(words) // 3)):
+                for j in range(len(words) - phrase_len * 3):
+                    phrase = ' '.join(words[j:j+phrase_len])
+                    repeat_count = text.lower().count(phrase.lower())
+                    if repeat_count >= 3 and len(phrase) > 2:
+                        is_hallucination = True
+                        logger.debug(f"[HALLUCINATION] Repetition: '{phrase}' x{repeat_count}")
+                        break
+                if is_hallucination:
+                    break
+        
+        if is_hallucination:
+            continue
+        
+        # Check for repeated consecutive segments
+        if filtered and text.lower() == filtered[-1].get('text', '').lower():
+            logger.debug(f"[HALLUCINATION] Duplicate: '{text[:30]}'")
+            continue
+        
+        filtered.append(seg)
+    
+    if len(filtered) != len(segments):
+        logger.info(f"[HALLUCINATION] Filtered {len(segments)} -> {len(filtered)} segments")
+    
+    return filtered
+
+
 # Subprocess mode removed.
 # def _run_mlx_child(...): ...
 
 
-def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None) -> dict:
+def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None, initial_prompt: str = None) -> dict:
     """Run mlx-whisper directly in-process (faster, uses GPU properly)."""
     import mlx_whisper
     import mlx.core as mx
@@ -330,18 +408,29 @@ def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None) ->
     logger.info(f"[MLX] Running on device: {device}")
     logger.info(f"[MLX] Model: {model_path}")
     logger.info(f"[MLX] Audio: {audio_path}")
+    logger.info(f"[MLX] Thresholds: no_speech={WHISPER_NO_SPEECH_THRESHOLD}, compression={WHISPER_COMPRESSION_RATIO_THRESHOLD}, logprob={WHISPER_LOGPROB_THRESHOLD}")
+    if initial_prompt:
+        logger.info(f"[MLX] Initial prompt: {initial_prompt[:80]}...")
 
     start_time = time.time()
 
-    # Run transcription directly
-    result = mlx_whisper.transcribe(
-        audio_path,
-        path_or_hf_repo=model_path,
-        verbose=True,  # Enable internal progress for debugging
-        word_timestamps=True,
-        no_speech_threshold=0.6,
-        hallucination_silence_threshold=2.0
-    )
+    # Build transcription kwargs
+    transcribe_kwargs = {
+        'path_or_hf_repo': model_path,
+        'verbose': True,
+        'word_timestamps': True,
+        'no_speech_threshold': WHISPER_NO_SPEECH_THRESHOLD,
+        'compression_ratio_threshold': WHISPER_COMPRESSION_RATIO_THRESHOLD,
+        'logprob_threshold': WHISPER_LOGPROB_THRESHOLD,
+        'condition_on_previous_text': WHISPER_CONDITION_ON_PREVIOUS,
+    }
+    
+    # Add initial_prompt if provided (helps with proper nouns, technical terms)
+    if initial_prompt:
+        transcribe_kwargs['initial_prompt'] = initial_prompt
+
+    # Run transcription directly with configurable thresholds
+    result = mlx_whisper.transcribe(audio_path, **transcribe_kwargs)
 
     elapsed = time.time() - start_time
     result["meta"] = {
@@ -356,6 +445,153 @@ def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None) ->
         progress_callback('whisper', 'Transcription complete', 99)
     
     return result
+
+
+def run_whisper_streaming(
+    audio_file: str,
+    segment_callback=None,
+    progress_callback=None,
+    initial_prompt: str = None
+) -> dict:
+    """
+    Run Whisper transcription with real-time segment streaming.
+    
+    Args:
+        audio_file: Path to audio file
+        segment_callback: Called with (segment_dict) for each segment as it's transcribed
+        progress_callback: Called with (stage, message, percent) for progress updates
+        initial_prompt: Optional prompt to guide transcription
+    
+    Returns:
+        Full transcription result dict with all segments
+    """
+    import time as time_module
+    import threading
+    import tempfile
+    
+    model_path = get_mlx_model_path()
+    
+    # Get path to whisper_runner.py
+    runner_path = os.path.join(os.path.dirname(__file__), 'whisper_runner.py')
+    
+    # Create temp file for final JSON result
+    result_file = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False)
+    result_file.close()
+    
+    # Build command
+    cmd = [
+        sys.executable,
+        runner_path,
+        '--audio', audio_file,
+        '--model', model_path,
+        '--no-speech-threshold', str(WHISPER_NO_SPEECH_THRESHOLD),
+        '--compression-ratio-threshold', str(WHISPER_COMPRESSION_RATIO_THRESHOLD),
+        '--logprob-threshold', str(WHISPER_LOGPROB_THRESHOLD),
+        '--output-json', result_file.name,
+    ]
+    
+    if WHISPER_CONDITION_ON_PREVIOUS:
+        cmd.append('--condition-on-previous')
+    
+    if initial_prompt:
+        cmd.extend(['--initial-prompt', initial_prompt])
+    
+    logger.info(f"[WHISPER_STREAM] Starting subprocess: {' '.join(cmd[:5])}...")
+    
+    # Regex to parse Whisper output lines like: [00:00.000 --> 00:04.440]  Text here
+    segment_pattern = re.compile(r'\[(\d{2}):(\d{2})\.(\d{3})\s*-->\s*(\d{2}):(\d{2})\.(\d{3})\]\s*(.*)')
+    
+    segments = []
+    start_time = time_module.time()
+    segment_count = [0]
+    
+    try:
+        # Start subprocess
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1,  # Line buffered
+            env={**os.environ, 'PYTHONUNBUFFERED': '1'}
+        )
+        
+        # Read stderr in background thread for logging
+        def read_stderr():
+            for line in process.stderr:
+                line = line.strip()
+                if line:
+                    logger.debug(f"[WHISPER_RUNNER] {line}")
+        
+        stderr_thread = threading.Thread(target=read_stderr, daemon=True)
+        stderr_thread.start()
+        
+        # Read stdout line by line for segment capture
+        for line in process.stdout:
+            line = line.strip()
+            if not line:
+                continue
+            
+            # Try to parse as segment
+            match = segment_pattern.match(line)
+            if match:
+                # Parse timestamps
+                start_h, start_m, start_ms = int(match.group(1)), int(match.group(2)), int(match.group(3))
+                end_h, end_m, end_ms = int(match.group(4)), int(match.group(5)), int(match.group(6))
+                text = match.group(7).strip()
+                
+                start_sec = start_h * 60 + start_m + start_ms / 1000.0
+                end_sec = end_h * 60 + end_m + end_ms / 1000.0
+                
+                segment = {
+                    'start': start_sec,
+                    'end': end_sec,
+                    'text': text
+                }
+                
+                segments.append(segment)
+                segment_count[0] += 1
+                
+                logger.debug(f"[WHISPER_STREAM] Segment {segment_count[0]}: [{start_sec:.1f}-{end_sec:.1f}] {text[:50]}...")
+                
+                # Invoke callback for real-time streaming
+                if segment_callback and text:
+                    segment_callback(segment)
+                
+                # Update progress based on segments received
+                if progress_callback and segment_count[0] % 5 == 0:
+                    elapsed = time_module.time() - start_time
+                    progress_callback('whisper', f"Transcribing... {segment_count[0]} segments ({elapsed:.0f}s)", 30 + min(segment_count[0], 60))
+        
+        # Wait for process to complete
+        process.wait()
+        
+        if process.returncode != 0:
+            raise RuntimeError(f"Whisper runner failed with code {process.returncode}")
+        
+        # Load final result from JSON file
+        if os.path.exists(result_file.name):
+            with open(result_file.name, 'r', encoding='utf-8') as f:
+                result = json.load(f)
+            os.unlink(result_file.name)
+        else:
+            # Fallback: construct result from captured segments
+            result = {'segments': segments, 'text': ' '.join(s['text'] for s in segments)}
+        
+        total_time = time_module.time() - start_time
+        logger.info(f"[WHISPER_STREAM] Completed in {total_time:.1f}s with {len(segments)} segments")
+        
+        if progress_callback:
+            progress_callback('whisper', 'Transcription complete', 50)
+        
+        return result
+        
+    except Exception as e:
+        logger.error(f"[WHISPER_STREAM] Error: {e}")
+        # Clean up temp file
+        if os.path.exists(result_file.name):
+            os.unlink(result_file.name)
+        raise
 
 def get_whisper_device():
     """Detect best available device for Whisper."""
@@ -482,13 +718,21 @@ def get_diarization_pipeline():
 
     return _diarization_pipeline
 
-def run_whisper_process(audio_file: str, progress_callback=None) -> Dict[str, Any]:
-    """Transcribe audio with Whisper + optional Pyannote diarization."""
+def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt: str = None) -> Dict[str, Any]:
+    """Transcribe audio with Whisper + optional Pyannote diarization.
+    
+    Args:
+        audio_file: Path to audio file
+        progress_callback: Optional progress callback function
+        initial_prompt: Optional prompt to guide transcription (e.g., video title)
+    """
     if not ENABLE_WHISPER:
         raise Exception("Whisper is disabled on this server")
         
     backend = get_whisper_backend()
     logger.info(f"Running Whisper transcription ({backend})...")
+    if initial_prompt:
+        logger.info(f"[WHISPER] Using initial prompt: {initial_prompt[:100]}...")
     model = get_whisper_model()
 
     segments = []
@@ -626,7 +870,7 @@ def run_whisper_process(audio_file: str, progress_callback=None) -> Dict[str, An
             # Legacy version used this and was 100x faster.
             # Since faster-whisper is removed, we don't need subprocess isolation anymore.
             logger.info("[WHISPER] Using DIRECT mode (in-process, faster GPU execution)")
-            result = _run_mlx_direct(audio_file, mlx_model_path, progress_callback)
+            result = _run_mlx_direct(audio_file, mlx_model_path, progress_callback, initial_prompt)
         except Exception as mlx_error:
             logger.error(f"mlx-whisper failed: {mlx_error}")
             raise mlx_error
@@ -684,8 +928,25 @@ def run_whisper_process(audio_file: str, progress_callback=None) -> Dict[str, An
 
         fp16 = device_str == "cuda"
         logger.info(f"Starting openai-whisper transcription (fp16={fp16}, device={device_str})...")
-        # Enable word timestamps for openai-whisper
-        result = model.transcribe(audio_file, fp16=fp16, word_timestamps=True, no_speech_threshold=0.6)
+        logger.info(f"[WHISPER] Thresholds: no_speech={WHISPER_NO_SPEECH_THRESHOLD}, compression={WHISPER_COMPRESSION_RATIO_THRESHOLD}, logprob={WHISPER_LOGPROB_THRESHOLD}")
+        if initial_prompt:
+            logger.info(f"[WHISPER] Initial prompt: {initial_prompt[:80]}...")
+        
+        # Build transcribe kwargs
+        transcribe_kwargs = {
+            'fp16': fp16,
+            'word_timestamps': True,
+            'no_speech_threshold': WHISPER_NO_SPEECH_THRESHOLD,
+            'compression_ratio_threshold': WHISPER_COMPRESSION_RATIO_THRESHOLD,
+            'logprob_threshold': WHISPER_LOGPROB_THRESHOLD,
+            'condition_on_previous_text': WHISPER_CONDITION_ON_PREVIOUS,
+        }
+        
+        if initial_prompt:
+            transcribe_kwargs['initial_prompt'] = initial_prompt
+        
+        # Enable word timestamps for openai-whisper with configurable thresholds
+        result = model.transcribe(audio_file, **transcribe_kwargs)
 
         # openai-whisper structure with word_timestamps=True might differ slightly or be same
         # It typically returns 'segments' with 'words' inside if supported
@@ -708,6 +969,9 @@ def run_whisper_process(audio_file: str, progress_callback=None) -> Dict[str, An
         speech_timestamps = get_speech_timestamps(audio_file, progress_callback)
         if speech_timestamps:
             segments = filter_segments_by_vad(segments, speech_timestamps)
+    
+    # Hallucination filtering - remove repeated text patterns
+    segments = filter_hallucinations(segments)
     
     # Diarization
     pipeline = get_diarization_pipeline()

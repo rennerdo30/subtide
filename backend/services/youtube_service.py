@@ -96,6 +96,8 @@ def fetch_subtitles(video_id: str, lang: str = 'en') -> Tuple[Any, int]:
         'writeautomaticsub': True,
         'quiet': True,
         'no_warnings': True,
+        'format': None,
+        'ignore_no_formats_error': True,
     }
 
     try:
@@ -174,6 +176,47 @@ def fetch_subtitles(video_id: str, lang: str = 'en') -> Tuple[Any, int]:
         logger.exception("Subtitle fetch error")
         return {'error': str(e)}, 500
 
+
+def get_video_title(video_id: str) -> Optional[str]:
+    """
+    Fetch video title for Whisper initial prompt injection.
+    Returns video title or None on failure.
+    """
+    # Check cache first
+    cache_path = get_cache_path(video_id, 'title')
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data.get('title')
+        except Exception:
+            pass
+
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    ydl_opts = {
+        'skip_download': True,
+        'quiet': True,
+        'no_warnings': True,
+        'format': None,
+        'ignore_no_formats_error': True,
+    }
+
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+            title = info.get('title', '')
+            
+            # Cache it
+            if title:
+                with open(cache_path, 'w', encoding='utf-8') as f:
+                    json.dump({'title': title}, f)
+                logger.info(f"[YOUTUBE] Got video title: {title[:50]}...")
+            
+            return title
+    except Exception as e:
+        logger.warning(f"[YOUTUBE] Could not get title: {e}")
+        return None
+
 def await_download_subtitles(video_id: str, lang: str, tracks: List[Dict]) -> List[Dict]:
     """Download and parse subtitles from YouTube."""
     cache_path = get_cache_path(video_id, f'subs_{lang}')
@@ -195,10 +238,23 @@ def await_download_subtitles(video_id: str, lang: str, tracks: List[Dict]) -> Li
         logger.info(f"[PROCESS] Downloading {lang} subtitles ({selected.get('ext')})...")
 
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'}
-        res = requests.get(selected.get('url'), headers=headers, timeout=30)
-
-        if res.status_code != 200:
-            logger.error(f"[PROCESS] Subtitle download failed: {res.status_code}")
+        
+        # Retry logic for rate limits
+        max_retries = 3
+        for attempt in range(max_retries):
+            res = requests.get(selected.get('url'), headers=headers, timeout=30)
+            
+            if res.status_code == 200:
+                break
+            elif res.status_code == 429:
+                wait_time = (attempt + 1) * 2
+                logger.warning(f"[PROCESS] Rate limited (429), waiting {wait_time}s before retry {attempt+1}/{max_retries}")
+                time.sleep(wait_time)
+            else:
+                logger.error(f"[PROCESS] Subtitle download failed: {res.status_code}")
+                return []
+        else:
+            logger.error(f"[PROCESS] Subtitle download failed after {max_retries} retries (429)")
             return []
 
         if selected.get('ext') == 'json3':

@@ -20,6 +20,8 @@ let translatedSubtitles = null;
 let selectedLanguage = null;
 let isProcessing = false;
 let isLive = false;
+let isStreaming = false; // Tier 4: streaming in progress
+let streamedSubtitles = []; // Tier 4: progressively received subtitles
 let userTier = 'tier1';
 let backendUrl = 'http://localhost:5001';
 
@@ -73,6 +75,8 @@ function onNavigate() {
     sourceSubtitles = null;
     isProcessing = false;
     isLive = false; // Reset live state
+    isStreaming = false; // Reset streaming state
+    streamedSubtitles = []; // Clear streamed subtitles
     removeUI();
     setTimeout(checkForVideo, 1000);
 }
@@ -136,7 +140,7 @@ async function setupPage(videoId) {
         }, 2000);
     });
 
-    // Periodic check to ensure UI stays injected
+    // Periodic check to ensure UI stays injected (reduced from 5s to 1s for faster recovery)
     setInterval(() => {
         if (!document.querySelector('.vt-container')) {
             const controls = document.querySelector('.ytp-right-controls');
@@ -145,10 +149,29 @@ async function setupPage(videoId) {
                 injectUI(controls);
             }
         }
-    }, 5000);
+    }, 1000);
 
-    // For Tier 1/2: Pre-fetch subtitles
-    if (userTier !== 'tier3') {
+    // Fast initial injection loop for the first 10 seconds (every 200ms)
+    // This catches YouTube's aggressive initial DOM rebuilding
+    let fastRetryCount = 0;
+    const fastRetryInterval = setInterval(() => {
+        fastRetryCount++;
+        if (fastRetryCount > 50) { // 50 * 200ms = 10 seconds
+            clearInterval(fastRetryInterval);
+            return;
+        }
+        if (!document.querySelector('.vt-container')) {
+            const controls = document.querySelector('.ytp-right-controls');
+            if (controls && controls.offsetParent !== null) {
+                console.log('[VideoTranslate] Fast re-injection attempt', fastRetryCount);
+                injectUI(controls);
+                watchControls(controls);
+            }
+        }
+    }, 200);
+
+    // For Tier 1/2: Pre-fetch subtitles (Tier 3 and 4 handle everything server-side)
+    if (userTier !== 'tier3' && userTier !== 'tier4') {
         await prefetchSubtitles(videoId);
     }
 }
@@ -196,13 +219,31 @@ async function translateVideo(targetLang) {
     try {
         let result;
 
-        if (userTier === 'tier3') {
+        if (userTier === 'tier4') {
+            // Tier 4: Progressive streaming - subtitles arrive as batches complete
+            isStreaming = true;
+            streamedSubtitles = [];
+            updateStatus(chrome.i18n.getMessage('translating') || 'Streaming...', 'loading', null, { animationKey: 'streaming' });
+
+            result = await sendMessage({
+                action: 'stream-process',
+                videoId: currentVideoId,
+                targetLanguage: targetLang
+            });
+
+            // When complete, use either the final result or accumulated streamed subtitles
+            translatedSubtitles = result.translations || streamedSubtitles;
+            isStreaming = false;
+
+        } else if (userTier === 'tier3') {
             // Tier 3: Single combined call
             result = await sendMessage({
                 action: 'process',
                 videoId: currentVideoId,
                 targetLanguage: targetLang
             });
+            translatedSubtitles = result.translations;
+
         } else {
             // Tier 1/2: Subtitles already fetched, translate via direct LLM
             if (!sourceSubtitles || sourceSubtitles.length === 0) {
@@ -216,11 +257,11 @@ async function translateVideo(targetLang) {
                 sourceLanguage: 'auto',
                 targetLanguage: targetLang
             });
+            translatedSubtitles = result.translations;
         }
 
         if (result.error) throw new Error(result.error);
 
-        translatedSubtitles = result.translations;
         console.log('[VideoTranslate] Received translations:', translatedSubtitles?.length, 'items');
 
         if (!translatedSubtitles || translatedSubtitles.length === 0) {
@@ -241,12 +282,17 @@ async function translateVideo(targetLang) {
             if (panel) panel.style.display = 'none';
         }, 2000);
 
-        showOverlay();
-        setupSync();
+        // Only show overlay and setup sync if not already streaming
+        // (streaming mode shows overlay on first batch)
+        if (!isStreaming) {
+            showOverlay();
+            setupSync();
+        }
 
     } catch (error) {
         console.error('[VideoTranslate] Translation failed:', error);
         updateStatus(chrome.i18n.getMessage('failed'), 'error');
+        isStreaming = false;
     } finally {
         isProcessing = false;
     }
@@ -356,9 +402,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         updateStatus(msg, stageTypes[stage] || 'loading', percent, options);
         sendResponse({ received: true });
+
+    } else if (message.action === 'streaming-subtitles') {
+        // Tier 4: Handle progressive subtitle streaming
+        handleStreamingSubtitles(message.subtitles, message.batchIndex, message.totalBatches);
+        sendResponse({ received: true });
+
+    } else if (message.action === 'streaming-complete') {
+        // Tier 4: Streaming finished
+        handleStreamingComplete(message.subtitles, message.cached);
+        sendResponse({ received: true });
+
     } else if (message.action === 'live-subtitles') {
         handleLiveSubtitles(message.data);
         sendResponse({ received: true });
+
     } else if (message.action === 'live-stopped') {
         isLive = false;
         const overlay = document.querySelector('.vt-overlay');
@@ -367,6 +425,166 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     }
     return true;
 });
+
+/**
+ * Handle streaming subtitle batch (Tier 4)
+ * Called when each batch of translated subtitles arrives
+ */
+function handleStreamingSubtitles(newSubtitles, batchIndex, totalBatches) {
+    console.log(`[VideoTranslate] Streaming batch ${batchIndex}/${totalBatches}: ${newSubtitles.length} subtitles`);
+
+    // Merge new subtitles with existing
+    streamedSubtitles = streamedSubtitles.concat(newSubtitles);
+
+    // Sort by start time (batches may arrive out of order due to parallel processing)
+    streamedSubtitles.sort((a, b) => a.start - b.start);
+
+    // Update status with streaming progress
+    const percent = Math.round((batchIndex / totalBatches) * 100);
+    updateStatus(
+        `Streaming: ${batchIndex}/${totalBatches} batches (${streamedSubtitles.length} subs)`,
+        'loading',
+        percent,
+        {
+            animationKey: 'streaming',
+            batchInfo: { current: batchIndex, total: totalBatches }
+        }
+    );
+
+    // On first batch, show overlay and start sync
+    if (batchIndex === 1) {
+        translatedSubtitles = streamedSubtitles;
+        analyzeSubtitleDensity(translatedSubtitles);
+        initSubtitleWindow(translatedSubtitles);
+        showOverlay();
+        setupSync();
+    } else {
+        // Update the active subtitles array for sync
+        translatedSubtitles = streamedSubtitles;
+        updateActiveSubtitles(translatedSubtitles);
+    }
+}
+
+/**
+ * Handle streaming complete (Tier 4)
+ * Called when all subtitle batches have been received
+ */
+function handleStreamingComplete(finalSubtitles, cached) {
+    console.log(`[VideoTranslate] Streaming complete: ${finalSubtitles?.length || streamedSubtitles.length} total subtitles`);
+
+    isStreaming = false;
+
+    // Use final subtitles if provided, otherwise use accumulated
+    if (finalSubtitles && finalSubtitles.length > 0) {
+        translatedSubtitles = finalSubtitles;
+    } else {
+        translatedSubtitles = streamedSubtitles;
+    }
+
+    // Sort to ensure correct order
+    translatedSubtitles.sort((a, b) => a.start - b.start);
+
+    // Update analysis and window
+    analyzeSubtitleDensity(translatedSubtitles);
+    initSubtitleWindow(translatedSubtitles);
+    updateActiveSubtitles(translatedSubtitles);
+
+    updateStatus(cached ? chrome.i18n.getMessage('cachedSuccess') : chrome.i18n.getMessage('doneSuccess'), 'success');
+
+    // Hide status panel after success
+    setTimeout(() => {
+        const panel = document.querySelector('.vt-status-panel');
+        if (panel) panel.style.display = 'none';
+    }, 2000);
+}
+
+// =============================================================================
+// Keyboard Shortcuts
+// =============================================================================
+
+/**
+ * Handle keyboard shortcuts
+ * Alt+S: Toggle subtitle visibility
+ * Alt+T: Translate current video
+ * Alt+D: Toggle dual subtitle mode
+ */
+function handleKeyboardShortcut(e) {
+    // Only handle Alt+key combinations
+    if (!e.altKey) return;
+
+    // Don't trigger when typing in input fields
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.isContentEditable) {
+        return;
+    }
+
+    switch (e.key.toLowerCase()) {
+        case 's': // Alt+S: Toggle subtitles
+            e.preventDefault();
+            toggleSubtitleVisibility();
+            break;
+        case 't': // Alt+T: Translate video
+            e.preventDefault();
+            if (currentVideoId && !isProcessing) {
+                translateVideo(selectedLanguage);
+            }
+            break;
+        case 'd': // Alt+D: Toggle dual mode
+            e.preventDefault();
+            toggleDualMode();
+            break;
+    }
+}
+
+/**
+ * Toggle subtitle overlay visibility
+ */
+function toggleSubtitleVisibility() {
+    const overlay = document.querySelector('.vt-overlay');
+    if (overlay) {
+        const isVisible = overlay.style.display !== 'none';
+        overlay.style.display = isVisible ? 'none' : 'block';
+        console.log('[VideoTranslate] Subtitles', isVisible ? 'hidden' : 'shown');
+    }
+}
+
+/**
+ * Toggle dual subtitle mode
+ */
+function toggleDualMode() {
+    subtitleSettings.dualMode = !subtitleSettings.dualMode;
+    console.log('[VideoTranslate] Dual mode:', subtitleSettings.dualMode ? 'ON' : 'OFF');
+
+    // Update overlay structure
+    updateOverlayForDualMode();
+
+    // Save preference
+    sendMessage({
+        action: 'saveConfig',
+        config: { subtitleDualMode: subtitleSettings.dualMode }
+    });
+}
+
+/**
+ * Update overlay HTML structure for dual mode
+ */
+function updateOverlayForDualMode() {
+    const overlay = document.querySelector('.vt-overlay');
+    if (!overlay) return;
+
+    if (subtitleSettings.dualMode) {
+        overlay.innerHTML = `
+            <div class="vt-text-original"></div>
+            <div class="vt-text-translated"></div>
+        `;
+        overlay.classList.add('vt-dual-mode');
+    } else {
+        overlay.innerHTML = '<span class="vt-text"></span>';
+        overlay.classList.remove('vt-dual-mode');
+    }
+}
+
+// Register keyboard shortcut handler
+document.addEventListener('keydown', handleKeyboardShortcut);
 
 // =============================================================================
 // Start

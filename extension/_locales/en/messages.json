@@ -50,6 +50,12 @@
     "tierHint3": {
         "message": "Fully managed service. No API key needed — we handle everything!"
     },
+    "tierStream": {
+        "message": "🚀 Stream — Progressive Translation"
+    },
+    "tierHint4": {
+        "message": "Progressive streaming — see subtitles immediately as they translate. Fastest experience!"
+    },
     "backendUrl": {
         "message": "Backend URL"
     },

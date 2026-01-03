@@ -57,6 +57,17 @@ PORT=5001
 ENABLE_WHISPER=true
 WHISPER_MODEL=base
 
+# Whisper Accuracy Tuning
+WHISPER_NO_SPEECH_THRESHOLD=0.4       # Lower = capture more (default: 0.4)
+WHISPER_COMPRESSION_RATIO_THRESHOLD=2.4
+WHISPER_LOGPROB_THRESHOLD=-1.0
+WHISPER_CONDITION_ON_PREVIOUS=true    # Better context for mixed languages
+
+# Speaker Diarization
+ENABLE_DIARIZATION=true
+DIARIZATION_SMOOTHING=true
+MIN_SEGMENT_DURATION=0.5
+
 # Tier 3 Managed Translation (optional)
 SERVER_API_KEY=sk-your-api-key
 SERVER_API_URL=https://api.openai.com/v1
@@ -71,6 +82,19 @@ SERVER_MODEL=gpt-4o-mini
 | `/api/subtitles` | GET | Fetch YouTube subtitles |
 | `/api/transcribe` | GET | Generate subtitles with Whisper (Tier 2+) |
 | `/api/process` | POST | Combined fetch + translate (Tier 3 only) |
+| `/api/stream` | POST | Progressive streaming translation (Tier 4) |
+
+### Tier 4 Streaming Mode
+
+The `/api/stream` endpoint provides progressive subtitle delivery with **streaming Whisper transcription**:
+
+- **First subtitles appear in 10-20 seconds** (vs 1-2 minutes for Tier 3)
+- Uses subprocess-based Whisper runner that parses stdout in real-time
+- Translates batches of 5 segments while transcription continues
+- Users can start watching immediately while remaining subtitles load
+- SSE events include partial subtitle data as `stage: "subtitles"`
+
+> **Note**: Speaker diarization is disabled in streaming mode for faster initial display.
 
 ## Troubleshooting
 

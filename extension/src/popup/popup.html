@@ -88,6 +88,7 @@
             <option value="tier1" data-i18n="tierFree">🆓 Free — YouTube Captions Only</option>
             <option value="tier2" data-i18n="tierBasic">⚡ Basic — AI Generation (Own Key)</option>
             <option value="tier3" data-i18n="tierPro">👑 Pro — Fully Managed</option>
+            <option value="tier4" data-i18n="tierStream">🚀 Stream — Progressive Translation</option>
           </select>
           <span class="hint" id="tierHint" data-i18n="tierHint1">Uses YouTube's auto-generated captions. Requires your
             own API key for
@@ -210,6 +211,35 @@
              <span class="btn-text" data-i18n="startLiveTranslate">Start Live Translate</span>
           </button>
           <span class="hint" data-i18n="liveTranslateHint" style="margin-top: 8px; display: block;">Capture tab audio for real-time translation</span>
+        </div>
+      </section>
+
+      <!-- Video Queue -->
+      <section class="section" id="queueSection">
+        <h2 class="section-title">
+          <svg class="section-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 6h13" />
+            <path d="M8 12h13" />
+            <path d="M8 18h13" />
+            <path d="M3 6h.01" />
+            <path d="M3 12h.01" />
+            <path d="M3 18h.01" />
+          </svg>
+          <span>Translation Queue</span>
+        </h2>
+        <div class="queue-status" id="queueStatus">
+          <div class="queue-counts">
+            <span class="queue-count pending" id="queuePending">0 pending</span>
+            <span class="queue-count processing" id="queueProcessing">0 processing</span>
+            <span class="queue-count completed" id="queueCompleted">0 done</span>
+          </div>
+          <button type="button" class="btn-xs" id="clearQueueBtn" style="margin-left: auto;">
+            Clear Done
+          </button>
+        </div>
+        <div class="queue-list" id="queueList">
+          <div class="queue-empty">No videos in queue</div>
         </div>
       </section>
 

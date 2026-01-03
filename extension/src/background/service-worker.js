@@ -102,8 +102,8 @@ async function saveConfig(config) {
 
 async function isConfigured() {
     const config = await getConfig();
-    // Tier 3 doesn't need API key (managed by server)
-    if (config.tier === 'tier3') {
+    // Tier 3 and Tier 4 don't need API key (managed by server)
+    if (config.tier === 'tier3' || config.tier === 'tier4') {
         return true; // Just needs backend URL which has default
     }
     return !!(config.apiUrl && config.apiKey && config.model);
@@ -196,22 +196,214 @@ function getLanguageName(code) {
 }
 
 /**
+ * Detect language from subtitle text using character analysis
+ * Returns detected language code or 'unknown'
+ */
+function detectLanguage(subtitles, sampleSize = 5) {
+    if (!subtitles || subtitles.length === 0) return 'unknown';
+
+    // Sample first N subtitles
+    const sample = subtitles.slice(0, Math.min(sampleSize, subtitles.length));
+    const text = sample.map(s => s.text).join(' ');
+
+    if (!text.trim()) return 'unknown';
+
+    // Character pattern detection
+    const patterns = {
+        'ja': /[\u3040-\u309F\u30A0-\u30FF]/g,  // Hiragana + Katakana
+        'ko': /[\uAC00-\uD7AF\u1100-\u11FF]/g,  // Korean
+        'zh': /[\u4E00-\u9FFF]/g,                // CJK (Chinese/Japanese Kanji)
+        'ar': /[\u0600-\u06FF]/g,                // Arabic
+        'hi': /[\u0900-\u097F]/g,                // Devanagari (Hindi)
+        'ru': /[\u0400-\u04FF]/g,                // Cyrillic
+        'th': /[\u0E00-\u0E7F]/g,                // Thai
+    };
+
+    const scores = {};
+    for (const [lang, pattern] of Object.entries(patterns)) {
+        const matches = text.match(pattern);
+        scores[lang] = matches ? matches.length / text.length : 0;
+    }
+
+    // Find highest scoring language
+    let detected = 'en'; // Default to English
+    let maxScore = 0;
+
+    for (const [lang, score] of Object.entries(scores)) {
+        if (score > maxScore && score > 0.1) { // Threshold: at least 10% of chars
+            maxScore = score;
+            detected = lang;
+        }
+    }
+
+    // Special case: Japanese uses Kanji (zh pattern) but also has kana
+    if (scores['zh'] > 0.1 && scores['ja'] > 0.05) {
+        detected = 'ja'; // Likely Japanese with kanji
+    }
+
+    console.log(`[VideoTranslate] Detected language: ${detected} (scores: ${JSON.stringify(scores)})`);
+    return detected;
+}
+
+/**
+ * Check if source and target languages are effectively the same
+ */
+function isSameLanguage(detected, target) {
+    // Normalize language codes
+    const normalize = (lang) => {
+        if (lang.startsWith('zh')) return 'zh';
+        return lang.toLowerCase().split('-')[0];
+    };
+
+    return normalize(detected) === normalize(target);
+}
+
+/**
+ * Sentence Boundary Detection: Merge partial sentences before translation
+ * Returns merged subtitles with original indices for resplitting
+ */
+function mergePartialSentences(subtitles) {
+    if (!subtitles || subtitles.length === 0) return { merged: subtitles, mapping: [] };
+
+    const merged = [];
+    const mapping = []; // Maps merged index to original indices
+
+    // Sentence ending punctuation (supports multiple languages)
+    const sentenceEndPattern = /[.!?。！？…]$/;
+
+    let currentGroup = [];
+    let groupIndices = [];
+
+    for (let i = 0; i < subtitles.length; i++) {
+        const sub = subtitles[i];
+        currentGroup.push(sub);
+        groupIndices.push(i);
+
+        const text = sub.text.trim();
+        const endsWithPunctuation = sentenceEndPattern.test(text);
+        const isLastSubtitle = i === subtitles.length - 1;
+
+        // Merge when we hit sentence end or last subtitle
+        if (endsWithPunctuation || isLastSubtitle) {
+            const mergedText = currentGroup.map(s => s.text).join(' ');
+            merged.push({
+                ...currentGroup[0],
+                text: mergedText,
+                end: currentGroup[currentGroup.length - 1].end,
+                _originalIndices: [...groupIndices]
+            });
+            mapping.push([...groupIndices]);
+            currentGroup = [];
+            groupIndices = [];
+        }
+    }
+
+    if (merged.length !== subtitles.length) {
+        console.log(`[VideoTranslate] Merged ${subtitles.length} -> ${merged.length} sentences`);
+    }
+
+    return { merged, mapping };
+}
+
+/**
+ * Resplit translated text back to original subtitle timings
+ */
+function resplitAfterTranslation(originalSubtitles, translatedMerged, mapping) {
+    if (!mapping || mapping.length === 0) return translatedMerged;
+
+    const results = [];
+
+    for (let i = 0; i < translatedMerged.length; i++) {
+        const indices = mapping[i];
+        const translatedText = translatedMerged[i].translatedText || translatedMerged[i].text;
+
+        if (indices.length === 1) {
+            // Single subtitle, no split needed
+            results.push({
+                ...originalSubtitles[indices[0]],
+                translatedText
+            });
+        } else {
+            // Multiple originals merged - need to split translation proportionally
+            const words = translatedText.split(/\s+/);
+            const totalWords = words.length;
+            const wordsPerSegment = Math.ceil(totalWords / indices.length);
+
+            for (let j = 0; j < indices.length; j++) {
+                const origIdx = indices[j];
+                const start = j * wordsPerSegment;
+                const end = Math.min((j + 1) * wordsPerSegment, totalWords);
+                const segmentWords = words.slice(start, end);
+
+                results.push({
+                    ...originalSubtitles[origIdx],
+                    translatedText: segmentWords.join(' ') || translatedText
+                });
+            }
+        }
+    }
+
+    return results;
+}
+
+/**
  * Build translation prompt
  */
-function buildTranslationPrompt(subtitles, sourceLanguage, targetLanguage) {
+function buildTranslationPrompt(subtitles, sourceLanguage, targetLanguage, isRetry = false, fullSubtitleList = null, batchStartIndex = 0) {
     const sourceName = getLanguageName(sourceLanguage);
     const targetName = getLanguageName(targetLanguage);
 
+    // Build numbered list with context markers
     const numbered = subtitles.map((s, i) => `${i + 1}. ${s.text}`).join('\n');
+
+    // Context Window: Include prev/next subtitle if available
+    let contextHint = '';
+    if (fullSubtitleList && fullSubtitleList.length > subtitles.length) {
+        const prevIdx = batchStartIndex - 1;
+        const nextIdx = batchStartIndex + subtitles.length;
+
+        if (prevIdx >= 0) {
+            const prevText = fullSubtitleList[prevIdx]?.text || '';
+            if (prevText) {
+                contextHint += `[Previous context]: "${prevText.substring(0, 100)}"\n`;
+            }
+        }
+        if (nextIdx < fullSubtitleList.length) {
+            const nextText = fullSubtitleList[nextIdx]?.text || '';
+            if (nextText) {
+                contextHint += `[Next context]: "${nextText.substring(0, 100)}"\n`;
+            }
+        }
+    }
+
+    if (isRetry) {
+        // Stronger prompt for retry - emphasize that translation MUST happen
+        return `CRITICAL: You MUST translate these subtitles from ${sourceName} to ${targetName}. 
+
+DO NOT return the original text. Every line MUST be translated to ${targetName}.
+If a line is already in ${targetName}, still rephrase it naturally.
+
+Rules:
+- TRANSLATE every single line to ${targetName}
+- Keep translations concise (for subtitles)
+- Return ONLY numbered translations, one per line
+- No explanations, no original text
+
+${contextHint}
+Subtitles to translate:
+${numbered}`;
+    }
 
     return `Translate these subtitles from ${sourceName} to ${targetName}.
 
 Rules:
 - Keep translations concise (for subtitles)
 - Maintain tone and meaning
+- Consider context from adjacent subtitles for coherence
 - Return ONLY numbered translations, one per line
 - No explanations
 
+${contextHint}
 Subtitles:
 ${numbered}`;
 }
@@ -271,52 +463,186 @@ async function callLLMDirect(prompt, config) {
  */
 async function translateDirectLLM(subtitles, sourceLanguage, targetLanguage, config, onProgress) {
     const BATCH_SIZE = 25;
+    const MAX_RETRIES = 2;
     const results = [];
 
-    for (let i = 0; i < subtitles.length; i += BATCH_SIZE) {
-        const batch = subtitles.slice(i, i + BATCH_SIZE);
+    // Language detection pre-check: skip translation if source = target
+    const detectedLang = detectLanguage(subtitles);
+    if (isSameLanguage(detectedLang, targetLanguage)) {
+        console.log(`[VideoTranslate] Source language (${detectedLang}) matches target (${targetLanguage}), skipping translation`);
+        // Return subtitles with translatedText = original text
+        return subtitles.map(sub => ({
+            ...sub,
+            translatedText: sub.text,
+            skippedTranslation: true
+        }));
+    }
+
+    // Sentence Boundary Detection: Merge partial sentences for better translation
+    const { merged: mergedSubtitles, mapping: sentenceMapping } = mergePartialSentences(subtitles);
+    const subsToTranslate = mergedSubtitles.length < subtitles.length ? mergedSubtitles : subtitles;
+    const usesSentenceMerging = mergedSubtitles.length < subtitles.length;
+
+    if (usesSentenceMerging) {
+        console.log(`[VideoTranslate] Using sentence merging: ${subtitles.length} -> ${mergedSubtitles.length} segments`);
+    }
+
+    for (let i = 0; i < subsToTranslate.length; i += BATCH_SIZE) {
+        const batch = subsToTranslate.slice(i, i + BATCH_SIZE);
         const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-        const totalBatches = Math.ceil(subtitles.length / BATCH_SIZE);
+        const totalBatches = Math.ceil(subsToTranslate.length / BATCH_SIZE);
 
         console.log(`[VideoTranslate] Direct LLM batch ${batchNum}/${totalBatches}`);
 
-        try {
-            const prompt = buildTranslationPrompt(batch, sourceLanguage, targetLanguage);
-            const response = await callLLMDirect(prompt, config);
-            const translations = parseTranslationResponse(response, batch.length);
+        let translations = null;
+        let retryCount = 0;
 
-            for (let j = 0; j < batch.length; j++) {
-                results.push({
-                    ...batch[j],
-                    translatedText: translations[j] || batch[j].text,
-                });
+        while (retryCount <= MAX_RETRIES) {
+            try {
+                const isRetry = retryCount > 0;
+                // Pass full subtitle list and batch start index for context window
+                const prompt = buildTranslationPrompt(batch, sourceLanguage, targetLanguage, isRetry, subsToTranslate, i);
+                const response = await callLLMDirect(prompt, config);
+                translations = parseTranslationResponse(response, batch.length);
+
+                // Check if translation actually happened (at least 50% should be different)
+                const unchangedCount = translations.filter((t, idx) =>
+                    t.trim().toLowerCase() === batch[idx].text.trim().toLowerCase()
+                ).length;
+
+                const unchangedPercent = (unchangedCount / translations.length) * 100;
+
+                if (unchangedPercent > 50 && retryCount < MAX_RETRIES) {
+                    console.warn(`[VideoTranslate] Batch ${batchNum}: ${unchangedPercent.toFixed(0)}% unchanged, retrying...`);
+                    retryCount++;
+                    await new Promise(r => setTimeout(r, 500)); // Brief delay before retry
+                    continue;
+                }
+
+                break; // Success
+            } catch (error) {
+                console.error(`[VideoTranslate] Batch ${batchNum} attempt ${retryCount + 1} failed:`, error);
+                retryCount++;
+                if (retryCount > MAX_RETRIES) {
+                    // Keep original text on error after all retries
+                    translations = batch.map(sub => sub.text);
+                    break;
+                }
+                await new Promise(r => setTimeout(r, 500));
             }
-        } catch (error) {
-            console.error(`[VideoTranslate] Batch ${batchNum} failed:`, error);
-            // Keep original text on error
-            for (const sub of batch) {
-                results.push({ ...sub, translatedText: sub.text, error: true });
-            }
+        }
+
+        for (let j = 0; j < batch.length; j++) {
+            const translatedText = translations?.[j] || batch[j].text;
+            results.push({
+                ...batch[j],
+                translatedText,
+                // Mark as potentially failed if same as original
+                translationFailed: translatedText.trim().toLowerCase() === batch[j].text.trim().toLowerCase()
+            });
         }
 
         if (onProgress) {
             onProgress({
                 stage: 'translating',
                 message: `Translating batch ${batchNum}/${totalBatches}...`,
-                percent: Math.round((Math.min(i + BATCH_SIZE, subtitles.length) / subtitles.length) * 100),
-                step: 1, // Tier 1/2 is usually just 1 step in this flow
+                percent: Math.round((Math.min(i + BATCH_SIZE, subsToTranslate.length) / subsToTranslate.length) * 100),
+                step: 1,
                 totalSteps: 1,
                 batchInfo: { current: batchNum, total: totalBatches }
             });
         }
 
         // Rate limit
-        if (i + BATCH_SIZE < subtitles.length) {
+        if (i + BATCH_SIZE < subsToTranslate.length) {
             await new Promise(r => setTimeout(r, 300));
         }
     }
 
-    return results;
+    // Log warning if many translations failed
+    const failedCount = results.filter(r => r.translationFailed).length;
+    if (failedCount > results.length * 0.3) {
+        console.warn(`[VideoTranslate] Warning: ${failedCount}/${results.length} translations may have failed (unchanged from source)`);
+    }
+
+    // Resplit merged sentences back to original timing
+    let finalResults = results;
+    if (usesSentenceMerging) {
+        console.log('[VideoTranslate] Resplitting merged sentences to original timing...');
+        finalResults = resplitAfterTranslation(subtitles, results, sentenceMapping);
+    }
+
+    // Optional Multi-Pass Translation Refinement
+    if (config.enableMultiPass && finalResults.length > 0) {
+        console.log('[VideoTranslate] Running multi-pass refinement...');
+        try {
+            const refinedResults = await refineTranslations(finalResults, targetLanguage, config, onProgress);
+            return refinedResults;
+        } catch (error) {
+            console.warn('[VideoTranslate] Multi-pass refinement failed, using first-pass results:', error);
+        }
+    }
+
+    return finalResults;
+}
+
+/**
+ * Multi-Pass Refinement: Second pass to improve translation naturalness
+ */
+async function refineTranslations(translations, targetLanguage, config, onProgress) {
+    const BATCH_SIZE = 25;
+    const targetName = getLanguageName(targetLanguage);
+    const refined = [...translations];
+
+    for (let i = 0; i < translations.length; i += BATCH_SIZE) {
+        const batch = translations.slice(i, i + BATCH_SIZE);
+        const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+        const totalBatches = Math.ceil(translations.length / BATCH_SIZE);
+
+        const numbered = batch.map((s, idx) => `${idx + 1}. ${s.translatedText}`).join('\n');
+
+        const refinementPrompt = `Review and improve these ${targetName} subtitle translations for natural flow.
+
+Fix any awkward phrasing, grammar issues, or unnatural expressions.
+Keep the same meaning and roughly the same length.
+Return ONLY the improved numbered translations, one per line.
+
+Translations to refine:
+${numbered}`;
+
+        try {
+            const response = await callLLMDirect(refinementPrompt, config);
+            const refinedTexts = parseTranslationResponse(response, batch.length);
+
+            for (let j = 0; j < batch.length && j < refinedTexts.length; j++) {
+                if (refinedTexts[j] && refinedTexts[j].trim()) {
+                    refined[i + j] = {
+                        ...refined[i + j],
+                        translatedText: refinedTexts[j],
+                        refined: true
+                    };
+                }
+            }
+        } catch (error) {
+            console.warn(`[VideoTranslate] Refinement batch ${batchNum} failed:`, error);
+        }
+
+        if (onProgress) {
+            onProgress({
+                stage: 'refining',
+                message: `Refining batch ${batchNum}/${totalBatches}...`,
+                percent: 100,
+                step: 2,
+                totalSteps: 2,
+                batchInfo: { current: batchNum, total: totalBatches }
+            });
+        }
+
+        await new Promise(r => setTimeout(r, 300));
+    }
+
+    console.log('[VideoTranslate] Multi-pass refinement complete');
+    return refined;
 }
 
 // ============================================================================
@@ -548,6 +874,144 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
     });
 }
 
+/**
+ * Tier 4 streaming endpoint: progressive subtitle streaming
+ * Streams translated subtitles as each batch completes
+ * Uses Server-Sent Events with subtitle data in each batch
+ */
+async function processVideoTier4(videoId, targetLanguage, config, onProgress, onSubtitles, tabId) {
+    const { backendUrl, forceGen } = config;
+
+    return new Promise((resolve, reject) => {
+        const url = `${backendUrl}/api/stream`;
+
+        // Use AbortController for timeout (5 minutes for long videos)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+
+        const allSubtitles = [];
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'text/event-stream',
+            },
+            body: JSON.stringify({
+                video_id: videoId,
+                target_lang: targetLanguage,
+                force_whisper: forceGen,
+            }),
+            signal: controller.signal,
+        }).then(async response => {
+            clearTimeout(timeoutId);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                reject(new Error(errorData.error || chrome.i18n.getMessage('failed')));
+                return;
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                buffer += decoder.decode(value, { stream: true });
+
+                // Parse SSE events using robust parser
+                const { events, remainder } = parseSSEBuffer(buffer);
+                buffer = remainder;
+
+                for (const event of events) {
+                    if (!event.data) continue;
+
+                    try {
+                        const data = JSON.parse(event.data);
+
+                        // Streaming subtitles - the key Tier 4 feature
+                        if (data.stage === 'subtitles' && data.subtitles) {
+                            console.log(`[VideoTranslate] Tier4: Received batch ${data.batchInfo?.current}/${data.batchInfo?.total} (${data.subtitles.length} subs)`);
+
+                            // Accumulate subtitles
+                            allSubtitles.push(...data.subtitles);
+
+                            // Send streaming subtitles to content script
+                            if (tabId) {
+                                chrome.tabs.sendMessage(tabId, {
+                                    action: 'streaming-subtitles',
+                                    subtitles: data.subtitles,
+                                    batchIndex: data.batchInfo?.current || 1,
+                                    totalBatches: data.batchInfo?.total || 1,
+                                    isComplete: false
+                                }).catch(() => { });
+                            }
+
+                            if (onSubtitles) {
+                                onSubtitles(data.subtitles, data.batchInfo);
+                            }
+                        }
+
+                        // Progress update (non-subtitle stages)
+                        if (data.stage && data.message && data.stage !== 'subtitles') {
+                            console.log(`[VideoTranslate] Tier4 Progress: ${data.stage} - ${data.message} (${data.percent || 0}%)`);
+
+                            if (tabId) {
+                                chrome.tabs.sendMessage(tabId, {
+                                    action: 'progress',
+                                    stage: data.stage,
+                                    message: data.message,
+                                    percent: data.percent,
+                                    step: data.step,
+                                    totalSteps: data.totalSteps,
+                                    eta: data.eta,
+                                    batchInfo: data.batchInfo,
+                                }).catch(() => { });
+                            }
+
+                            if (onProgress) {
+                                onProgress(data);
+                            }
+                        }
+
+                        // Final result
+                        if (data.result) {
+                            // Notify content script that streaming is complete
+                            if (tabId) {
+                                chrome.tabs.sendMessage(tabId, {
+                                    action: 'streaming-complete',
+                                    subtitles: data.result.subtitles
+                                }).catch(() => { });
+                            }
+                            resolve(data.result.subtitles);
+                            return;
+                        }
+
+                        // Error
+                        if (data.error) {
+                            reject(new Error(data.error));
+                            return;
+                        }
+                    } catch (e) {
+                        console.warn('[VideoTranslate] Tier4 SSE JSON parse error:', e, 'Data:', event.data);
+                    }
+                }
+            }
+
+            // If we got subtitles but no final result, return what we have
+            if (allSubtitles.length > 0) {
+                console.log(`[VideoTranslate] Tier4: Stream ended with ${allSubtitles.length} subtitles (no final result event)`);
+                resolve(allSubtitles);
+                return;
+            }
+
+            reject(new Error(chrome.i18n.getMessage('streamNoResult')));
+        }).catch(reject);
+    });
+}
+
 // ============================================================================
 // Message Handler
 // ============================================================================
@@ -587,6 +1051,12 @@ async function handleMessage(message, sender) {
                 throw new Error(chrome.i18n.getMessage('tier3Only'));
             }
             return await handleTier3Process(message, sender, config);
+
+        case 'stream-process':
+            if (config.tier !== 'tier4') {
+                throw new Error('Tier 4 required for streaming');
+            }
+            return await handleTier4Stream(message, sender, config);
 
         case 'getCachedTranslation':
             const cached = await getCachedTranslation(
@@ -641,10 +1111,34 @@ async function handleMessage(message, sender) {
                 });
             }
             return { success: true };
-        
+
         case 'error':
             console.error('[VideoTranslate] Offscreen error:', message.message || message.error || message);
             return { success: true };
+
+        // Queue management actions
+        case 'getQueue':
+            return { queue: await getQueue() };
+
+        case 'addToQueue':
+            return await addToQueue(message.videoId, message.title, message.targetLanguage);
+
+        case 'removeFromQueue':
+            return await removeFromQueue(message.itemId);
+
+        case 'clearCompletedQueue':
+            return await clearCompletedQueue();
+
+        case 'getQueueStatus':
+            const queue = await getQueue();
+            return {
+                total: queue.length,
+                pending: queue.filter(i => i.status === 'pending').length,
+                processing: queue.filter(i => i.status === 'processing').length,
+                completed: queue.filter(i => i.status === 'completed').length,
+                failed: queue.filter(i => i.status === 'failed').length,
+                isProcessing: isProcessingQueue
+            };
 
         default:
             if (message.action) {
@@ -719,6 +1213,36 @@ async function handleTier3Process(message, sender, config) {
     return { translations, cached: false };
 }
 
+/**
+ * Handle Tier 4 streaming processing
+ * Progressive streaming: subtitles streamed as batches complete
+ */
+async function handleTier4Stream(message, sender, config) {
+    const { videoId, targetLanguage } = message;
+    const tabId = sender?.tab?.id;
+
+    // Check cache first - if cached, no streaming needed
+    const cached = await getCachedTranslation(videoId, 'auto', targetLanguage);
+    if (cached) {
+        // For cached results, send all subtitles at once as "streaming-complete"
+        if (tabId) {
+            chrome.tabs.sendMessage(tabId, {
+                action: 'streaming-complete',
+                subtitles: cached,
+                cached: true
+            }).catch(() => { });
+        }
+        return { translations: cached, cached: true };
+    }
+
+    // Streaming backend call - subtitles arrive progressively
+    const translations = await processVideoTier4(videoId, targetLanguage, config, null, null, tabId);
+
+    // Cache the complete result
+    await cacheTranslation(videoId, 'auto', targetLanguage, translations);
+    return { translations, cached: false, streamed: true };
+}
+
 // ============================================================================
 // Livestream Translation (Proposed)
 // ============================================================================
@@ -779,14 +1303,14 @@ async function handleStartLiveTranslate(message, sender, config) {
                 apiUrl: config.backendUrl
             }
         });
-        
+
         isLiveTranslating = true;
         await chrome.storage.local.set({ isLiveTranslating: true });
         return { success: true };
     } catch (error) {
         console.error('[VideoTranslate] Live translate failed:', error);
         if (error.message && error.message.includes("Extension has not been invoked")) {
-             throw new Error(chrome.i18n.getMessage('usePopupForLive') || "Please start Live Translation from the Extension Popup icon.");
+            throw new Error(chrome.i18n.getMessage('usePopupForLive') || "Please start Live Translation from the Extension Popup icon.");
         }
         throw error;
     }
@@ -798,7 +1322,7 @@ async function handleStopLiveTranslate() {
             type: 'stop-recording',
             target: 'offscreen'
         });
-        
+
         // Notify all YouTube tabs that live translation stopped
         chrome.tabs.query({ url: "*://*.youtube.com/*" }, (tabs) => {
             tabs.forEach(tab => {
@@ -830,5 +1354,198 @@ async function setupOffscreenDocument(path) {
         justification: 'Capturing tab audio for real-time translation'
     });
 }
+
+// ============================================================================
+// Video Queue Management
+// ============================================================================
+
+const QUEUE_STORAGE_KEY = 'videoQueue';
+
+/**
+ * Queue item structure:
+ * {
+ *   id: string,
+ *   videoId: string,
+ *   title: string,
+ *   targetLanguage: string,
+ *   status: 'pending' | 'processing' | 'completed' | 'failed',
+ *   addedAt: number,
+ *   completedAt?: number,
+ *   error?: string
+ * }
+ */
+
+let isProcessingQueue = false;
+
+/**
+ * Get all queue items
+ */
+async function getQueue() {
+    return new Promise((resolve) => {
+        chrome.storage.local.get([QUEUE_STORAGE_KEY], (result) => {
+            resolve(result[QUEUE_STORAGE_KEY] || []);
+        });
+    });
+}
+
+/**
+ * Save queue to storage
+ */
+async function saveQueue(queue) {
+    return new Promise((resolve) => {
+        chrome.storage.local.set({ [QUEUE_STORAGE_KEY]: queue }, resolve);
+    });
+}
+
+/**
+ * Add video to queue
+ */
+async function addToQueue(videoId, title, targetLanguage) {
+    const queue = await getQueue();
+
+    // Check if already in queue
+    const existing = queue.find(item => item.videoId === videoId && item.targetLanguage === targetLanguage);
+    if (existing) {
+        return { success: false, error: 'Video already in queue' };
+    }
+
+    const newItem = {
+        id: `${videoId}_${Date.now()}`,
+        videoId,
+        title: title || videoId,
+        targetLanguage,
+        status: 'pending',
+        addedAt: Date.now(),
+    };
+
+    queue.push(newItem);
+    await saveQueue(queue);
+
+    // Start processing if not already
+    if (!isProcessingQueue) {
+        processQueue();
+    }
+
+    return { success: true, item: newItem };
+}
+
+/**
+ * Remove video from queue
+ */
+async function removeFromQueue(itemId) {
+    const queue = await getQueue();
+    const index = queue.findIndex(item => item.id === itemId);
+
+    if (index === -1) {
+        return { success: false, error: 'Item not found' };
+    }
+
+    queue.splice(index, 1);
+    await saveQueue(queue);
+    return { success: true };
+}
+
+/**
+ * Clear completed/failed items from queue
+ */
+async function clearCompletedQueue() {
+    const queue = await getQueue();
+    const filtered = queue.filter(item => item.status === 'pending' || item.status === 'processing');
+    await saveQueue(filtered);
+    return { success: true, remaining: filtered.length };
+}
+
+/**
+ * Process queue items sequentially
+ */
+async function processQueue() {
+    if (isProcessingQueue) return;
+    isProcessingQueue = true;
+
+    console.log('[VideoTranslate] Starting queue processing');
+
+    const config = await getConfig();
+
+    while (true) {
+        const queue = await getQueue();
+        const pending = queue.find(item => item.status === 'pending');
+
+        if (!pending) {
+            console.log('[VideoTranslate] Queue empty, stopping processor');
+            break;
+        }
+
+        // Update status to processing
+        pending.status = 'processing';
+        await saveQueue(queue);
+
+        console.log(`[VideoTranslate] Processing queue item: ${pending.videoId}`);
+
+        try {
+            // Check cache first
+            const cached = await getCachedTranslation(pending.videoId, 'auto', pending.targetLanguage);
+
+            if (cached) {
+                pending.status = 'completed';
+                pending.completedAt = Date.now();
+                pending.cached = true;
+            } else if (config.tier === 'tier3') {
+                // Use Tier 3 processing
+                const translations = await processVideoTier3(
+                    pending.videoId,
+                    pending.targetLanguage,
+                    config,
+                    null,
+                    null // No tab ID for background queue processing
+                );
+
+                await cacheTranslation(pending.videoId, 'auto', pending.targetLanguage, translations);
+                pending.status = 'completed';
+                pending.completedAt = Date.now();
+            } else {
+                // Tier 1/2: Need subtitles first, then translate
+                const subtitleData = await fetchSubtitlesFromBackend(pending.videoId, config);
+
+                // Parse subtitles (simplified - actual parsing in content script)
+                const subtitles = subtitleData.segments || subtitleData.events?.map(e => ({
+                    start: e.tStartMs,
+                    end: e.tStartMs + (e.dDurationMs || 3000),
+                    text: e.segs?.map(s => s.utf8 || '').join('').trim()
+                })).filter(s => s.text) || [];
+
+                if (subtitles.length === 0) {
+                    throw new Error('No subtitles found');
+                }
+
+                const translations = await translateDirectLLM(
+                    subtitles,
+                    'auto',
+                    pending.targetLanguage,
+                    config,
+                    null
+                );
+
+                await cacheTranslation(pending.videoId, 'auto', pending.targetLanguage, translations);
+                pending.status = 'completed';
+                pending.completedAt = Date.now();
+            }
+        } catch (error) {
+            console.error(`[VideoTranslate] Queue item failed: ${pending.videoId}`, error);
+            pending.status = 'failed';
+            pending.error = error.message;
+            pending.completedAt = Date.now();
+        }
+
+        await saveQueue(queue);
+
+        // Small delay between items
+        await new Promise(r => setTimeout(r, 1000));
+    }
+
+    isProcessingQueue = false;
+}
+
+// Add queue actions to message handler - need to update the switch statement
+// This will be handled by adding cases in handleMessage
 
 console.log('[VideoTranslate] Service worker initialized');

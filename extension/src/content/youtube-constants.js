@@ -97,6 +97,17 @@ const STATUS_MESSAGES = {
         { lang: 'fr', text: 'Identification des locuteurs dans l\'audio...' },
         { lang: 'de', text: 'Sprecher im Audio werden identifiziert...' },
     ],
+    streaming: [
+        { lang: 'en', text: 'Streaming subtitles as they translate...' },
+        { lang: 'ja', text: '字幕をストリーミング翻訳しています...' },
+        { lang: 'ko', text: '자막을 스트리밍 번역하는 중...' },
+        { lang: 'zh', text: '正在流式翻译字幕...' },
+        { lang: 'es', text: 'Transmitiendo subtítulos mientras se traducen...' },
+        { lang: 'fr', text: 'Diffusion des sous-titres en cours de traduction...' },
+        { lang: 'de', text: 'Untertitel werden während der Übersetzung gestreamt...' },
+        { lang: 'pt', text: 'Transmitindo legendas enquanto são traduzidas...' },
+        { lang: 'ru', text: 'Потоковый перевод субтитров...' },
+    ],
 };
 
 // Speaker colors for diarization display

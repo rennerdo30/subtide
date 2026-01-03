@@ -90,6 +90,41 @@ let subtitleDensity = {
 };
 
 /**
+ * Manual sync offset in milliseconds (positive = subtitles appear later)
+ */
+let syncOffset = 0;
+
+/**
+ * Adjust sync offset by given amount
+ * @param {number} deltaMs - Amount to adjust in ms (positive or negative)
+ */
+function adjustSyncOffset(deltaMs) {
+    syncOffset += deltaMs;
+    console.log('[VideoTranslate] Sync offset:', syncOffset, 'ms');
+    updateSyncOffsetDisplay();
+}
+
+/**
+ * Reset sync offset to zero
+ */
+function resetSyncOffset() {
+    syncOffset = 0;
+    console.log('[VideoTranslate] Sync offset reset');
+    updateSyncOffsetDisplay();
+}
+
+/**
+ * Update the sync offset display in the UI
+ */
+function updateSyncOffsetDisplay() {
+    const display = document.querySelector('.vt-sync-display');
+    if (display) {
+        const sign = syncOffset >= 0 ? '+' : '';
+        display.textContent = `${sign}${(syncOffset / 1000).toFixed(1)}s`;
+    }
+}
+
+/**
  * Windowed subtitle access for very long videos
  */
 let subtitleWindow = {
@@ -249,6 +284,43 @@ function updateSubtitleWindow(currentIndex) {
  */
 function getActiveSubtitles() {
     return subtitleWindow.activeList || translatedSubtitles;
+}
+
+/**
+ * Update active subtitles during streaming (Tier 4)
+ * Called when new subtitle batches arrive progressively
+ * @param {Array} newSubtitles - Updated subtitle array with new entries
+ */
+function updateActiveSubtitles(newSubtitles) {
+    if (!newSubtitles || newSubtitles.length === 0) return;
+
+    // Update the window's reference to the full list
+    if (subtitleWindow.isEnabled) {
+        subtitleWindow.fullList = newSubtitles;
+
+        // Update the active window slice
+        const start = subtitleWindow.windowStart;
+        const end = Math.min(subtitleWindow.windowEnd, newSubtitles.length);
+        subtitleWindow.activeList = newSubtitles.slice(start, end);
+
+        // Extend window end if new subtitles exceed current window
+        if (newSubtitles.length > subtitleWindow.windowEnd) {
+            subtitleWindow.windowEnd = Math.min(
+                subtitleWindow.windowStart + subtitleWindow.windowSize,
+                newSubtitles.length
+            );
+            subtitleWindow.activeList = newSubtitles.slice(
+                subtitleWindow.windowStart,
+                subtitleWindow.windowEnd
+            );
+        }
+    } else {
+        // For non-windowed access, just update the reference
+        subtitleWindow.fullList = newSubtitles;
+        subtitleWindow.activeList = newSubtitles;
+    }
+
+    console.log(`[VideoTranslate] Active subtitles updated: ${newSubtitles.length} total`);
 }
 
 /**
@@ -511,6 +583,9 @@ function findSubtitleAtTime(subs, time) {
 function findSubtitleAtTimeWithTolerance(subs, time, lastIndex = -1) {
     if (!subs || subs.length === 0) return null;
 
+    // Apply manual sync offset (positive offset = subtitles appear later)
+    const adjustedTime = time - syncOffset;
+
     // Use adaptive tolerances from density analysis
     const TOLERANCE_START = subtitleDensity.toleranceStart;
     const TOLERANCE_END = subtitleDensity.toleranceEnd;
@@ -521,14 +596,14 @@ function findSubtitleAtTimeWithTolerance(subs, time, lastIndex = -1) {
     if (lastIndex >= 0 && lastIndex < subs.length) {
         const current = subs[lastIndex];
         // Add tolerance to end time to prevent premature switching
-        if (time >= current.start - TOLERANCE_START && time <= current.end + TOLERANCE_END) {
+        if (adjustedTime >= current.start - TOLERANCE_START && adjustedTime <= current.end + TOLERANCE_END) {
             return current;
         }
 
         // Check the next subtitle (common case during playback)
         if (lastIndex + 1 < subs.length) {
             const next = subs[lastIndex + 1];
-            if (time >= next.start - TOLERANCE_START && time <= next.end + TOLERANCE_END) {
+            if (adjustedTime >= next.start - TOLERANCE_START && adjustedTime <= next.end + TOLERANCE_END) {
                 return next;
             }
         }
@@ -536,7 +611,7 @@ function findSubtitleAtTimeWithTolerance(subs, time, lastIndex = -1) {
         // Check previous subtitle (for small backwards jumps)
         if (lastIndex > 0) {
             const prev = subs[lastIndex - 1];
-            if (time >= prev.start - TOLERANCE_START && time <= prev.end + TOLERANCE_END) {
+            if (adjustedTime >= prev.start - TOLERANCE_START && adjustedTime <= prev.end + TOLERANCE_END) {
                 return prev;
             }
         }
@@ -552,10 +627,10 @@ function findSubtitleAtTimeWithTolerance(subs, time, lastIndex = -1) {
         const sub = subs[mid];
 
         // Check with tolerance
-        if (time >= sub.start - TOLERANCE_START && time <= sub.end + TOLERANCE_END) {
+        if (adjustedTime >= sub.start - TOLERANCE_START && adjustedTime <= sub.end + TOLERANCE_END) {
             result = sub;
             break;
-        } else if (time < sub.start - TOLERANCE_START) {
+        } else if (adjustedTime < sub.start - TOLERANCE_START) {
             right = mid - 1;
         } else {
             left = mid + 1;
@@ -567,12 +642,12 @@ function findSubtitleAtTimeWithTolerance(subs, time, lastIndex = -1) {
         const nextSub = subs[left];
         // If we're within lookahead range of the next subtitle, wait (don't return null)
         // This prevents gaps from flickering the subtitle display
-        if (nextSub.start - time <= LOOKAHEAD && nextSub.start - time > 0) {
+        if (nextSub.start - adjustedTime <= LOOKAHEAD && nextSub.start - adjustedTime > 0) {
             // We're in a small gap, keep showing the previous subtitle if it exists
             if (left > 0) {
                 const prevSub = subs[left - 1];
                 // Only keep previous if the gap isn't too large (use adaptive gap bridge)
-                if (time - prevSub.end <= GAP_BRIDGE) {
+                if (adjustedTime - prevSub.end <= GAP_BRIDGE) {
                     return prevSub;
                 }
             }

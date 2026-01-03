@@ -93,17 +93,21 @@ def test_run_whisper_process_long_segment_split(mock_get_whisper_model, mock_vad
     """Test that segments exceeding MAX_SUBTITLE_WORDS are split."""
     mock_model = mock_get_whisper_model.return_value
     
-    # Create a segment with 20 words (exceeds default MAX_SUBTITLE_WORDS=15)
-    words = [{'word': f' word{i}', 'start': i * 0.5, 'end': (i + 1) * 0.5} for i in range(20)]
+    # Create a segment with 20 unique words (exceeds default MAX_SUBTITLE_WORDS=15)
+    # Use different base names to avoid triggering hallucination filter
+    unique_words = ['alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta',
+                    'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi', 'omicron', 'pi',
+                    'rho', 'sigma', 'tau', 'upsilon']
+    words = [{'word': f' {unique_words[i]}', 'start': i * 0.5, 'end': (i + 1) * 0.5} for i in range(20)]
     
     mock_model.transcribe.return_value = {
         'segments': [{
             'start': 0.0, 
             'end': 10.0, 
-            'text': ' '.join([w['word'].strip() for w in words]),
+            'text': ' '.join(unique_words),
             'words': words
         }],
-        'text': ' '.join([w['word'].strip() for w in words]),
+        'text': ' '.join(unique_words),
         'language': 'en'
     }
     
@@ -116,10 +120,12 @@ def test_run_whisper_process_long_segment_split(mock_get_whisper_model, mock_vad
         (TurnA, None, "SPEAKER_A")
     ]
     
+    # Patch filter_hallucinations to return input unchanged (test focuses on segment splitting)
     with patch('backend.services.whisper_service.get_whisper_backend', return_value='openai-whisper'), \
          patch('backend.services.whisper_service.get_diarization_pipeline', return_value=mock_pipeline), \
          patch('backend.services.whisper_service.ENABLE_WHISPER', True), \
          patch('backend.services.whisper_service.ENABLE_DIARIZATION', True), \
+         patch('backend.services.whisper_service.filter_hallucinations', side_effect=lambda x: x), \
          patch('os.path.exists', return_value=True), \
          patch('subprocess.run'):
         

@@ -78,6 +78,24 @@
   - Added windowed access for very long videos (1000+ subtitles) with 200-subtitle sliding window
 - **Impact**: Smoother, more accurate subtitle synchronization that stays in sync during buffering and playback speed changes
 
+### Translation Accuracy Improvements
+- **Issue**: Translations sometimes failed, unchanged text returned as "translated"
+- **Fix**: Multiple accuracy improvements:
+  - Language detection pre-check (skips translation when source = target)
+  - Context window optimization (includes prev/next subtitle for coherence)
+  - Sentence boundary detection (merges partial sentences before translation)
+  - Translation retry logic with stronger prompt on failure
+  - Optional multi-pass refinement for better naturalness
+- **Impact**: Significantly improved translation quality and reduced API costs
+
+### Whisper Transcription Accuracy
+- **Issue**: Whisper missing segments, producing hallucinations
+- **Fix**: Added:
+  - Configurable thresholds (no_speech, compression, logprob)
+  - Initial prompt injection (video title for proper nouns)
+  - Hallucination filtering (removes repeated patterns)
+- **Impact**: More complete and accurate transcriptions
+
 
 ## Known Limitations ⚠️
 
@@ -88,7 +106,10 @@
 
 ### Whisper Transcription Time
 - **Issue**: First-time Whisper transcription can take 2-5 minutes for long videos
-- **Mitigation**: Results are cached after first transcription
+- **Mitigation**: 
+  - Results are cached after first transcription
+  - **Tier 4 Streaming**: Subtitles appear within 10-20 seconds while transcription continues
+  - Uses subprocess-based Whisper runner that parses output in real-time
 
 ### Tier 3 Requires Server Configuration
 - **Issue**: Tier 3 (managed service) requires `SERVER_API_KEY` environment variable
@@ -98,6 +119,14 @@
 - **Issue**: Users needed control over subtitle appearance
 - **Fix**: Added full customization support for Font Size, Position, Background opacity, and Text Color in the popup UI
 
+## Known Issues 🐛
+
+### yt-dlp Format Not Available
+- **Issue**: Some videos fail with "Requested format is not available"
+- **Cause**: yt-dlp format selector is too strict for some videos
+- **Workaround**: Update yt-dlp (`pip install -U yt-dlp`) or try a different video
+- **Status**: Investigating fallback format selection
+
 ## Future Enhancements 🔮
 
 ### User Authentication
@@ -105,12 +134,11 @@
 - JWT-based auth between extension and backend
 
 ### Streaming Translation
-- Stream translations as they're generated
-- Show incremental progress in UI
+- ✅ Implemented in Tier 4
 
 ### Multiple Video Platform Support
 - Add support for Twitch, Vimeo, other video platforms
 - Abstract video detection and UI injection
 
 ---
-*Last updated: 2026-01-01*
+*Last updated: 2026-01-03*

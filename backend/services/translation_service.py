@@ -95,9 +95,19 @@ def parse_vtt_to_json3(vtt_content: str) -> Dict[str, Any]:
 def await_translate_subtitles(
     subtitles: List[Dict[str, Any]],
     target_lang: str,
-    progress_callback: Optional[Callable[[int, int, int, str], None]] = None
+    progress_callback: Optional[Callable[[int, int, int, str], None]] = None,
+    batch_result_callback: Optional[Callable[[int, int, List[Dict[str, Any]]], None]] = None
 ) -> List[Dict[str, Any]]:
-    """Translate subtitles using LLM with parallel batching, rate limit handling, and retry."""
+    """
+    Translate subtitles using LLM with parallel batching, rate limit handling, and retry.
+
+    Args:
+        subtitles: List of subtitle dicts with 'text' field
+        target_lang: Target language code
+        progress_callback: Called with (completed_batches, total_batches, percent, eta_str)
+        batch_result_callback: Called with (batch_index, total_batches, translated_batch)
+                               when each batch completes - enables streaming results
+    """
 
     # Configuration constants with documented rationale
     # -------------------------------------------------------------------------
@@ -262,8 +272,27 @@ Remember: Output MUST be in {t_name} only."""
                 completed_batches[0] += 1
                 batch_times.append(duration)
 
-                if not success or len(translations) < len(batches[batch_idx // BATCH_SIZE][1]) * 0.8:
+                batch_data = batches[batch_idx // BATCH_SIZE][1]
+
+                if not success or len(translations) < len(batch_data) * 0.8:
                     failed_batches.append(batches[batch_idx // BATCH_SIZE])
+                else:
+                    # Apply translations immediately for streaming
+                    padded_translations = translations[:]
+                    while len(padded_translations) < len(batch_data):
+                        padded_translations.append('')
+                    padded_translations = padded_translations[:len(batch_data)]
+
+                    for i, sub in enumerate(batch_data):
+                        sub['translatedText'] = padded_translations[i]
+
+                    # Stream the translated batch immediately
+                    if batch_result_callback:
+                        batch_result_callback(
+                            completed_batches[0],  # 1-indexed batch number
+                            total_batches,
+                            batch_data  # Already has translatedText applied
+                        )
 
                 # Calculate ETA
                 remaining_batches = total_batches - completed_batches[0]
@@ -293,7 +322,8 @@ Remember: Output MUST be in {t_name} only."""
         retry_results, failed_batches = process_batches(failed_batches, retry_round + 2)
         results.update(retry_results)
 
-    # Apply translations
+    # Apply translations for batches that weren't streamed
+    # (retried batches or when batch_result_callback is not provided)
     for batch_idx, batch in batches:
         translations = results.get(batch_idx, [])
         while len(translations) < len(batch):
@@ -301,7 +331,9 @@ Remember: Output MUST be in {t_name} only."""
         translations = translations[:len(batch)]
 
         for i, sub in enumerate(batch):
-            sub['translatedText'] = translations[i]
+            # Only apply if not already set (streaming mode sets it inline)
+            if not sub.get('translatedText'):
+                sub['translatedText'] = translations[i]
 
     # Save stats
     if batch_times:

@@ -3,7 +3,7 @@ import json
 from backend.config import (
     SERVER_API_KEY, SERVER_MODEL, SERVER_API_URL, LANG_NAMES
 )
-from backend.services.process_service import process_video_logic
+from backend.services.process_service import process_video_logic, stream_video_logic
 from backend.services.translation_service import translate_subtitles_simple
 from backend.utils.model_utils import get_model_context_size
 import logging
@@ -137,3 +137,35 @@ def process_video():
         if error:
             return jsonify({'error': error}), 500
         return jsonify(result)
+
+
+@translation_bp.route('/api/stream', methods=['POST'])
+def stream_video():
+    """
+    Tier 4 streaming endpoint: fetch subtitles + translate with progressive streaming.
+    Streams translated subtitle batches as they complete translation.
+    Returns Server-Sent Events with subtitle data in each batch.
+    """
+    data = request.json or {}
+    video_id = data.get('video_id')
+    target_lang = data.get('target_lang', 'en')
+    force_whisper = data.get('force_whisper', False)
+
+    if not video_id:
+        return jsonify({'error': 'video_id is required'}), 400
+
+    # Tier 4 requires server API key
+    if not SERVER_API_KEY:
+        return jsonify({
+            'error': 'Tier 4 is not configured on this server',
+            'details': 'SERVER_API_KEY environment variable not set'
+        }), 503
+
+    try:
+        generator = stream_video_logic(video_id, target_lang, force_whisper)
+    except Exception as e:
+        logger.exception("Failed to start streaming")
+        return jsonify({'error': str(e)}), 500
+
+    # Always return SSE for streaming endpoint
+    return Response(generator, mimetype='text/event-stream')

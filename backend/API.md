@@ -36,16 +36,53 @@ cd backend
 `POST /api/process`
 - **Purpose**: Combined workflow (fetch/transcribe → translate).
 - **Tiers**: Tier 3 only.
-- **Body**: `{ "video_ids": "...", "target_lang": "...", "force_whisper": false }`
+- **Body**: `{ "video_id": "...", "target_lang": "...", "force_whisper": false }`
 - **Returns**: Server-Sent Events (SSE) stream for real-time progress, followed by final result.
 
-### 5. Manual Translation
+### 5. Progressive Streaming Translation (SSE)
+`POST /api/stream`
+- **Purpose**: Combined workflow with progressive subtitle delivery.
+- **Tiers**: Tier 4 only.
+- **Body**: `{ "video_id": "...", "target_lang": "...", "force_whisper": false }`
+- **Returns**: SSE stream with subtitle batches delivered as they complete.
+
+**Key Difference from `/api/process`**: Instead of waiting for all translations to complete, each batch of subtitles (~25) is streamed immediately when ready. This provides:
+- First subtitles visible in 3-5 seconds
+- Continuous updates as more batches complete
+- Same final result, much faster perceived performance
+
+**SSE Event Types**:
+```
+stage: "checking"    → Checking available subtitles
+stage: "downloading" → Fetching subtitles/transcribing
+stage: "translating" → Translation in progress (no subtitles yet)
+stage: "subtitles"   → Batch ready! Includes subtitle data
+stage: "complete"    → All done
+```
+
+**Subtitle Event Example**:
+```json
+{
+  "stage": "subtitles",
+  "message": "Batch 3/10 ready",
+  "percent": 67,
+  "step": 3,
+  "totalSteps": 4,
+  "batchInfo": {"current": 3, "total": 10},
+  "subtitles": [
+    {"start": 50000, "end": 52500, "text": "Hello", "translatedText": "こんにちは"},
+    {"start": 52500, "end": 55000, "text": "World", "translatedText": "世界"}
+  ]
+}
+```
+
+### 6. Manual Translation
 `POST /api/translate`
 - **Purpose**: Translate provided subtitles using a custom API key.
 - **Tiers**: Tier 1, 2.
 - **Body**: `{ "subtitles": [...], "api_key": "...", "model": "...", "target_lang": "..." }`
 
-### 6. Model Info
+### 7. Model Info
 `GET /api/model-info`
 - **Purpose**: Get context window limits for the server's configured model.
 - **Tiers**: Tier 3.

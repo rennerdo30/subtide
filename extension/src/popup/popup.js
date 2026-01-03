@@ -25,6 +25,12 @@ const elements = {
     apiUrlGroup: document.getElementById('apiUrlGroup'),
     backendUrl: document.getElementById('backendUrl'),
     liveTranslateBtn: document.getElementById('liveTranslateBtn'),
+    // Queue elements
+    queuePending: document.getElementById('queuePending'),
+    queueProcessing: document.getElementById('queueProcessing'),
+    queueCompleted: document.getElementById('queueCompleted'),
+    queueList: document.getElementById('queueList'),
+    clearQueueBtn: document.getElementById('clearQueueBtn'),
 };
 
 let isLiveTranslating = false;
@@ -35,6 +41,7 @@ const TIER_HINTS_KEYS = {
     tier1: 'tierHint1',
     tier2: 'tierHint2',
     tier3: 'tierHint3',
+    tier4: 'tierHint4',
 };
 
 /**
@@ -55,8 +62,14 @@ async function init() {
     // Load cache stats
     await loadCacheStats();
 
+    // Load queue
+    await loadQueue();
+
     // Setup event listeners
     setupEventListeners();
+
+    // Refresh queue periodically
+    setInterval(loadQueue, 3000);
 }
 
 /**
@@ -184,6 +197,9 @@ function setupEventListeners() {
     // Clear cache
     elements.clearCache.addEventListener('click', clearCache);
 
+    // Clear completed queue
+    elements.clearQueueBtn.addEventListener('click', clearCompletedQueue);
+
     // Auto-save on Enter key
     [elements.apiUrl, elements.apiKey, elements.model].forEach(input => {
         input.addEventListener('keypress', (e) => {
@@ -207,7 +223,7 @@ function setupEventListeners() {
     elements.liveTranslateBtn.addEventListener('click', async () => {
         try {
             updateLiveButtonState('loading');
-            
+
             if (!isLiveTranslating) {
                 // Start
                 // We need to send the message to the background script, 
@@ -217,7 +233,7 @@ function setupEventListeners() {
                     action: 'startLiveTranslate',
                     targetLanguage: elements.defaultLanguage.value
                 });
-                
+
                 if (!response.success) throw new Error(response.error);
                 isLiveTranslating = true;
                 updateLiveButtonState('active');
@@ -232,7 +248,7 @@ function setupEventListeners() {
             console.error('[VideoTranslate] Live toggle failed:', error);
             isLiveTranslating = false;
             updateLiveButtonState('inactive');
-            
+
             // Show user friendly error
             let errorMsg = error.message;
             if (errorMsg.includes('Extension has not been invoked')) {
@@ -255,6 +271,66 @@ async function checkLiveStatus() {
         updateLiveButtonState(isLiveTranslating ? 'active' : 'inactive');
     } catch (e) {
         console.log("Could not check live status", e);
+    }
+}
+
+/**
+ * Load and render queue
+ */
+async function loadQueue() {
+    try {
+        const response = await sendMessage({ action: 'getQueue' });
+        const queue = response.queue || [];
+
+        // Update counts
+        const pending = queue.filter(i => i.status === 'pending').length;
+        const processing = queue.filter(i => i.status === 'processing').length;
+        const completed = queue.filter(i => i.status === 'completed' || i.status === 'failed').length;
+
+        elements.queuePending.textContent = `${pending} pending`;
+        elements.queueProcessing.textContent = `${processing} processing`;
+        elements.queueCompleted.textContent = `${completed} done`;
+
+        // Render list
+        if (queue.length === 0) {
+            elements.queueList.innerHTML = '<div class="queue-empty">No videos in queue</div>';
+        } else {
+            elements.queueList.innerHTML = queue.map(item => `
+                <div class="queue-item" data-id="${item.id}">
+                    <div class="queue-item-status ${item.status}"></div>
+                    <div class="queue-item-title" title="${item.title}">${item.title}</div>
+                    <button class="queue-item-remove" data-id="${item.id}" title="Remove">
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            `).join('');
+
+            // Add remove listeners
+            elements.queueList.querySelectorAll('.queue-item-remove').forEach(btn => {
+                btn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    const itemId = btn.dataset.id;
+                    await sendMessage({ action: 'removeFromQueue', itemId });
+                    loadQueue();
+                });
+            });
+        }
+    } catch (error) {
+        console.error('[VideoTranslate] Failed to load queue:', error);
+    }
+}
+
+/**
+ * Clear completed queue items
+ */
+async function clearCompletedQueue() {
+    try {
+        await sendMessage({ action: 'clearCompletedQueue' });
+        loadQueue();
+    } catch (error) {
+        console.error('[VideoTranslate] Failed to clear queue:', error);
     }
 }
 
@@ -312,8 +388,8 @@ function updateUIForTier(tier) {
         elements.tierHint.textContent = chrome.i18n.getMessage(hintKey);
     }
 
-    if (tier === 'tier3') {
-        // Pro tier: Hide API config, it's managed
+    if (tier === 'tier3' || tier === 'tier4') {
+        // Pro/Stream tier: Hide API config, it's managed
         elements.apiConfigSection.classList.add('disabled-section');
         elements.apiKey.disabled = true;
         elements.apiUrl.disabled = true;
