@@ -102,6 +102,38 @@ Build directly from your Git repository without managing Docker registries.
 
 ---
 
+### Option 4: RunPod Hub (One-Click Deploy)
+
+We have configured this repository for the RunPod Hub! You can deploy it directly from the community validation queue once published.
+
+1. **Configuration**: Uses `.runpod/hub.json` to define valid environment variables and hardware requirements.
+2. **Tests**: Uses `.runpod/tests.json` for automated validation.
+3. **Deploy from Hub**:
+   - Go to RunPod Hub.
+   - Search for "Video Translate".
+   - Click "Deploy".
+
+If you are maintaining your own fork:
+1. Create a release in GitHub.
+2. Submit your repo to RunPod Hub.
+
+---
+
+### Option 5: RunPod Projects (CLI / Dockerless)
+
+For rapid development without managing Dockerfiles manually, use the [RunPod CLI](https://docs.runpod.io/serverless/utils/rp-cli) with the included `runpod.toml`.
+
+1. Install `runpodctl`.
+2. Run from the repo root:
+   ```bash
+   runpodctl project create
+   # or
+   runpodctl project deploy
+   ```
+3. The configurations in `runpod.toml` (handler path, requirements, GPU type) are applied automatically.
+
+---
+
 ## 🏗 Building Your Own Image
 
 If you want to modify the backend and deploy your own version:

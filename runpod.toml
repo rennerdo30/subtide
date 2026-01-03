@@ -1,0 +1,22 @@
+[project]
+name = "video-translate-backend"
+base_image = "runpod/base:0.4.0-cuda11.8.0"
+
+[runtime]
+handler = "backend.runpod_handler.handler"
+gpu_count = 1
+gpu_type_id = "NVIDIA GeForce RTX 4090"
+
+[env]
+PLATFORM = "runpod"
+WHISPER_BACKEND = "faster-whisper"
+DIARIZATION_BACKEND = "nemo"
+ENABLE_WHISPER = "true"
+WHISPER_MODEL = "base"
+CUDA_VISIBLE_DEVICES = "0"
+
+[build]
+# Dockerless build configuration
+# Assuming RunPod will use this to install dependencies
+builder = "pip"
+requirements = "backend/requirements.txt"
