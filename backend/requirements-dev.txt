@@ -5,6 +5,7 @@ pytest
 pytest-mock
 pytest-cov
 pytest-asyncio
+pytest-benchmark
 
 # Code quality
 flake8
