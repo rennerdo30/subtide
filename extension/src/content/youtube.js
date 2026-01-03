@@ -82,14 +82,31 @@ function onNavigate() {
 }
 
 /**
- * Check if on video page
+ * Check if on video page (Watch page or Embed)
  */
 function checkForVideo() {
-    const videoId = new URL(location.href).searchParams.get('v');
+    let videoId = null;
+    const url = new URL(location.href);
+
+    // Case 1: Standard Watch Page (v param)
+    if (url.searchParams.has('v')) {
+        videoId = url.searchParams.get('v');
+    }
+    // Case 2: Embed (pathname)
+    else if (url.pathname.startsWith('/embed/')) {
+        videoId = url.pathname.split('/embed/')[1];
+        // Remove any further path segments or params if needed (usually just ID)
+        if (videoId && videoId.includes('/')) {
+            videoId = videoId.split('/')[0];
+        }
+        if (videoId && videoId.includes('?')) {
+            videoId = videoId.split('?')[0];
+        }
+    }
 
     if (videoId && videoId !== currentVideoId) {
         currentVideoId = videoId;
-        console.log('[VideoTranslate] Video:', videoId);
+        console.log('[VideoTranslate] Video detected:', videoId, '(isEmbed:', url.pathname.startsWith('/embed/'), ')');
         setupPage(videoId);
     }
 }
