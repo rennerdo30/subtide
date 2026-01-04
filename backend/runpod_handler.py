@@ -14,18 +14,36 @@ import logging
 import traceback
 from typing import Dict, Any, Optional
 
-# Configure logging
+# Configure logging for RunPod visibility
+# Force unbuffered output for real-time logs
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout,
 )
 logger = logging.getLogger(__name__)
 
 # Set platform to runpod
 os.environ['PLATFORM'] = 'runpod'
 
-# Add app directory to path
+# Add app directory to path for imports
 sys.path.insert(0, '/app')
+
+
+def log_info(msg: str):
+    """Log info with both logger and print for RunPod visibility."""
+    logger.info(msg)
+    print(f"[INFO] {msg}", flush=True)
+
+
+def log_error(msg: str, exc: Exception = None):
+    """Log error with both logger and print for RunPod visibility."""
+    logger.error(msg)
+    print(f"[ERROR] {msg}", flush=True)
+    if exc:
+        tb = traceback.format_exc()
+        logger.error(tb)
+        print(f"[TRACEBACK] {tb}", flush=True)
 
 
 def initialize_models():
@@ -33,27 +51,26 @@ def initialize_models():
     Pre-load models to reduce cold start time.
     Called once when the worker starts.
     """
-    logger.info("Initializing models...")
+    log_info("Initializing models...")
     start_time = time.time()
 
     try:
         # Load Whisper backend
-        from services.whisper_backend_base import get_whisper_backend
+        from backend.services.whisper_backend_base import get_whisper_backend
         whisper = get_whisper_backend()
-        logger.info(f"Whisper backend: {whisper.get_backend_name()} on {whisper.get_device()}")
+        log_info(f"Whisper backend: {whisper.get_backend_name()} on {whisper.get_device()}")
 
         # Load diarization backend
-        from services.diarization import get_diarization_backend
+        from backend.services.diarization import get_diarization_backend
         if os.getenv('ENABLE_DIARIZATION', 'true').lower() == 'true':
             diarization = get_diarization_backend()
-            logger.info(f"Diarization backend: {diarization.get_backend_name()} on {diarization.get_device()}")
+            log_info(f"Diarization backend: {diarization.get_backend_name()} on {diarization.get_device()}")
 
         elapsed = time.time() - start_time
-        logger.info(f"Models initialized in {elapsed:.2f}s")
+        log_info(f"Models initialized in {elapsed:.2f}s")
 
     except Exception as e:
-        logger.error(f"Model initialization failed: {e}")
-        logger.error(traceback.format_exc())
+        log_error(f"Model initialization failed: {e}", e)
 
 
 def download_audio(video_id: str) -> str:
@@ -63,11 +80,11 @@ def download_audio(video_id: str) -> str:
     Returns:
         Path to downloaded audio file
     """
-    from services.youtube_service import download_audio as yt_download
+    from backend.services.youtube_service import download_audio as yt_download
 
-    logger.info(f"Downloading audio for video: {video_id}")
+    log_info(f"Downloading audio for video: {video_id}")
     audio_path = yt_download(video_id)
-    logger.info(f"Audio downloaded: {audio_path}")
+    log_info(f"Audio downloaded: {audio_path}")
 
     return audio_path
 
@@ -370,7 +387,7 @@ if __name__ == "__main__":
         # Start the serverless handler
         # "return_aggregate_stream": True ensures RunPod collects chunks if client doesn't support streaming
         # But for our SSE client, we want real streaming.
-        logger.info("Starting RunPod serverless handler...")
+        log_info("Starting RunPod serverless handler...")
         runpod.serverless.start({"handler": handler, "return_aggregate_stream": False})
 
     except ImportError:

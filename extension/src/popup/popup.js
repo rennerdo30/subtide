@@ -105,14 +105,8 @@ async function checkBackendStatus() {
     elements.backendWarning.style.display = 'none';
 
     let backendUrl = elements.backendUrl?.value?.trim() || 'http://localhost:5001';
-
-    // Auto-correct common RunPod URL mistakes
-    // Mistake: https://{id}.api.runpod.ai -> https://api.runpod.ai/v2/{id}
-    const runpodSubdomainMatch = backendUrl.match(/^https?:\/\/([a-zA-Z0-9]+)\.api\.runpod\.ai\/?$/);
-    if (runpodSubdomainMatch) {
-        backendUrl = `https://api.runpod.ai/v2/${runpodSubdomainMatch[1]}`;
-        elements.backendUrl.value = backendUrl; // Update UI
-    }
+    // Remove trailing slash for consistency
+    backendUrl = backendUrl.replace(/\/+$/, '');
 
     const apiKey = elements.backendApiKey?.value?.trim();
 
@@ -122,18 +116,24 @@ async function checkBackendStatus() {
             headers['Authorization'] = `Bearer ${apiKey}`;
         }
 
+        console.log('[VideoTranslate] Health check:', `${backendUrl}/health`);
+
         const response = await fetch(`${backendUrl}/health`, {
             method: 'GET',
             headers: headers,
-            signal: AbortSignal.timeout(10000) // Increased timeout for cold starts
+            signal: AbortSignal.timeout(15000) // 15s timeout for cold starts
         });
+
+        console.log('[VideoTranslate] Health response:', response.status);
 
         if (response.ok) {
             const data = await response.json();
+            console.log('[VideoTranslate] Health data:', data);
 
             // Check for Flask response OR RunPod Serverless response
-            // RunPod /health returns { "jobs": {...}, "workers": {...} }
-            if (data.status === 'ok' || data.workers || data.jobs) {
+            // Flask: { "status": "ok" }
+            // RunPod Serverless: { "jobs": {...}, "workers": {...} }
+            if (data.status === 'ok' || data.workers !== undefined || data.jobs !== undefined) {
                 statusText.textContent = chrome.i18n.getMessage('statusConnected');
                 statusDot.style.background = 'var(--success)';
                 statusDot.style.boxShadow = '0 0 8px var(--success)';
@@ -141,11 +141,9 @@ async function checkBackendStatus() {
                 return;
             }
         }
-        throw new Error('Invalid response');
+        throw new Error(`HTTP ${response.status}`);
     } catch (e) {
-        // If it fails, check if it might be a valid RunPod endpoint that just behaves differently
-        // But for now, show offline.
-        console.warn("Backend check failed:", e);
+        console.warn("[VideoTranslate] Backend check failed:", e);
 
         statusText.textContent = chrome.i18n.getMessage('statusOffline');
         statusDot.style.background = 'var(--error)';
@@ -540,11 +538,16 @@ async function clearCache() {
 }
 
 /**
- * Send message to background script
+ * Send message to background script with timeout
  */
-function sendMessage(message) {
+function sendMessage(message, timeoutMs = 10000) {
     return new Promise((resolve, reject) => {
+        const timeoutId = setTimeout(() => {
+            reject(new Error('Service worker timeout - please try again'));
+        }, timeoutMs);
+
         chrome.runtime.sendMessage(message, (response) => {
+            clearTimeout(timeoutId);
             if (chrome.runtime.lastError) {
                 reject(new Error(chrome.runtime.lastError.message));
             } else {

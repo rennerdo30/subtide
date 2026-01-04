@@ -771,16 +771,25 @@ function parseSSEBuffer(buffer) {
  * Uses Server-Sent Events for progress updates with robust parsing
  */
 async function processVideoTier3(videoId, targetLanguage, config, onProgress, tabId) {
-    const { backendUrl, forceGen } = config;
-    const isRunPod = backendUrl.includes('api.runpod.ai');
+    let { backendUrl, forceGen, backendApiKey } = config;
+
+    // Normalize URL: remove trailing slashes
+    backendUrl = backendUrl.replace(/\/+$/, '');
+
+    // Detect RunPod deployment type:
+    // 1. Serverless: api.runpod.ai/v2/{id} -> uses /runsync + {"input": {...}}
+    // 2. Load Balancing: {id}.api.runpod.ai -> uses custom Flask app at /api/process
+    const isRunPodServerless = backendUrl.includes('api.runpod.ai/v2/');
+    const isRunPodLoadBalancer = backendUrl.match(/^https?:\/\/[a-zA-Z0-9]+\.api\.runpod\.ai/);
+    const isRunPod = isRunPodServerless || isRunPodLoadBalancer;
 
     return new Promise((resolve, reject) => {
         let url;
         let body;
 
-        // RunPod Serverless Configuration
-        if (isRunPod) {
-            url = `${backendUrl}/runsync`; // Use runsync for blocking response
+        if (isRunPodServerless) {
+            // RunPod Serverless: /runsync with input wrapper
+            url = `${backendUrl}/runsync`;
             body = JSON.stringify({
                 input: {
                     video_id: videoId,
@@ -789,7 +798,7 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
                 }
             });
         } else {
-            // Custom Flask Backend
+            // Flask Backend (including RunPod Load Balancing)
             url = `${backendUrl}/api/process`;
             body = JSON.stringify({
                 video_id: videoId,
@@ -819,7 +828,9 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
         }
 
         console.log('[VideoTranslate] POST Tier 3:', url);
-        console.log('[VideoTranslate] Headers:', JSON.stringify(fetchHeaders, null, 2).replace(config.backendApiKey, '***'));
+        console.log('[VideoTranslate] isRunPod:', isRunPod, 'isRunPodServerless:', isRunPodServerless, 'isRunPodLoadBalancer:', !!isRunPodLoadBalancer);
+        console.log('[VideoTranslate] backendApiKey present:', !!config.backendApiKey);
+        console.log('[VideoTranslate] Headers:', JSON.stringify(fetchHeaders, null, 2).replace(config.backendApiKey || 'NO_KEY', '***'));
 
         fetch(url, {
             method: 'POST',

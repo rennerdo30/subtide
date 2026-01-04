@@ -67,8 +67,13 @@ RUN uv pip install --system --no-cache -r requirements.txt
 # ============================================================================
 FROM dependencies AS production
 
-# Copy application code
-COPY backend/ .
+# Copy application code to /app/backend/ to match import structure
+COPY backend/ /app/backend/
+
+# Set PYTHONPATH so "from backend.*" imports work
+ENV PYTHONPATH=/app
+
+WORKDIR /app/backend
 
 # Create cache directories
 RUN mkdir -p /app/cache \
@@ -114,8 +119,13 @@ CMD ["gunicorn", \
 # ============================================================================
 FROM dependencies AS serverless
 
-# Copy application code
-COPY backend/ .
+# Copy application code to /app/backend/ to match import structure
+COPY backend/ /app/backend/
+
+# Set PYTHONPATH so "from backend.*" imports work
+ENV PYTHONPATH=/app
+
+WORKDIR /app/backend
 
 # Create cache directories
 RUN mkdir -p /app/cache \
