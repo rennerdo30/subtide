@@ -1101,7 +1101,14 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
         language = result.get("language", "en")
 
     # VAD Filtering - remove hallucinated segments in silence
-    if ENABLE_VAD:
+    # NOTE: faster-whisper already does this with vad_filter=True
+    # We only need this manual pass for openai-whisper or mlx-whisper (if they don't have it built-in)
+    should_run_vad = ENABLE_VAD
+    if backend == "faster-whisper":
+        should_run_vad = False
+        logger.info("Skipping manual VAD (faster-whisper handles it internally)")
+
+    if should_run_vad:
         speech_timestamps = get_speech_timestamps(audio_file, progress_callback)
         if speech_timestamps:
             segments = filter_segments_by_vad(segments, speech_timestamps)
