@@ -160,7 +160,7 @@ The provided `Dockerfile` in the root is optimized for both use cases.
 
 ### "Pod could not be created for tests" (Hub Validation)
 - This means the requested GPU (likely RTX 4090) is unavailable in the test pool.
-- Edit `.runpod/tests.json` and change `gpuTypeId` to a more available model like `NVIDIA RTX A4500` or `NVIDIA RTX A4000`.
+- Edit `.runpod/tests.json` and change `gpuTypeId` to a more available model like `NVIDIA RTX 4000 Ada Generation`, `NVIDIA RTX A4500`, or `NVIDIA RTX A4000`.
 - You can also empty the `tests` list in `.runpod/tests.json` to skip functional validation if resource availability is blocking deployment.
 
 ### "Connection Refused" (Dedicated Pod)
