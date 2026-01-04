@@ -150,8 +150,12 @@ jobs:
           name: ${{ matrix.asset_name }}
           path: backend/dist/${{ matrix.asset_name }}
 
-  # Build Docker Images for RunPod and standard deployment
-  build-docker:
+  # ============================================================================
+  # Docker Build Jobs (Split to avoid disk space exhaustion)
+  # ============================================================================
+
+  # 1. Standard Backend Image
+  build-docker-standard:
     needs: [test-backend]
     runs-on: ubuntu-latest
     env:
@@ -186,30 +190,17 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
         continue-on-error: true
 
-      - name: Extract metadata for Docker
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: |
-            ghcr.io/${{ github.repository }}-backend
+          images: ghcr.io/${{ github.repository }}-backend
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest,enable={{is_default_branch}}
 
-      - name: Extract metadata for RunPod Docker
-        id: meta-runpod
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            ghcr.io/${{ github.repository }}-runpod
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      # Build standard backend Docker image
-      - name: Build and push standard backend image
+      - name: Build and push standard image
         uses: docker/build-push-action@v5
         with:
           context: ./backend
@@ -222,8 +213,45 @@ jobs:
           cache-to: type=gha,mode=max,compression=zstd
           platforms: linux/amd64
 
-      # Build RunPod serverless Docker image (Uses root context)
-      - name: Build and push RunPod serverless image
+  # 2. RunPod Serverless Image (The specific one failing)
+  build-docker-runpod-serverless:
+    needs: [test-backend]
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          overprovision-lvm: 'true'
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta-runpod
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-runpod
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push serverless image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -236,8 +264,35 @@ jobs:
           cache-to: type=gha,mode=max,compression=zstd
           platforms: linux/amd64
 
-      # Build RunPod production Docker image (for dedicated pods)
-      - name: Build and push RunPod production image
+  # 3. RunPod Dedicated Image
+  build-docker-runpod-dedicated:
+    needs: [test-backend]
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    steps:
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          overprovision-lvm: 'true'
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push dedicated image
         uses: docker/build-push-action@v5
         with:
           context: .
@@ -253,7 +308,7 @@ jobs:
 
   # Create Release with all artifacts
   release:
-    needs: [package-extension, build-backend, build-docker]
+    needs: [package-extension, build-backend, build-docker-standard, build-docker-runpod-serverless, build-docker-runpod-dedicated]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
