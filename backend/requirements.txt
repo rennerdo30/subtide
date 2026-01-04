@@ -30,3 +30,4 @@ torch
 torchaudio
 openai-whisper
 pyannote.audio
+numba>=0.57.0
