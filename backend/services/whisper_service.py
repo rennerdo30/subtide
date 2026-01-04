@@ -94,6 +94,7 @@ from backend.config import (
     WHISPER_COMPRESSION_RATIO_THRESHOLD,
     WHISPER_LOGPROB_THRESHOLD,
     WHISPER_CONDITION_ON_PREVIOUS,
+    WHISPER_BEAM_SIZE,
 )
 from backend.utils.logging_utils import log_stage
 
@@ -169,6 +170,21 @@ def get_vad_model():
             )
             _vad_model = model
             _vad_utils = utils  # Contains get_speech_timestamps, read_audio, etc.
+            
+            # Move VAD to GPU if available for performance
+            if torch.cuda.is_available():
+                try:
+                    _vad_model.to(torch.device('cuda'))
+                    logger.info("silero-vad moved to CUDA (GPU)")
+                except Exception as e:
+                    logger.warning(f"Failed to move VAD to CUDA: {e}")
+            elif torch.backends.mps.is_available():
+                 try:
+                    _vad_model.to(torch.device('mps'))
+                    logger.info("silero-vad moved to MPS (GPU)")
+                 except Exception as e:
+                    logger.warning(f"Failed to move VAD to MPS: {e}")
+
             logger.info("silero-vad loaded successfully")
         except Exception as e:
             logger.warning(f"Could not load silero-vad: {e}")
@@ -252,6 +268,10 @@ def get_speech_timestamps(audio_path: str, progress_callback=None) -> list:
             chunk_offset = i / sample_rate
             
             # Get timestamps for this chunk using the utils function
+            # Ensure chunk is on the same device as the model
+            if hasattr(vad_model, 'device'):
+                chunk = chunk.to(vad_model.device)
+                
             timestamps = get_speech_ts(chunk, vad_model, sampling_rate=sample_rate, threshold=VAD_THRESHOLD)
             
             for ts in timestamps:
@@ -650,7 +670,7 @@ def get_mlx_model_path():
         'medium': 'mlx-community/whisper-medium-mlx',
         'large': 'mlx-community/whisper-large-v3-mlx',
         'large-v3': 'mlx-community/whisper-large-v3-mlx',
-        'large-v3-turbo': 'mlx-community/whisper-large-v3-turbo',
+        'large-v3-turbo': 'mlx-community/whisper-large-v3-mlx', # mlx-community/whisper-large-v3-turbo does not exist
     }
     if WHISPER_HF_REPO:
         return WHISPER_HF_REPO
@@ -871,6 +891,7 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
             'medium': 'mlx-community/whisper-medium-mlx',
             'large': 'mlx-community/whisper-large-v3-mlx',
             'large-v3': 'mlx-community/whisper-large-v3-mlx',
+            'large-v3-turbo': 'mlx-community/whisper-large-v3-mlx', # mlx-community/whisper-large-v3-turbo does not exist
         }
         if WHISPER_HF_REPO:
             mlx_model_path = WHISPER_HF_REPO
@@ -1013,6 +1034,7 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
             'compression_ratio_threshold': WHISPER_COMPRESSION_RATIO_THRESHOLD,
             'logprob_threshold': WHISPER_LOGPROB_THRESHOLD,
             'condition_on_previous_text': WHISPER_CONDITION_ON_PREVIOUS,
+            'beam_size': WHISPER_BEAM_SIZE, # Add beam_size
         }
         
         if initial_prompt:
