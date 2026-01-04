@@ -105,7 +105,12 @@ def test_process_video_logic_invalid_audio(mock_dependencies):
              err_events = [e for e in events if 'error' in e]
              assert err_events
              data = json.loads(err_events[0].replace('data: ', ''))
-             assert 'Audio download failed' in data['error']
+             err_events = [e for e in events if 'error' in e]
+             assert err_events
+             data = json.loads(err_events[0].replace('data: ', ''))
+             # Error is now a dict: {'error': {'message': '...', 'type': '...'}}
+             assert 'Audio download failed' in data['error']['message']
+             assert data['error']['type'] == 'str' or isinstance(data['error']['message'], str)
 
 @patch('backend.services.process_service.SERVER_API_KEY', 'fake-key')
 def test_process_video_logic_no_subs_no_whisper(mock_dependencies):
@@ -122,4 +127,7 @@ def test_process_video_logic_no_subs_no_whisper(mock_dependencies):
         err_events = [e for e in events if 'error' in e]
         assert err_events
         data = json.loads(err_events[0].replace('data: ', ''))
-        assert data['error'] == 'No subtitles available'
+        err_events = [e for e in events if 'error' in e]
+        assert err_events
+        data = json.loads(err_events[0].replace('data: ', ''))
+        assert data['error']['message'] == 'No subtitles available'

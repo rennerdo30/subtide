@@ -31,7 +31,9 @@ def test_json_formatter_exception():
     output = formatter.format(record)
     data = json.loads(output)
     assert 'exception' in data
-    assert 'ValueError: oops' in data['exception']
+    assert data['exception']['type'] == 'ValueError'
+    assert data['exception']['message'] == 'oops'
+    assert isinstance(data['exception']['traceback'], list)
 
 def test_colored_formatter():
     formatter = ColoredFormatter('%(levelname)s %(message)s')
