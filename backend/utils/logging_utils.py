@@ -13,6 +13,8 @@ from typing import Optional
 from functools import wraps
 from contextlib import contextmanager
 
+import threading
+import traceback
 
 class JSONFormatter(logging.Formatter):
     """JSON formatter for structured logging in production."""
@@ -28,16 +30,25 @@ class JSONFormatter(logging.Formatter):
         # Add extra fields if present
         extra_fields = ['video_id', 'stage', 'duration', 'request_id', 
                         'step', 'total_steps', 'batch', 'total_batches', 
-                        'eta', 'percent', 'source_type', 'error_type']
+                        'eta', 'percent', 'source_type', 'error_type', 'hint']
         for field in extra_fields:
             if hasattr(record, field):
                 log_data[field] = getattr(record, field)
 
         # Add exception info if present
         if record.exc_info:
-            log_data['exception'] = self.formatException(record.exc_info)
+            log_data['exception'] = self.format_exception(record.exc_info)
 
         return json.dumps(log_data)
+
+    def format_exception(self, exc_info) -> dict:
+        """Format exception info into a structured dictionary."""
+        exc_type, exc_value, exc_traceback = exc_info
+        return {
+            'type': exc_type.__name__,
+            'message': str(exc_value),
+            'traceback': traceback.format_exception(exc_type, exc_value, exc_traceback)
+        }
 
 
 class ColoredFormatter(logging.Formatter):
@@ -125,29 +136,37 @@ def generate_request_id() -> str:
     return str(uuid.uuid4())
 
 
+
 class LogContext:
     """Thread-local context for request tracking."""
-    _context = {}
+    _thread_local = threading.local()
     
     @classmethod
+    def _get_context(cls) -> dict:
+        if not hasattr(cls._thread_local, 'context'):
+            cls._thread_local.context = {}
+        return cls._thread_local.context
+
+    @classmethod
     def set(cls, **kwargs):
-        """Set context values."""
-        cls._context.update(kwargs)
+        """Set context values for the current thread."""
+        cls._get_context().update(kwargs)
     
     @classmethod
     def get(cls, key: str, default=None):
         """Get a context value."""
-        return cls._context.get(key, default)
+        return cls._get_context().get(key, default)
     
     @classmethod
     def clear(cls):
-        """Clear all context."""
-        cls._context.clear()
+        """Clear all context for the current thread."""
+        if hasattr(cls._thread_local, 'context'):
+            cls._thread_local.context = {}
     
     @classmethod
     def get_all(cls) -> dict:
         """Get all context values."""
-        return cls._context.copy()
+        return cls._get_context().copy()
 
 
 def log_with_context(logger: logging.Logger, level: str, message: str, **context):

@@ -107,10 +107,26 @@ def get_whisper_backend():
     if _whisper_backend is not None:
         return _whisper_backend
         
+    # Prioritize environment variable if set
+    env_backend = os.getenv('WHISPER_BACKEND')
+    if env_backend in ['faster-whisper', 'openai-whisper', 'mlx-whisper']:
+        logger.info(f"Using configured Whisper backend: {env_backend}")
+        _whisper_backend = env_backend
+        return _whisper_backend
+
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         try:
             import mlx_whisper
             _whisper_backend = "mlx-whisper"
+            return _whisper_backend
+        except ImportError:
+            pass
+
+    # Prefer faster-whisper on Linux/CUDA if available
+    if platform.system() == "Linux":
+        try:
+            import faster_whisper
+            _whisper_backend = "faster-whisper"
             return _whisper_backend
         except ImportError:
             pass
@@ -654,7 +670,16 @@ def get_whisper_model():
             _whisper_model = get_mlx_model_path()
 
         elif backend == "faster-whisper":
-            raise ValueError("faster-whisper backend is no longer supported due to performance issues.")
+             logger.info(f"Loading faster-whisper model '{WHISPER_MODEL_SIZE}' on {device.upper()}...")
+             try:
+                 from faster_whisper import WhisperModel
+                 # compute_type="float16" is standard for GPU
+                 compute_type = "float16" if device == "cuda" else "int8"
+                 _whisper_model = WhisperModel(WHISPER_MODEL_SIZE, device=device, compute_type=compute_type)
+                 logger.info(f"faster-whisper loaded on {device.upper()}")
+             except Exception as e:
+                 logger.error(f"Failed to load faster-whisper model: {e}")
+                 raise
         else:
             logger.info(f"Loading openai-whisper model '{WHISPER_MODEL_SIZE}' on {device.upper()}...")
             try:

@@ -26,8 +26,8 @@ numpy
 soundfile
 
 # AI / ML Core
-torch
-torchaudio
+torch==2.2.0
+torchaudio==2.2.0
 openai-whisper
 pyannote.audio
 numba>=0.57.0

@@ -150,7 +150,22 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
 
         def send_error(error):
             logger.error(f"[PROCESS] Sending error: {error}")
-            progress_queue.put(('error', str(error)))
+            
+            # Construct structured error
+            error_data = {
+                'message': str(error),
+                'type': type(error).__name__
+            }
+            
+            # Add hints for specific errors
+            if "Expected key.size(1)" in str(error):
+                error_data['hint'] = "PyTorch version mismatch. Please contact admin to pin torch==2.2.0."
+            elif "CUDA out of memory" in str(error):
+                error_data['hint'] = "GPU is out of memory. Try a smaller model or shorter video."
+            elif "Tier 3" in str(error):
+                error_data['hint'] = "This feature requires a higher tier plan."
+                
+            progress_queue.put(('error', error_data))
 
         def do_work():
             work_start_time = time.time()
