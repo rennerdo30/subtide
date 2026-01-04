@@ -294,16 +294,25 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Extract metadata
+        id: meta-runpod-server
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}-runpod-server
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=,format=short
+
       - name: Build and push dedicated image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./backend/Dockerfile.runpod
           target: production
-          tags: |
-            ghcr.io/${{ github.repository }}-runpod-server:${{ github.ref_name }}
-            ghcr.io/${{ github.repository }}-runpod-server:latest
-            ghcr.io/${{ github.repository }}-runpod-server:sha-${{ github.sha }}
+          tags: ${{ steps.meta-runpod-server.outputs.tags }}
+          labels: ${{ steps.meta-runpod-server.outputs.labels }}
           outputs: type=registry,compression=zstd
           cache-from: type=gha
           cache-to: type=gha,mode=max,compression=zstd

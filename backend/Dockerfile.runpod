@@ -94,25 +94,26 @@ ENV PYTHONDONTWRITEBYTECODE=1
 # Flask settings
 ENV FLASK_ENV=production
 ENV LOG_LEVEL=INFO
+ENV PORT=5001
 
 EXPOSE 5001
 
 # Health check (increase start-period as loading models takes time)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
-    CMD curl -f http://localhost:5001/health || exit 1
+    CMD curl -f http://localhost:${PORT:-5001}/health || exit 1
 
-# Default command: Run Flask server
+# Default command: Run Flask server with configurable PORT
 # Note: Using sync workers instead of gevent for better GPU memory handling
-CMD ["gunicorn", \
-    "--worker-class", "sync", \
-    "--workers", "1", \
-    "--threads", "4", \
-    "--bind", "0.0.0.0:5001", \
-    "--timeout", "600", \
-    "--keep-alive", "65", \
-    "--access-logfile", "-", \
-    "--error-logfile", "-", \
-    "app:app"]
+CMD gunicorn \
+    --worker-class gthread \
+    --workers 1 \
+    --threads 4 \
+    --bind "0.0.0.0:${PORT:-5001}" \
+    --timeout 600 \
+    --keep-alive 65 \
+    --access-logfile - \
+    --error-logfile - \
+    app:app
 
 # ============================================================================
 # Serverless stage - For RunPod Serverless
