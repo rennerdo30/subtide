@@ -38,7 +38,7 @@ This runs the full Flask backend, providing native SSE support for the "live str
 #### 1. Deploy
 1. Go to [RunPod Pods](https://www.runpod.io/console/pods).
 2. Click **Deploy**.
-3. Choose **RTX 4090** (Best value) or **RTX 3090**.
+3. Choose **RTX 4090** (Best value), **RTX 3090**, or **RTX A4500** (High Availability).
 4. **Customize Deployment**:
    - **Container Image**: `ghcr.io/rennerdo30/video-translate-runpod-server:latest`
    - **Expose Port**: `5001` (HTTP)
@@ -157,6 +157,11 @@ The provided `Dockerfile` in the root is optimized for both use cases.
 ### 401 Unauthorized
 - Ensure you pasted your **RunPod API Key** into the Extension's API Key field.
 - Ensure your Serverless Endpoint allows your key scope.
+
+### "Pod could not be created for tests" (Hub Validation)
+- This means the requested GPU (likely RTX 4090) is unavailable in the test pool.
+- Edit `.runpod/tests.json` and change `gpuTypeId` to a more available model like `NVIDIA RTX A4500` or `NVIDIA RTX A4000`.
+- You can also empty the `tests` list in `.runpod/tests.json` to skip functional validation if resource availability is blocking deployment.
 
 ### "Connection Refused" (Dedicated Pod)
 - Ensure the Pod is showing "Running".
