@@ -831,10 +831,30 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
             throw new Error("RunPod connection requires a Backend API Key. Please configure it in the extension settings.");
         }
 
+        // --- Headers Configuration ---
+        // RunPod Load Balancer supports SSE (Streaming), which keeps connection alive and prevents timeouts.
+        // RunPod Serverless Queue uses /run (JSON) + polling.
+        if (isRunPodLoadBalancer || !isRunPod) {
+            fetchHeaders['Accept'] = 'text/event-stream';
+        }
+
         console.log('[VideoTranslate] POST Tier 3:', url);
         console.log('[VideoTranslate] isRunPod:', isRunPod, 'isRunPodServerless:', isRunPodServerless, 'isRunPodLoadBalancer:', !!isRunPodLoadBalancer);
-        console.log('[VideoTranslate] backendApiKey present:', !!config.backendApiKey);
         console.log('[VideoTranslate] Headers:', JSON.stringify(fetchHeaders, null, 2).replace(config.backendApiKey || 'NO_KEY', '***'));
+
+        // --- RunPod Serverless Async Handler ---
+        if (isRunPodServerless) {
+            // ... (RunPod Serverless polling logic remains unchanged) since it handles long jobs via queue
+            // Code for Serverless logic is preserved in the file, we just ensure we don't break it.
+            // (I am only matching/replacing the headers setup and the LB/Flask branching logic below)
+        }
+
+        // ... (skipping lines 838-980 of current file in this replacement to target the LB block usage) ...
+        // Wait, I should not skip huge chunks in replace_file_content, it's brittle.
+        // I will target the HEADERS setup first, then the LB block removal.
+
+        // Let's do headers first.
+
 
         // --- RunPod Serverless Async Handler ---
         if (isRunPodServerless) {
@@ -943,16 +963,7 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
             throw new Error(errorData.error || `Server Error ${response.status}: ${response.statusText}`);
         }
 
-        // RunPod Load Balancer (JSON)
-        if (isRunPodLoadBalancer) {
-            const data = await response.json();
-            console.log('[VideoTranslate] RunPod LB Response:', data);
-            if (data.subtitles) return data.subtitles;
-            if (data.error) throw new Error(data.error);
-            throw new Error('No subtitles in response');
-        }
-
-        // Flask Backend (SSE)
+        // Flask Backend & RunPod Load Balancer (SSE)
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';

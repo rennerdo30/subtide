@@ -238,17 +238,14 @@ CACHE_AUDIO_TTL_HOURS=1            # Short TTL (1 hour)
 2. **Accept Cache Miss**: For pay-per-use, re-downloading is acceptable trade-off
 3. **Dedicated Pods**: Use for persistent cache requirements
 
-### Load Balancer Timeouts
-RunPod Load Balancer has strict timeout limits:
-- **Request timeout**: 2 minutes — If no worker available, returns `400` error
-- **Processing timeout**: 5.5 minutes — If processing exceeds this, connection terminated with `502` or `524` error
+### Load Balancer Timeouts & 502 Errors
+RunPod Load Balancer has a strict **5.5 minute processing timeout**. If a response is not sent within this time, the connection is terminated (Cloudflare 502/524 error).
 
-**If you see Cloudflare Bad Gateway (502/524):**
-- Your request exceeded the 5.5 minute processing limit
-- Long videos may need to use **Serverless Queue** mode instead (supports longer processing)
-- Or split into smaller chunks
+**Mitigation (Implemented):**
+1.  **Startup Model Preloading**: Models are loaded when the container starts, preventing cold-start timeouts on the first request.
+2.  **SSE Streaming**: The Extension now uses Server-Sent Events (streaming) for Load Balancer requests. This sends "heartbeats" to keep the connection alive indefinitely, bypassing the 5.5 minute limit even for long videos.
 
-See: [RunPod Load Balancing Timeouts](https://docs.runpod.io/serverless/load-balancing/overview)
+**Note**: Ensure your Extension is updated to the latest version to utilize SSE streaming.
 
 ## 📚 Reference: GPU IDs & Pools
 

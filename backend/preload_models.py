@@ -1,13 +1,6 @@
 import os
 import logging
-from faster_whisper import WhisperModel
-# Import pyannote only if needed/available to avoid hard dependency if not used
-try:
-    from pyannote.audio import Pipeline
-except ImportError:
-    Pipeline = None
-
-from backend.config import WHISPER_MODEL, ENABLE_DIARIZATION, HF_TOKEN
+from backend.services.whisper_service import get_whisper_model, get_diarization_pipeline, get_whisper_backend
 
 logger = logging.getLogger(__name__)
 
@@ -20,30 +13,33 @@ def preload_models():
     logger.info("--- Starting Model Preload ---")
     
     # 1. Preload Whisper Model
-    model_size = os.environ.get("SERVER_MODEL", WHISPER_MODEL)
-    logger.info(f"Pre-loading Whisper model: {model_size}")
     try:
-        # Download root=None uses default ~/.cache/huggingface/hub or specific ~/.cache/whisper
-        # This effectively caches the model file
-        WhisperModel(model_size, device="cpu", compute_type="int8", download_root=None)
-        logger.info(f"Successfully cached Whisper model: {model_size}")
+        backend = get_whisper_backend()
+        logger.info(f"Pre-loading Whisper model (Backend: {backend})...")
+        
+        # This will download and load the model for openai-whisper.
+        # For mlx-whisper, it currently returns the model path/ID (string),
+        # so actual weight downloading happens on first transcribe or via huggingface_hub.
+        # We'll just call it to ensure basic init is done.
+        get_whisper_model()
+        
+        logger.info(f"Successfully initialized Whisper model")
     except Exception as e:
         logger.error(f"Failed to preload Whisper model: {e}")
-        # We don't raise here to allow the server to try starting anyway,
-        # but it will likely fail on first request.
+        # We don't raise here to allow the server to try starting anyway
 
     # 2. Preload Diarization Model (if enabled)
-    if ENABLE_DIARIZATION and Pipeline:
-        logger.info("Pre-loading PyAnnote Diarization model...")
-        try:
-            if not HF_TOKEN:
-                logger.warning("ENABLE_DIARIZATION is True but HF_TOKEN is missing. Skipping preload.")
-            else:
-                # This triggers download to huggingface cache
-                Pipeline.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=HF_TOKEN)
-                logger.info("Successfully cached PyAnnote model")
-        except Exception as e:
-            logger.error(f"Failed to preload Diarization model: {e}")
+    try:
+        logger.info("Pre-loading PyAnnote Diarization pipeline...")
+        # This will download and load the pipeline if enabled and token is present
+        pipeline = get_diarization_pipeline()
+        if pipeline:
+            logger.info("Successfully loaded PyAnnote pipeline")
+        else:
+            logger.info("PyAnnote pipeline skipped (disabled or missing token)")
+            
+    except Exception as e:
+        logger.error(f"Failed to preload Diarization model: {e}")
 
     logger.info("--- Model Preload Complete ---")
 
