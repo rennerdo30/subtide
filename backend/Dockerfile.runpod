@@ -90,6 +90,7 @@ ENV DIARIZATION_BACKEND=pyannote
 ENV ENABLE_WHISPER=true
 ENV WHISPER_MODEL=base
 ENV WHISPER_BEAM_SIZE=5
+ENV MODEL_CACHE_DIR=/root/.cache/video-translate-models
 ENV CUDA_VISIBLE_DEVICES=0
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -149,7 +150,7 @@ ENV PYTHONDONTWRITEBYTECODE=1
 
 # Pre-download models to reduce cold start (optional, increases image size)
 # Uncomment to include models in image:
-# RUN python -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu')"
+# RUN python3 -c "from faster_whisper import WhisperModel; WhisperModel('base', device='cpu', compute_type='int8');"
 
 # Entry point for RunPod Serverless
 CMD ["python", "-u", "runpod_handler.py"]

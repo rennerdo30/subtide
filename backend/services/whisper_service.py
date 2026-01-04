@@ -161,6 +161,11 @@ def get_vad_model():
     if _vad_model is None and ENABLE_VAD:
         try:
             torch = _ensure_torch()
+            # Set hub dir to persistent cache
+            hub_dir = os.path.join(MODEL_CACHE_DIR, "torch_hub")
+            os.makedirs(hub_dir, exist_ok=True)
+            torch.hub.set_dir(hub_dir)
+            
             logger.info("Loading silero-vad model...")
             model, utils = torch.hub.load(
                 repo_or_dir='snakers4/silero-vad',
@@ -699,12 +704,14 @@ def get_whisper_model():
                  try:
                      from faster_whisper import WhisperModel
                      
-                     # compute_type="float16" is standard for GPU
-                     compute_type = "float16" if device == "cuda" else "int8"
+                     # compute_type="int8_float16" is standard for GPU inference (faster, lower VRAM)
+                     compute_type = "int8_float16" if device == "cuda" else "int8"
                      
-                     # Explicitly specify download root to ensure we know where to clean up
-                     # If not specified, it defaults to ~/.cache/huggingface/hub
-                     _whisper_model = WhisperModel(WHISPER_MODEL_SIZE, device=device, compute_type=compute_type)
+                     # Use configured cache directory for persistence
+                     download_root = os.path.join(MODEL_CACHE_DIR, "faster_whisper")
+                     os.makedirs(download_root, exist_ok=True)
+
+                     _whisper_model = WhisperModel(WHISPER_MODEL_SIZE, device=device, compute_type=compute_type, download_root=download_root)
                      logger.info(f"faster-whisper loaded on {device.upper()}")
                      break # Success
                      
@@ -715,21 +722,15 @@ def get_whisper_model():
                      if is_checksum_error and attempt < max_retries - 1:
                          logger.warning(f"Model load failed with checksum error (attempt {attempt+1}/{max_retries}). Clearing cache and retrying...")
                          
-                         # Try to find and clear the huggingface cache
-                         # Default is ~/.cache/huggingface/hub
-                         home = os.path.expanduser("~")
-                         cache_dirs = [
-                             os.path.join(home, ".cache", "huggingface", "hub"),
-                             os.path.join(home, ".cache", "faster_whisper")
-                         ]
+                         # Clear specific cache dir
+                         cache_dir = os.path.join(MODEL_CACHE_DIR, "faster_whisper")
                          
-                         for cache_dir in cache_dirs:
-                             if os.path.exists(cache_dir):
-                                 logger.info(f"Removing cache directory: {cache_dir}")
-                                 try:
-                                     shutil.rmtree(cache_dir)
-                                 except Exception as cleanup_err:
-                                     logger.error(f"Failed to remove cache: {cleanup_err}")
+                         if os.path.exists(cache_dir):
+                             logger.info(f"Removing cache directory: {cache_dir}")
+                             try:
+                                 shutil.rmtree(cache_dir)
+                             except Exception as cleanup_err:
+                                 logger.error(f"Failed to remove cache: {cleanup_err}")
                                      
                          logger.info("Retrying model download...")
                          continue
@@ -767,6 +768,11 @@ def get_diarization_pipeline():
             # CRITICAL: Call _ensure_torch BEFORE importing pyannote
             # This patches torch.load to work with pyannote's model files
             torch = _ensure_torch()
+            
+            # Force HF_HOME to persistent cache for this process
+            hf_cache = os.path.join(MODEL_CACHE_DIR, "huggingface")
+            os.makedirs(hf_cache, exist_ok=True)
+            os.environ["HF_HOME"] = hf_cache
             
             from pyannote.audio import Pipeline
             pipeline = Pipeline.from_pretrained(
