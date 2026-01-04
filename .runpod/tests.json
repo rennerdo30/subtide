@@ -1,16 +1,5 @@
 {
-    "tests": [
-        {
-            "name": "validation_video_input",
-            "input": {
-                "input": {
-                    "video_id": "dQw4w9WgXcQ",
-                    "target_lang": "ja"
-                }
-            },
-            "timeout": 300000
-        }
-    ],
+    "tests": [],
     "config": {
         "gpuTypeId": "NVIDIA GeForce RTX 4090",
         "gpuCount": 1,

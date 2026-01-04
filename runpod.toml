@@ -19,4 +19,4 @@ CUDA_VISIBLE_DEVICES = "0"
 # Dockerless build configuration
 # Assuming RunPod will use this to install dependencies
 builder = "pip"
-requirements = "backend/requirements.txt"
+requirements = "backend/requirements-runpod.txt"
