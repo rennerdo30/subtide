@@ -8,6 +8,7 @@ import json
 import subprocess
 import re
 from typing import Optional, Dict, Any, List
+import shutil
 import time
 
 # Suppress warnings
@@ -671,15 +672,51 @@ def get_whisper_model():
 
         elif backend == "faster-whisper":
              logger.info(f"Loading faster-whisper model '{WHISPER_MODEL_SIZE}' on {device.upper()}...")
-             try:
-                 from faster_whisper import WhisperModel
-                 # compute_type="float16" is standard for GPU
-                 compute_type = "float16" if device == "cuda" else "int8"
-                 _whisper_model = WhisperModel(WHISPER_MODEL_SIZE, device=device, compute_type=compute_type)
-                 logger.info(f"faster-whisper loaded on {device.upper()}")
-             except Exception as e:
-                 logger.error(f"Failed to load faster-whisper model: {e}")
-                 raise
+             
+             # Retry logic for corrupted downloads
+             max_retries = 2
+             for attempt in range(max_retries):
+                 try:
+                     from faster_whisper import WhisperModel
+                     
+                     # compute_type="float16" is standard for GPU
+                     compute_type = "float16" if device == "cuda" else "int8"
+                     
+                     # Explicitly specify download root to ensure we know where to clean up
+                     # If not specified, it defaults to ~/.cache/huggingface/hub
+                     _whisper_model = WhisperModel(WHISPER_MODEL_SIZE, device=device, compute_type=compute_type)
+                     logger.info(f"faster-whisper loaded on {device.upper()}")
+                     break # Success
+                     
+                 except Exception as e:
+                     err_msg = str(e)
+                     is_checksum_error = "checksum" in err_msg.lower() or "mismatch" in err_msg.lower()
+                     
+                     if is_checksum_error and attempt < max_retries - 1:
+                         logger.warning(f"Model load failed with checksum error (attempt {attempt+1}/{max_retries}). Clearing cache and retrying...")
+                         
+                         # Try to find and clear the huggingface cache
+                         # Default is ~/.cache/huggingface/hub
+                         home = os.path.expanduser("~")
+                         cache_dirs = [
+                             os.path.join(home, ".cache", "huggingface", "hub"),
+                             os.path.join(home, ".cache", "faster_whisper")
+                         ]
+                         
+                         for cache_dir in cache_dirs:
+                             if os.path.exists(cache_dir):
+                                 logger.info(f"Removing cache directory: {cache_dir}")
+                                 try:
+                                     shutil.rmtree(cache_dir)
+                                 except Exception as cleanup_err:
+                                     logger.error(f"Failed to remove cache: {cleanup_err}")
+                                     
+                         logger.info("Retrying model download...")
+                         continue
+                     
+                     # If not checksum error or out of retries, raise
+                     logger.error(f"Failed to load faster-whisper model: {e}")
+                     raise
         else:
             logger.info(f"Loading openai-whisper model '{WHISPER_MODEL_SIZE}' on {device.upper()}...")
             try:
