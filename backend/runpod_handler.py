@@ -217,7 +217,6 @@ def handler(event: Dict[str, Any]) -> Any:
         # However, `runpod_handler.py` runs inside the container where 
         # `whisper_service.py` is available.
         
-        from services.whisper_service import run_whisper_streaming
         from services.translation_service import await_translate_subtitles
         
         yield {"stage": "whisper", "message": "Transcribing...", "percent": 30}
@@ -272,15 +271,20 @@ def handler(event: Dict[str, Any]) -> Any:
             try:
                 def on_segment_wrapper(seg):
                     # We can't yield here, so put in queue
-                    # But we also need to translate here to be "streaming"
-                    # Doing heavy translation in callback blocks the transcriber?
-                    # Yes. But `run_whisper_streaming` reads stdout, so blocking callback 
-                    # just delays reading next line. It's fine.
+                    # seg is TranscriptionSegment (faster-whisper) or dict
+                    
+                    # Extract attributes safely
+                    s_start = seg.start if hasattr(seg, 'start') else seg.get('start')
+                    s_end = seg.end if hasattr(seg, 'end') else seg.get('end')
+                    s_text = seg.text if hasattr(seg, 'text') else seg.get('text')
+                    
+                    if s_text:
+                        s_text = s_text.strip()
                     
                     sub = {
-                        'start': int(seg['start'] * 1000),
-                        'end': int(seg['end'] * 1000),
-                        'text': seg['text'].strip(),
+                        'start': int(s_start * 1000),
+                        'end': int(s_end * 1000),
+                        'text': s_text,
                     }
                     segment_buffer.append(sub)
                     
@@ -302,11 +306,13 @@ def handler(event: Dict[str, Any]) -> Any:
                 def parse_segment_buffer_copy(buf):
                     return list(buf)
 
-                # Run Whisper
-                run_whisper_streaming(
+                # Run Whisper directly (faster-whisper supports streaming via callback)
+                whisper.transcribe(
                     audio_path,
+                    model_size=os.getenv('WHISPER_MODEL', 'base'),
                     segment_callback=on_segment_wrapper,
-                    initial_prompt=None
+                    initial_prompt=None,  # runpod handler doesn't pass this yet
+                    progress_callback=None # we don't need detailed progress here
                 )
                 
                 # Flush remaining

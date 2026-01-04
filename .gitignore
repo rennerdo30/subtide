@@ -5,3 +5,4 @@ backend/.env
 *.log
 .trae
 .coverage
+.DS_Store
