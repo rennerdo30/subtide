@@ -211,6 +211,45 @@ The provided `Dockerfile` in the root is optimized for both use cases.
 - Use **FlashBoot** to reduce cold start times.
 - Use **Dedicated Pods** for instant, latency-sensitive streaming.
 
+## ⚠️ Known Limitations
+
+### Caching on Serverless
+Serverless workers don't have persistent storage by default:
+- **Audio cache**: Downloaded audio is lost when worker shuts down
+- **Translation cache**: Previous translations are not preserved
+- **Model weights**: Re-downloaded on each cold start (use custom image with pre-loaded models)
+
+**Environment Variables to Control Cache:**
+```env
+CACHE_DIR=/tmp/cache               # Custom cache directory path
+CACHE_MAX_SIZE_MB=1000             # Max cache size in MB (default: 5000)
+CACHE_AUDIO_TTL_HOURS=1            # Audio file TTL (default: 24)
+CACHE_CLEANUP_INTERVAL_MINUTES=10  # Cleanup interval (default: 30)
+```
+
+**Recommended RunPod Settings:**
+```env
+CACHE_MAX_SIZE_MB=500              # Limit to 500MB for serverless
+CACHE_AUDIO_TTL_HOURS=1            # Short TTL (1 hour)
+```
+
+**Other Solutions:**
+1. **Network Volumes**: Attach persistent storage to your endpoint for cache persistence
+2. **Accept Cache Miss**: For pay-per-use, re-downloading is acceptable trade-off
+3. **Dedicated Pods**: Use for persistent cache requirements
+
+### Load Balancer Timeouts
+RunPod Load Balancer has strict timeout limits:
+- **Request timeout**: 2 minutes — If no worker available, returns `400` error
+- **Processing timeout**: 5.5 minutes — If processing exceeds this, connection terminated with `502` or `524` error
+
+**If you see Cloudflare Bad Gateway (502/524):**
+- Your request exceeded the 5.5 minute processing limit
+- Long videos may need to use **Serverless Queue** mode instead (supports longer processing)
+- Or split into smaller chunks
+
+See: [RunPod Load Balancing Timeouts](https://docs.runpod.io/serverless/load-balancing/overview)
+
 ## 📚 Reference: GPU IDs & Pools
 
 When configuring `gpuTypeId` in `.runpod/tests.json` or `runpod.toml`, use **Pool IDs** for better availability during validation/testing. Use specific **GPU IDs** if you strictly require a certain hardware tier.

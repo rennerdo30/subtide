@@ -42,7 +42,12 @@ PLATFORM = detect_platform()
 
 # Base paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-CACHE_DIR = os.path.join(BASE_DIR, 'cache')
+CACHE_DIR = os.getenv('CACHE_DIR', os.path.join(BASE_DIR, 'cache'))
+
+# Cache limits (for RunPod/serverless where storage is limited)
+CACHE_MAX_SIZE_MB = int(os.getenv('CACHE_MAX_SIZE_MB', '5000'))  # 5GB default
+CACHE_AUDIO_TTL_HOURS = int(os.getenv('CACHE_AUDIO_TTL_HOURS', '24'))  # 24 hours default
+CACHE_CLEANUP_INTERVAL_MINUTES = int(os.getenv('CACHE_CLEANUP_INTERVAL_MINUTES', '30'))  # 30 min default
 
 # Logging
 LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO')

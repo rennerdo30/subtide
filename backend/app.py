@@ -139,8 +139,27 @@ def print_banner():
     print("="*60 + "\n")
     logger.info(f"Server Configuration: ENABLE_WHISPER={ENABLE_WHISPER}, Tier3Enabled={bool(SERVER_API_KEY)}, Cookies={'Yes' if COOKIES_FILE else 'No'}")
 
+from backend.preload_models import preload_models
+from backend.services.cache_service import start_cache_scheduler
+
 if __name__ == '__main__':
     print_banner()
     port = int(os.getenv('PORT', 5001))
+    
+    # Initialize services on startup
+    logger.info("Initializing services...")
+    
+    # 1. Start cache cleanup scheduler
+    start_cache_scheduler()
+    
+    # 2. Pre-load models (RunPod Load Balancer optimization)
+    # This ensures first request doesn't timeout (502)
+    try:
+        if os.environ.get('PLATFORM') == 'runpod':
+            logger.info("Pre-loading models for RunPod...")
+            preload_models()
+    except Exception as e:
+        logger.error(f"Failed to preload models: {e}")
+
     logger.info(f"Starting SocketIO server on port {port}...")
     socketio.run(app, host='0.0.0.0', port=port, debug=False, log_output=True)

@@ -783,13 +783,18 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
     const isRunPodLoadBalancer = backendUrl.match(/^https?:\/\/[a-zA-Z0-9]+\.api\.runpod\.ai/);
     const isRunPod = isRunPodServerless || isRunPodLoadBalancer;
 
-    return new Promise((resolve, reject) => {
+    // Use AbortController for timeout (5 minutes for long videos)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+
+    try {
         let url;
         let body;
 
         if (isRunPodServerless) {
-            // RunPod Serverless: /runsync with input wrapper
-            url = `${backendUrl}/runsync`;
+            // RunPod Serverless: Use async /run endpoint with polling
+            // This avoids timeout issues with long-running jobs
+            url = `${backendUrl}/run`;
             body = JSON.stringify({
                 input: {
                     video_id: videoId,
@@ -823,8 +828,7 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
 
         // RunPod requires an API Key
         if (isRunPod && !config.backendApiKey) {
-            reject(new Error("RunPod connection requires a Backend API Key. Please configure it in the extension settings."));
-            return;
+            throw new Error("RunPod connection requires a Backend API Key. Please configure it in the extension settings.");
         }
 
         console.log('[VideoTranslate] POST Tier 3:', url);
@@ -832,131 +836,173 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
         console.log('[VideoTranslate] backendApiKey present:', !!config.backendApiKey);
         console.log('[VideoTranslate] Headers:', JSON.stringify(fetchHeaders, null, 2).replace(config.backendApiKey || 'NO_KEY', '***'));
 
-        fetch(url, {
+        // --- RunPod Serverless Async Handler ---
+        if (isRunPodServerless) {
+            // Step 1: Submit job
+            const submitResponse = await fetch(url, {
+                method: 'POST',
+                headers: fetchHeaders,
+                body: body,
+            });
+
+            if (!submitResponse.ok) {
+                const errorData = await submitResponse.json().catch(() => ({}));
+                throw new Error(errorData.error || `Server Error ${submitResponse.status}: ${submitResponse.statusText}`);
+            }
+
+            const submitData = await submitResponse.json();
+            console.log('[VideoTranslate] RunPod Job Submitted:', submitData);
+
+            if (!submitData.id) {
+                throw new Error('RunPod did not return a job ID');
+            }
+
+            const jobId = submitData.id;
+            const statusUrl = `${backendUrl}/status/${jobId}`;
+
+            // Step 2: Poll for completion
+            const POLL_INTERVAL_MS = 2000;
+            const MAX_POLL_TIME_MS = 30 * 60 * 1000; // 30 mins
+            const startTime = Date.now();
+            let lastStatus = '';
+
+            while (Date.now() - startTime < MAX_POLL_TIME_MS) {
+                await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+
+                if (controller.signal.aborted) {
+                    throw new Error('Request aborted');
+                }
+
+                const statusResponse = await fetch(statusUrl, {
+                    method: 'GET',
+                    headers: fetchHeaders,
+                });
+
+                if (!statusResponse.ok) {
+                    console.warn('[VideoTranslate] Status poll failed:', statusResponse.status);
+                    continue;
+                }
+
+                const statusData = await statusResponse.json();
+
+                if (statusData.status !== lastStatus) {
+                    lastStatus = statusData.status;
+                    const progressMsg = {
+                        stage: statusData.status.toLowerCase(),
+                        message: `RunPod: ${statusData.status}`,
+                        percent: statusData.status === 'IN_PROGRESS' ? 50 :
+                            statusData.status === 'IN_QUEUE' ? 10 : 0
+                    };
+                    if (tabId) {
+                        chrome.tabs.sendMessage(tabId, { action: 'progress', ...progressMsg }).catch(() => { });
+                    }
+                    if (onProgress) onProgress(progressMsg);
+                }
+
+                if (statusData.status === 'COMPLETED') {
+                    clearTimeout(timeoutId);
+                    const output = statusData.output;
+                    if (!output) throw new Error('RunPod job completed but no output');
+                    if (output.error) throw new Error(output.error);
+
+                    let finalSubtitles = [];
+                    if (Array.isArray(output)) {
+                        for (const item of output) {
+                            if (item.subtitles) finalSubtitles = finalSubtitles.concat(item.subtitles);
+                            if (item.error) throw new Error(item.error);
+                        }
+                    } else if (output.subtitles) {
+                        finalSubtitles = output.subtitles;
+                    }
+                    return finalSubtitles.length > 0 ? finalSubtitles : [];
+                }
+
+                if (statusData.status === 'FAILED') {
+                    throw new Error(`RunPod job failed: ${statusData.error || statusData.output?.error || 'Unknown error'}`);
+                }
+
+                if (statusData.status === 'CANCELLED') {
+                    throw new Error('RunPod job was cancelled');
+                }
+            }
+            throw new Error('RunPod job timed out after 30 minutes');
+        }
+
+        // --- RunPod Load Balancer or Flask Backend ---
+        const response = await fetch(url, {
             method: 'POST',
             headers: fetchHeaders,
             body: body,
             signal: controller.signal,
-        }).then(async response => {
-            clearTimeout(timeoutId);
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                reject(new Error(errorData.error || `Server Error ${response.status}: ${response.statusText}`));
-                return;
-            }
-
-            // --- RunPod Serverless Handler (JSON) ---
-            if (isRunPod) {
-                const data = await response.json();
-                console.log('[VideoTranslate] RunPod Response:', data);
-
-                // RunPod /runsync returns { status: "COMPLETED", output: ... }
-                if (data.status === "COMPLETED" && data.output) {
-                    if (data.output.error) {
-                        reject(new Error(data.output.error));
-                        return;
-                    }
-
-                    let finalSubtitles = [];
-                    let foundResult = false;
-
-                    // If output is list (generator yields)
-                    if (Array.isArray(data.output)) {
-                        for (const item of data.output) {
-                            if (item.subtitles) {
-                                finalSubtitles = finalSubtitles.concat(item.subtitles);
-                                foundResult = true;
-                            }
-                            if (item.error) {
-                                reject(new Error(item.error));
-                                return;
-                            }
-                        }
-                    }
-                    // If output is single object (standard return)
-                    else if (data.output.subtitles) {
-                        finalSubtitles = data.output.subtitles;
-                        foundResult = true;
-                    }
-
-                    if (foundResult) {
-                        resolve(finalSubtitles);
-                    } else {
-                        resolve([]);
-                    }
-                } else {
-                    reject(new Error(`RunPod Status: ${data.status}`));
-                }
-                return;
-            }
-
-            // --- Custom Flask Handler (SSE) ---
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-
-                const { events, remainder } = parseSSEBuffer(buffer);
-                buffer = remainder;
-
-                for (const event of events) {
-                    if (!event.data) continue;
-
-                    try {
-                        const data = JSON.parse(event.data);
-
-                        if (data.stage && data.message) {
-                            if (tabId) {
-                                chrome.tabs.sendMessage(tabId, {
-                                    action: 'progress',
-                                    ...data
-                                }).catch(() => { });
-                            }
-                            if (onProgress) onProgress(data);
-                        }
-
-                        if (data.result) {
-                            resolve(data.result.subtitles);
-                            return;
-                        }
-                        if (data.error) {
-                            reject(new Error(data.error));
-                            return;
-                        }
-                    } catch (e) {
-                        console.warn('[VideoTranslate] JSON Parse error:', e);
-                    }
-                }
-            }
-
-            // Check remaining buffer
-            if (buffer.trim()) {
-                try {
-                    // Try to parse final event if any
-                    const match = buffer.match(/data:\s*(.+)/);
-                    if (match) {
-                        const data = JSON.parse(match[1]);
-                        if (data.result) {
-                            resolve(data.result.subtitles);
-                            return;
-                        }
-                    }
-                } catch (e) { }
-            }
-            // If we finish loop without result and without rejecting
-            reject(new Error(chrome.i18n.getMessage('streamNoResult')));
-
-        }).catch(error => {
-            clearTimeout(timeoutId);
-            console.error('[VideoTranslate] Fetch failed:', error);
-            reject(error);
         });
-    });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(errorData.error || `Server Error ${response.status}: ${response.statusText}`);
+        }
+
+        // RunPod Load Balancer (JSON)
+        if (isRunPodLoadBalancer) {
+            const data = await response.json();
+            console.log('[VideoTranslate] RunPod LB Response:', data);
+            if (data.subtitles) return data.subtitles;
+            if (data.error) throw new Error(data.error);
+            throw new Error('No subtitles in response');
+        }
+
+        // Flask Backend (SSE)
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const { events, remainder } = parseSSEBuffer(buffer);
+            buffer = remainder;
+
+            for (const event of events) {
+                if (!event.data) continue;
+                try {
+                    const data = JSON.parse(event.data);
+
+                    if (data.stage && data.message) {
+                        if (tabId) {
+                            chrome.tabs.sendMessage(tabId, { action: 'progress', ...data }).catch(() => { });
+                        }
+                        if (onProgress) onProgress(data);
+                    }
+
+                    if (data.result) return data.result.subtitles;
+                    if (data.error) throw new Error(data.error);
+                } catch (e) {
+                    console.warn('[VideoTranslate] JSON Parse error:', e);
+                }
+            }
+        }
+
+        // Final check
+        if (buffer.trim()) {
+            try {
+                const match = buffer.match(/data:\s*(.+)/);
+                if (match) {
+                    const data = JSON.parse(match[1]);
+                    if (data.result) return data.result.subtitles;
+                }
+            } catch (e) { }
+        }
+
+        throw new Error(chrome.i18n.getMessage('streamNoResult'));
+
+    } catch (error) {
+        clearTimeout(timeoutId);
+        console.error('[VideoTranslate] Fetch failed:', error);
+        throw error;
+    }
 }
 
 /**
