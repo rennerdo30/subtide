@@ -14,6 +14,41 @@ Deploy Video Translate on RunPod.io for fast, cost-effective GPU acceleration.
 
 ---
 
+## 🐳 Docker Image Selection
+
+**Choose the correct image based on your deployment type:**
+
+| Deployment Type | Docker Image | Entrypoint |
+|-----------------|--------------|------------|
+| **Serverless Queue** | `ghcr.io/rennerdo30/video-translate-runpod:latest` | `runpod_handler.py` |
+| **Serverless + Load Balancer** | `ghcr.io/rennerdo30/video-translate-runpod:latest` | `runpod_handler.py` |
+| **Dedicated Pod** | `ghcr.io/rennerdo30/video-translate-runpod-server:latest` | `gunicorn` (Flask) |
+
+### Understanding the Difference
+
+**`video-translate-runpod`** (Serverless):
+- Uses RunPod's job queue system
+- Processes requests via `/runsync` endpoint
+- No persistent server; workers spin up/down as needed
+- Best for: Variable workloads, cost optimization
+
+**`video-translate-runpod-server`** (Dedicated):
+- Runs Flask/Gunicorn web server on port `5001` (configurable via `PORT` env)
+- Handles HTTP requests directly (standard REST API)
+- Supports SSE streaming for real-time subtitle delivery (Tier 4)
+- Best for: Always-on deployments, streaming requirements
+
+> **Tip**: RunPod's "Load Balancer" feature for serverless endpoints still uses queue workers behind the scenes. Use the `-runpod` image, NOT the `-runpod-server` image.
+
+### Image Tags
+
+All images are tagged with:
+- `latest` — Latest build from main branch
+- `{short-sha}` — Specific commit (e.g., `3289d96`)
+- `v{version}` — Semantic version (when tagged)
+
+---
+
 ## 🔒 Authentication
 
 All RunPod endpoints require a valid RunPod API Key.

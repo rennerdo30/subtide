@@ -1,11 +1,11 @@
 # Video Translate Backend - RunPod/NVIDIA GPU Dockerfile
-# Optimized for NVIDIA CUDA GPUs with faster-whisper and NeMo
-# NOTE: This file expects the build context to be the 'backend/' directory.
+# Optimized for NVIDIA CUDA GPUs with faster-whisper and PyAnnote
+# NOTE: This file expects the build context to be the repository root.
 
 # ============================================================================
-# Base stage with CUDA runtime
+# Base stage with CUDA runtime + cuDNN 9 (required by faster-whisper)
 # ============================================================================
-FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 AS base
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base
 
 # Install uv (The Python Package Installer)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
