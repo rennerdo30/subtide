@@ -18,27 +18,33 @@ Deploy Video Translate on RunPod.io for fast, cost-effective GPU acceleration.
 
 **Choose the correct image based on your deployment type:**
 
-| Deployment Type | Docker Image | Entrypoint |
-|-----------------|--------------|------------|
-| **Serverless Queue** | `ghcr.io/rennerdo30/video-translate-runpod:latest` | `runpod_handler.py` |
-| **Serverless + Load Balancer** | `ghcr.io/rennerdo30/video-translate-runpod:latest` | `runpod_handler.py` |
-| **Dedicated Pod** | `ghcr.io/rennerdo30/video-translate-runpod-server:latest` | `gunicorn` (Flask) |
+| Deployment Type | Docker Image | Entrypoint | URL Format |
+|-----------------|--------------|------------|------------|
+| **Serverless Queue** | `video-translate-runpod:latest` | `runpod_handler.py` | `api.runpod.ai/v2/{id}/runsync` |
+| **Load Balancer** | `video-translate-runpod-server:latest` | `gunicorn` (Flask) | `{id}.api.runpod.ai/api/process` |
+| **Dedicated Pod** | `video-translate-runpod-server:latest` | `gunicorn` (Flask) | `pod-5001.proxy.runpod.net/api/process` |
 
-### Understanding the Difference
+### Understanding the Modes
 
-**`video-translate-runpod`** (Serverless):
+**Serverless Queue** (`video-translate-runpod`):
 - Uses RunPod's job queue system
-- Processes requests via `/runsync` endpoint
-- No persistent server; workers spin up/down as needed
-- Best for: Variable workloads, cost optimization
+- Requests go to `/runsync` endpoint (RunPod SDK handles routing)
+- No persistent HTTP server; workers process jobs from queue
+- Best for: Variable workloads, pay-per-second, long-running tasks
 
-**`video-translate-runpod-server`** (Dedicated):
-- Runs Flask/Gunicorn web server on port `5001` (configurable via `PORT` env)
-- Handles HTTP requests directly (standard REST API)
-- Supports SSE streaming for real-time subtitle delivery (Tier 4)
-- Best for: Always-on deployments, streaming requirements
+**Load Balancer** (`video-translate-runpod-server`):
+- Runs Flask/Gunicorn HTTP server directly
+- RunPod routes requests to healthy workers via `/ping` health checks
+- Direct HTTP access to your custom endpoints (`/api/process`, `/api/stream`)
+- Best for: Low latency, real-time streaming (Tier 4), custom REST APIs
+- **Requires**: `/ping` endpoint returning 200 (healthy) or 204 (initializing)
+- **Environment Variables**: `PORT` (default: 5001), `PORT_HEALTH` (default: same as PORT)
+- See: [RunPod Load Balancing Docs](https://docs.runpod.io/serverless/load-balancing/overview)
 
-> **Tip**: RunPod's "Load Balancer" feature for serverless endpoints still uses queue workers behind the scenes. Use the `-runpod` image, NOT the `-runpod-server` image.
+**Dedicated Pod** (`video-translate-runpod-server`):
+- Same image as Load Balancer, but always-on single instance
+- Fixed hourly cost, no cold starts
+- Full control over the container
 
 ### Image Tags
 

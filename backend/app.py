@@ -95,7 +95,7 @@ def rate_limit_exceeded(error):
 os.makedirs(CACHE_DIR, exist_ok=True)
 
 # Register Blueprints
-from backend.routes.health import health_bp
+from backend.routes.health import health_bp, set_models_ready
 from backend.routes.subtitles import subtitles_bp
 from backend.routes.transcribe import transcribe_bp
 from backend.routes.translation import translation_bp, init_limiter as init_translation_limiter
@@ -104,6 +104,9 @@ app.register_blueprint(health_bp)
 app.register_blueprint(subtitles_bp)
 app.register_blueprint(transcribe_bp)
 app.register_blueprint(translation_bp)
+
+# Mark server as ready for RunPod Load Balancer /ping endpoint
+set_models_ready(True)
 
 from backend.routes.live import live_bp, init_socketio as init_live_socketio
 app.register_blueprint(live_bp)
