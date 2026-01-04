@@ -13,19 +13,29 @@ Deploy Video Translate on RunPod.io for fast, cost-effective GPU acceleration.
 
 ---
 
-## 🔒 Authentication (New!)
+## 🔒 Authentication
 
-The extension now supports **Secure API Keys** for RunPod endpoints.
+The serverless endpoint requires a valid RunPod API Key.
+Your client (Extension or API consumer) must send the key in the `Authorization` header:
 
-1. **Dedicated Pods**: You can protect your pod using a reverse proxy or by passing your internal `SERVER_API_KEY` if configured.
-2. **Serverless**: Uses standard RunPod API Keys (`Authorization: Bearer rpa_...`).
+1. Go to [RunPod Settings](https://www.runpod.io/console/user/settings).
+2. Scroll to **API Keys**.
+3. Create a new Read/Write key.
 
-To use authentication:
-1. Open Extension **Settings**.
-2. Select **Tier 4 (Stream)** or **Tier 3**.
-3. Set **Provider** to **Custom / RunPod**.
-4. Enter your **Endpoint URL**.
-5. Enter your **RunPod API Key** in the "API Key" field.
+```
+Authorization: Bearer <YOUR_RUNPOD_API_KEY>
+```
+
+### Client / Extension Configuration
+1. Open the **Video Translate Extension Settings**.
+2. Select **Tier 4 (Stream)** (or Tier 3 for Batch).
+3. Set **Provider** to **Custom / RunPod** (this helps pre-fill defaults, but is less critical now).
+4. **Backend URL**: Paste your Serverless Endpoint URL (e.g., `https://api.runpod.ai/v2/vllm-xyz...`).
+    - Note: Ensure it includes the `https://` protocol.
+5. **Backend API Key**: Paste your Read/Write RunPod API Key (starts with `rpa_...`).
+    - This is a new dedicated field specifically for the backend connection.
+
+
 
 ---
 
@@ -102,35 +112,7 @@ Build directly from your Git repository without managing Docker registries.
 
 ---
 
-### Option 4: RunPod Hub (One-Click Deploy)
 
-We have configured this repository for the RunPod Hub! You can deploy it directly from the community validation queue once published.
-
-1. **Configuration**: Uses `.runpod/hub.json` to define valid environment variables and hardware requirements.
-2. **Tests**: Uses `.runpod/tests.json` for automated validation.
-3. **Deploy from Hub**:
-   - Go to RunPod Hub.
-   - Search for "Video Translate".
-   - Click "Deploy".
-
-If you are maintaining your own fork:
-1. Create a release in GitHub.
-2. Submit your repo to RunPod Hub.
-
----
-
-### Option 5: RunPod Projects (CLI / Dockerless)
-
-For rapid development without managing Dockerfiles manually, use the [RunPod CLI](https://docs.runpod.io/serverless/utils/rp-cli) with the included `runpod.toml`.
-
-1. Install `runpodctl`.
-2. Run from the repo root:
-   ```bash
-   runpodctl project create
-   # or
-   runpodctl project deploy
-   ```
-3. The configurations in `runpod.toml` (handler path, requirements, GPU type) are applied automatically.
 
 ---
 
@@ -158,11 +140,7 @@ The provided `Dockerfile` in the root is optimized for both use cases.
 - Ensure you pasted your **RunPod API Key** into the Extension's API Key field.
 - Ensure your Serverless Endpoint allows your key scope.
 
-### "Pod could not be created for tests" (Hub Validation)
-- This means the requested GPU (likely RTX 4090) is unavailable in the test pool.
-- Edit `.runpod/tests.json` and change `gpuTypeId` to a **GPU Pool ID** for better availability, such as `AMPERE_16` (includes A4000, A4500) or `AMPERE_24` (includes A5000, 3090).
-- Avoid using specific GPU IDs like `NVIDIA GeForce RTX 4090` for validation unless strictly necessary, as they fluctuate in availability.
-- You can also empty the `tests` list in `.runpod/tests.json` to skip functional validation if resource availability is blocking deployment.
+
 
 ### "Connection Refused" (Dedicated Pod)
 - Ensure the Pod is showing "Running".

@@ -24,6 +24,8 @@ const elements = {
     forceGenGroup: document.getElementById('forceGenGroup'),
     apiUrlGroup: document.getElementById('apiUrlGroup'),
     backendUrl: document.getElementById('backendUrl'),
+    backendApiKey: document.getElementById('backendApiKey'),
+    toggleBackendApiKey: document.getElementById('toggleBackendApiKey'),
     liveTranslateBtn: document.getElementById('liveTranslateBtn'),
     // Queue elements
     queuePending: document.getElementById('queuePending'),
@@ -102,17 +104,36 @@ async function checkBackendStatus() {
     statusDot.style.boxShadow = 'none';
     elements.backendWarning.style.display = 'none';
 
-    const backendUrl = elements.backendUrl?.value?.trim() || 'http://localhost:5001';
+    let backendUrl = elements.backendUrl?.value?.trim() || 'http://localhost:5001';
+
+    // Auto-correct common RunPod URL mistakes
+    // Mistake: https://{id}.api.runpod.ai -> https://api.runpod.ai/v2/{id}
+    const runpodSubdomainMatch = backendUrl.match(/^https?:\/\/([a-zA-Z0-9]+)\.api\.runpod\.ai\/?$/);
+    if (runpodSubdomainMatch) {
+        backendUrl = `https://api.runpod.ai/v2/${runpodSubdomainMatch[1]}`;
+        elements.backendUrl.value = backendUrl; // Update UI
+    }
+
+    const apiKey = elements.backendApiKey?.value?.trim();
 
     try {
+        const headers = {};
+        if (apiKey) {
+            headers['Authorization'] = `Bearer ${apiKey}`;
+        }
+
         const response = await fetch(`${backendUrl}/health`, {
             method: 'GET',
-            signal: AbortSignal.timeout(5000)
+            headers: headers,
+            signal: AbortSignal.timeout(10000) // Increased timeout for cold starts
         });
 
         if (response.ok) {
             const data = await response.json();
-            if (data.status === 'ok') {
+
+            // Check for Flask response OR RunPod Serverless response
+            // RunPod /health returns { "jobs": {...}, "workers": {...} }
+            if (data.status === 'ok' || data.workers || data.jobs) {
                 statusText.textContent = chrome.i18n.getMessage('statusConnected');
                 statusDot.style.background = 'var(--success)';
                 statusDot.style.boxShadow = '0 0 8px var(--success)';
@@ -122,6 +143,10 @@ async function checkBackendStatus() {
         }
         throw new Error('Invalid response');
     } catch (e) {
+        // If it fails, check if it might be a valid RunPod endpoint that just behaves differently
+        // But for now, show offline.
+        console.warn("Backend check failed:", e);
+
         statusText.textContent = chrome.i18n.getMessage('statusOffline');
         statusDot.style.background = 'var(--error)';
         statusDot.style.boxShadow = '0 0 8px var(--error)';
@@ -144,6 +169,7 @@ async function loadConfig() {
         elements.defaultLanguage.value = config.defaultLanguage || 'en';
         elements.tier.value = config.tier || 'tier1';
         elements.backendUrl.value = config.backendUrl || 'http://localhost:5001';
+        elements.backendApiKey.value = config.backendApiKey || '';
 
         // Apply tier-based UI
         updateUIForTier(config.tier || 'tier1');
@@ -176,7 +202,7 @@ async function loadCacheStats() {
  * Setup event listeners
  */
 function setupEventListeners() {
-    // Toggle API key visibility
+    // Toggle API key visibility (LLM)
     elements.toggleApiKey.addEventListener('click', () => {
         const input = elements.apiKey;
         const isPassword = input.type === 'password';
@@ -184,6 +210,18 @@ function setupEventListeners() {
 
         const iconEye = elements.toggleApiKey.querySelector('.icon-eye');
         const iconEyeOff = elements.toggleApiKey.querySelector('.icon-eye-off');
+        iconEye.style.display = isPassword ? 'none' : 'block';
+        iconEyeOff.style.display = isPassword ? 'block' : 'none';
+    });
+
+    // Toggle API key visibility (Backend)
+    elements.toggleBackendApiKey.addEventListener('click', () => {
+        const input = elements.backendApiKey;
+        const isPassword = input.type === 'password';
+        input.type = isPassword ? 'text' : 'password';
+
+        const iconEye = elements.toggleBackendApiKey.querySelector('.icon-eye');
+        const iconEyeOff = elements.toggleBackendApiKey.querySelector('.icon-eye-off');
         iconEye.style.display = isPassword ? 'none' : 'block';
         iconEyeOff.style.display = isPassword ? 'block' : 'none';
     });
@@ -201,7 +239,7 @@ function setupEventListeners() {
     elements.clearQueueBtn.addEventListener('click', clearCompletedQueue);
 
     // Auto-save on Enter key
-    [elements.apiUrl, elements.apiKey, elements.model].forEach(input => {
+    [elements.apiUrl, elements.apiKey, elements.model, elements.backendUrl, elements.backendApiKey].forEach(input => {
         input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 saveConfiguration();
@@ -441,6 +479,7 @@ async function saveConfiguration() {
             defaultLanguage: elements.defaultLanguage.value,
             tier: elements.tier.value,
             backendUrl: elements.backendUrl.value.trim() || 'http://localhost:5001',
+            backendApiKey: elements.backendApiKey.value.trim(),
         };
 
         await sendMessage({ action: 'saveConfig', config });

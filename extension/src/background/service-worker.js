@@ -20,6 +20,7 @@ const STORAGE_KEYS = {
     DEFAULT_LANGUAGE: 'defaultLanguage',
     TRANSLATION_CACHE: 'translationCache',
     BACKEND_URL: 'backendUrl',
+    BACKEND_API_KEY: 'backendApiKey',
     // Subtitle appearance
     SUBTITLE_SIZE: 'subtitleSize',
     SUBTITLE_POSITION: 'subtitlePosition',
@@ -61,6 +62,7 @@ async function getConfig() {
                 forceGen: result[STORAGE_KEYS.FORCE_GEN] || DEFAULT_CONFIG.forceGen,
                 defaultLanguage: result[STORAGE_KEYS.DEFAULT_LANGUAGE] || DEFAULT_CONFIG.defaultLanguage,
                 backendUrl: result[STORAGE_KEYS.BACKEND_URL] || DEFAULT_CONFIG.backendUrl,
+                backendApiKey: result[STORAGE_KEYS.BACKEND_API_KEY] || '',
                 // Subtitle appearance
                 subtitleSize: result[STORAGE_KEYS.SUBTITLE_SIZE] || DEFAULT_CONFIG.subtitleSize,
                 subtitlePosition: result[STORAGE_KEYS.SUBTITLE_POSITION] || DEFAULT_CONFIG.subtitlePosition,
@@ -86,6 +88,7 @@ async function saveConfig(config) {
         if (config.forceGen !== undefined) toSave[STORAGE_KEYS.FORCE_GEN] = config.forceGen;
         if (config.defaultLanguage !== undefined) toSave[STORAGE_KEYS.DEFAULT_LANGUAGE] = config.defaultLanguage;
         if (config.backendUrl !== undefined) toSave[STORAGE_KEYS.BACKEND_URL] = config.backendUrl;
+        if (config.backendApiKey !== undefined) toSave[STORAGE_KEYS.BACKEND_API_KEY] = config.backendApiKey;
         // Subtitle appearance
         if (config.subtitleSize !== undefined) toSave[STORAGE_KEYS.SUBTITLE_SIZE] = config.subtitleSize;
         if (config.subtitlePosition !== undefined) toSave[STORAGE_KEYS.SUBTITLE_POSITION] = config.subtitlePosition;
@@ -660,7 +663,14 @@ async function fetchSubtitlesFromBackend(videoId, config) {
     const useWhisper = tier === 'tier3' || (forceGen && tier === 'tier2');
     const endpoint = useWhisper ? 'transcribe' : 'subtitles';
 
-    const response = await fetch(`${backendUrl}/api/${endpoint}?video_id=${videoId}&tier=${tier}`);
+    const headers = {};
+    if (config.backendApiKey) {
+        headers['Authorization'] = `Bearer ${config.backendApiKey}`;
+    }
+
+    const response = await fetch(`${backendUrl}/api/${endpoint}?video_id=${videoId}&tier=${tier}`, {
+        headers: headers
+    });
 
     if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -762,34 +772,114 @@ function parseSSEBuffer(buffer) {
  */
 async function processVideoTier3(videoId, targetLanguage, config, onProgress, tabId) {
     const { backendUrl, forceGen } = config;
+    const isRunPod = backendUrl.includes('api.runpod.ai');
 
     return new Promise((resolve, reject) => {
-        const url = `${backendUrl}/api/process`;
+        let url;
+        let body;
+
+        // RunPod Serverless Configuration
+        if (isRunPod) {
+            url = `${backendUrl}/runsync`; // Use runsync for blocking response
+            body = JSON.stringify({
+                input: {
+                    video_id: videoId,
+                    target_lang: targetLanguage,
+                    force_whisper: forceGen,
+                }
+            });
+        } else {
+            // Custom Flask Backend
+            url = `${backendUrl}/api/process`;
+            body = JSON.stringify({
+                video_id: videoId,
+                target_lang: targetLanguage,
+                force_whisper: forceGen,
+            });
+        }
 
         // Use AbortController for timeout (5 minutes for long videos)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
 
+        const fetchHeaders = {
+            'Content-Type': 'application/json',
+            ...(config.backendApiKey ? { 'Authorization': `Bearer ${config.backendApiKey}` } : {})
+        };
+
+        // For Flask (SSE), we accept event-stream. For RunPod, standard JSON.
+        if (!isRunPod) {
+            fetchHeaders['Accept'] = 'text/event-stream';
+        }
+
+        // RunPod requires an API Key
+        if (isRunPod && !config.backendApiKey) {
+            reject(new Error("RunPod connection requires a Backend API Key. Please configure it in the extension settings."));
+            return;
+        }
+
+        console.log('[VideoTranslate] POST Tier 3:', url);
+        console.log('[VideoTranslate] Headers:', JSON.stringify(fetchHeaders, null, 2).replace(config.backendApiKey, '***'));
+
         fetch(url, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'text/event-stream',
-            },
-            body: JSON.stringify({
-                video_id: videoId,
-                target_lang: targetLanguage,
-                force_whisper: forceGen,
-            }),
+            headers: fetchHeaders,
+            body: body,
             signal: controller.signal,
         }).then(async response => {
             clearTimeout(timeoutId);
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                reject(new Error(errorData.error || chrome.i18n.getMessage('failed')));
+                reject(new Error(errorData.error || `Server Error ${response.status}: ${response.statusText}`));
                 return;
             }
 
+            // --- RunPod Serverless Handler (JSON) ---
+            if (isRunPod) {
+                const data = await response.json();
+                console.log('[VideoTranslate] RunPod Response:', data);
+
+                // RunPod /runsync returns { status: "COMPLETED", output: ... }
+                if (data.status === "COMPLETED" && data.output) {
+                    if (data.output.error) {
+                        reject(new Error(data.output.error));
+                        return;
+                    }
+
+                    let finalSubtitles = [];
+                    let foundResult = false;
+
+                    // If output is list (generator yields)
+                    if (Array.isArray(data.output)) {
+                        for (const item of data.output) {
+                            if (item.subtitles) {
+                                finalSubtitles = finalSubtitles.concat(item.subtitles);
+                                foundResult = true;
+                            }
+                            if (item.error) {
+                                reject(new Error(item.error));
+                                return;
+                            }
+                        }
+                    }
+                    // If output is single object (standard return)
+                    else if (data.output.subtitles) {
+                        finalSubtitles = data.output.subtitles;
+                        foundResult = true;
+                    }
+
+                    if (foundResult) {
+                        resolve(finalSubtitles);
+                    } else {
+                        resolve([]);
+                    }
+                } else {
+                    reject(new Error(`RunPod Status: ${data.status}`));
+                }
+                return;
+            }
+
+            // --- Custom Flask Handler (SSE) ---
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
@@ -800,7 +890,6 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
 
                 buffer += decoder.decode(value, { stream: true });
 
-                // Parse SSE events using robust parser
                 const { events, remainder } = parseSSEBuffer(buffer);
                 buffer = remainder;
 
@@ -810,48 +899,34 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
                     try {
                         const data = JSON.parse(event.data);
 
-                        // Progress update
                         if (data.stage && data.message) {
-                            console.log(`[VideoTranslate] Progress: ${data.stage} - ${data.message} (${data.percent || 0}%) Step ${data.step || '?'}/${data.totalSteps || '?'}`);
-                            // Send progress to content script with all details
                             if (tabId) {
                                 chrome.tabs.sendMessage(tabId, {
                                     action: 'progress',
-                                    stage: data.stage,
-                                    message: data.message,
-                                    percent: data.percent,
-                                    step: data.step,
-                                    totalSteps: data.totalSteps,
-                                    eta: data.eta,
-                                    batchInfo: data.batchInfo,
+                                    ...data
                                 }).catch(() => { });
                             }
-                            if (onProgress) {
-                                onProgress(data);
-                            }
+                            if (onProgress) onProgress(data);
                         }
 
-                        // Final result
                         if (data.result) {
                             resolve(data.result.subtitles);
                             return;
                         }
-
-                        // Error
                         if (data.error) {
                             reject(new Error(data.error));
                             return;
                         }
                     } catch (e) {
-                        console.warn('[VideoTranslate] SSE JSON parse error:', e, 'Data:', event.data);
+                        console.warn('[VideoTranslate] JSON Parse error:', e);
                     }
                 }
             }
 
-            // Handle any remaining buffer content
+            // Check remaining buffer
             if (buffer.trim()) {
                 try {
-                    // Try to parse as final event
+                    // Try to parse final event if any
                     const match = buffer.match(/data:\s*(.+)/);
                     if (match) {
                         const data = JSON.parse(match[1]);
@@ -859,18 +934,17 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
                             resolve(data.result.subtitles);
                             return;
                         }
-                        if (data.error) {
-                            reject(new Error(data.error));
-                            return;
-                        }
                     }
-                } catch (e) {
-                    console.warn('[VideoTranslate] Final buffer parse failed:', e);
-                }
+                } catch (e) { }
             }
-
+            // If we finish loop without result and without rejecting
             reject(new Error(chrome.i18n.getMessage('streamNoResult')));
-        }).catch(reject);
+
+        }).catch(error => {
+            clearTimeout(timeoutId);
+            console.error('[VideoTranslate] Fetch failed:', error);
+            reject(error);
+        });
     });
 }
 
