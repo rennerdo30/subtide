@@ -9,6 +9,8 @@ FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base
 
 # Install uv (The Python Package Installer)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+# Install Deno (preferred runtime for yt-dlp)
+COPY --from=denoland/deno:bin /deno /bin/deno
 
 # Prevent interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive

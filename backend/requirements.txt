@@ -22,7 +22,7 @@ yt-dlp
 python-dotenv
 
 # Data Processing
-numpy
+numpy<2.0.0
 soundfile
 
 # AI / ML Core
