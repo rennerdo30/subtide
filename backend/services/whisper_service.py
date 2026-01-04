@@ -770,6 +770,17 @@ def get_diarization_pipeline():
                     pipeline.to(torch.device("cpu"))
                     _diarization_pipeline = pipeline
                     logger.info("Diarization pipeline loaded on CPU (fallback)")
+            elif torch.cuda.is_available():
+                try:
+                    logger.info("Attempting to use CUDA (NVIDIA GPU) for diarization...")
+                    pipeline.to(torch.device("cuda"))
+                    _diarization_pipeline = pipeline
+                    logger.info("Diarization pipeline loaded on CUDA (GPU)")
+                except Exception as cuda_error:
+                    logger.warning(f"CUDA failed ({cuda_error}), falling back to CPU")
+                    pipeline.to(torch.device("cpu"))
+                    _diarization_pipeline = pipeline
+                    logger.info("Diarization pipeline loaded on CPU (fallback)")
             else:
                 pipeline.to(torch.device("cpu"))
                 _diarization_pipeline = pipeline
