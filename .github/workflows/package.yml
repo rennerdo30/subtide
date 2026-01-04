@@ -215,11 +215,11 @@ jobs:
           context: ./backend
           file: ./backend/Dockerfile
           target: production
-          push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          outputs: type=registry,compression=zstd
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,compression=zstd
           platforms: linux/amd64
 
       # Build RunPod serverless Docker image (Uses root context)
@@ -229,11 +229,11 @@ jobs:
           context: .
           file: ./backend/Dockerfile.runpod
           target: serverless
-          push: true
           tags: ${{ steps.meta-runpod.outputs.tags }}
           labels: ${{ steps.meta-runpod.outputs.labels }}
+          outputs: type=registry,compression=zstd
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,compression=zstd
           platforms: linux/amd64
 
       # Build RunPod production Docker image (for dedicated pods)
@@ -243,12 +243,12 @@ jobs:
           context: .
           file: ./backend/Dockerfile.runpod
           target: production
-          push: true
           tags: |
             ghcr.io/${{ github.repository }}-runpod-server:${{ github.ref_name }}
             ghcr.io/${{ github.repository }}-runpod-server:latest
+          outputs: type=registry,compression=zstd
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=max,compression=zstd
           platforms: linux/amd64
 
   # Create Release with all artifacts
