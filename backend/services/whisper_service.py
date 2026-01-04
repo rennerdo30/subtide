@@ -1010,7 +1010,42 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
         logger.info(f"mlx-whisper done: {len(segments)} segments, language={language}, took {total_time:.1f}s, rtf={rtf:.3f}")
 
     elif backend == "faster-whisper":
-        raise ValueError("faster-whisper backend is no longer supported.")
+        logger.info(f"Starting faster-whisper transcription...")
+        logger.info(f"[WHISPER] Thresholds: no_speech={WHISPER_NO_SPEECH_THRESHOLD}, compression={WHISPER_COMPRESSION_RATIO_THRESHOLD}, logprob={WHISPER_LOGPROB_THRESHOLD}")
+        
+        if initial_prompt:
+             logger.info(f"[WHISPER] Initial prompt: {initial_prompt[:80]}...")
+
+        try:
+            segments_gen, info = model.transcribe(
+                audio_file,
+                beam_size=WHISPER_BEAM_SIZE,
+                initial_prompt=initial_prompt,
+                word_timestamps=True,
+                condition_on_previous_text=WHISPER_CONDITION_ON_PREVIOUS,
+                vad_filter=True,
+                vad_parameters=dict(min_silence_duration_ms=500),
+                no_speech_threshold=WHISPER_NO_SPEECH_THRESHOLD,
+                compression_ratio_threshold=WHISPER_COMPRESSION_RATIO_THRESHOLD,
+                log_prob_threshold=WHISPER_LOGPROB_THRESHOLD,
+            )
+
+            for segment in segments_gen:
+                segments.append({
+                    "start": segment.start,
+                    "end": segment.end,
+                    "text": segment.text.strip(),
+                    "words": [{"start": w.start, "end": w.end, "word": w.word} for w in segment.words] if segment.words else [],
+                    "speaker": None
+                })
+            
+            text = " ".join([s["text"] for s in segments])
+            language = info.language
+            logger.info(f"faster-whisper done: {len(segments)} segments, language={language}")
+            
+        except Exception as e:
+            logger.error(f"faster-whisper transcription failed: {e}")
+            raise e
 
     else:
         # openai-whisper
