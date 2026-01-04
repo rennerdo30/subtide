@@ -1,7 +1,7 @@
 {
     "tests": [],
     "config": {
-        "gpuTypeId": "NVIDIA RTX A4000",
+        "gpuTypeId": "NVIDIA RTX A4500",
         "gpuCount": 1,
         "env": [
             {
