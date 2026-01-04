@@ -160,7 +160,8 @@ The provided `Dockerfile` in the root is optimized for both use cases.
 
 ### "Pod could not be created for tests" (Hub Validation)
 - This means the requested GPU (likely RTX 4090) is unavailable in the test pool.
-- Edit `.runpod/tests.json` and change `gpuTypeId` to a more available model like `NVIDIA RTX 4000 Ada Generation`, `NVIDIA RTX A4500`, or `NVIDIA RTX A4000`.
+- Edit `.runpod/tests.json` and change `gpuTypeId` to a **GPU Pool ID** for better availability, such as `AMPERE_16` (includes A4000, A4500) or `AMPERE_24` (includes A5000, 3090).
+- Avoid using specific GPU IDs like `NVIDIA GeForce RTX 4090` for validation unless strictly necessary, as they fluctuate in availability.
 - You can also empty the `tests` list in `.runpod/tests.json` to skip functional validation if resource availability is blocking deployment.
 
 ### "Connection Refused" (Dedicated Pod)
@@ -171,3 +172,76 @@ The provided `Dockerfile` in the root is optimized for both use cases.
 ### Streaming Lag (Serverless)
 - Serverless cold starts can take 10-20s.
 - Use **Dedicated Pods** for instant, latency-sensitive streaming.
+
+## 📚 Reference: GPU IDs & Pools
+
+When configuring `gpuTypeId` in `.runpod/tests.json` or `runpod.toml`, use **Pool IDs** for better availability during validation/testing. Use specific **GPU IDs** if you strictly require a certain hardware tier.
+
+### 🏊 GPU Pools (Recommended for Validation)
+| Pool ID | Included GPUs | VRAM |
+| :--- | :--- | :--- |
+| `AMPERE_16` | A4000, A4500, RTX 4000, RTX 2000 | 16 GB |
+| `AMPERE_24` | L4, A5000, 3090 | 24 GB |
+| `ADA_24` | 4090 | 24 GB |
+| `AMPERE_48` | A6000, A40 | 48 GB |
+| `ADA_48_PRO` | L40, L40S, 6000 Ada | 48 GB |
+| `AMPERE_80` | A100 | 80 GB |
+| `ADA_80_PRO` | H100 | 80 GB |
+| `HOPPER_141` | H200 | 141 GB |
+
+### 🆔 Specific GPU IDs
+**NVIDIA GeForce (Consumer)**
+| ID | Model | VRAM |
+| :--- | :--- | :--- |
+| `NVIDIA GeForce RTX 3070` | RTX 3070 | 8 GB |
+| `NVIDIA GeForce RTX 3080` | RTX 3080 | 10 GB |
+| `NVIDIA GeForce RTX 3080 Ti` | RTX 3080 Ti | 12 GB |
+| `NVIDIA GeForce RTX 3090` | RTX 3090 | 24 GB |
+| `NVIDIA GeForce RTX 3090 Ti` | RTX 3090 Ti | 24 GB |
+| `NVIDIA GeForce RTX 4070 Ti` | RTX 4070 Ti | 12 GB |
+| `NVIDIA GeForce RTX 4080` | RTX 4080 | 16 GB |
+| `NVIDIA GeForce RTX 4080 SUPER` | RTX 4080 SUPER | 16 GB |
+| `NVIDIA GeForce RTX 4090` | RTX 4090 | 24 GB |
+| `NVIDIA GeForce RTX 5080` | RTX 5080 | 16 GB |
+| `NVIDIA GeForce RTX 5090` | RTX 5090 | 32 GB |
+
+**NVIDIA RTX / Quadro (Professional)**
+| ID | Model | VRAM |
+| :--- | :--- | :--- |
+| `NVIDIA RTX A2000` | RTX A2000 | 6 GB |
+| `NVIDIA RTX A4000` | RTX A4000 | 16 GB |
+| `NVIDIA RTX A4500` | RTX A4500 | 20 GB |
+| `NVIDIA RTX A5000` | RTX A5000 | 24 GB |
+| `NVIDIA RTX A6000` | RTX A6000 | 48 GB |
+| `NVIDIA RTX 2000 Ada Generation` | RTX 2000 Ada | 16 GB |
+| `NVIDIA RTX 4000 Ada Generation` | RTX 4000 Ada | 20 GB |
+| `NVIDIA RTX 4000 SFF Ada Generation` | RTX 4000 Ada SFF | 20 GB |
+| `NVIDIA RTX 5000 Ada Generation` | RTX 5000 Ada | 32 GB |
+| `NVIDIA RTX 6000 Ada Generation` | RTX 6000 Ada | 48 GB |
+| `NVIDIA RTX PRO 6000 Blackwell Server Edition` | RTX PRO 6000 Server | 96 GB |
+| `NVIDIA RTX PRO 6000 Blackwell Workstation Edition` | RTX PRO 6000 Workstation | 96 GB |
+
+**NVIDIA Data Center**
+| ID | Model | VRAM |
+| :--- | :--- | :--- |
+| `NVIDIA L4` | L4 | 24 GB |
+| `NVIDIA L40` | L40 | 48 GB |
+| `NVIDIA L40S` | L40S | 48 GB |
+| `NVIDIA A30` | A30 | 24 GB |
+| `NVIDIA A40` | A40 | 48 GB |
+| `NVIDIA A100 80GB PCIe` | A100 PCIe | 80 GB |
+| `NVIDIA A100-SXM4-80GB` | A100 SXM | 80 GB |
+| `NVIDIA H100 PCIe` | H100 PCIe | 80 GB |
+| `NVIDIA H100 80GB HBM3` | H100 SXM | 80 GB |
+| `NVIDIA H100 NVL` | H100 NVL | 94 GB |
+| `NVIDIA H200` | H200 SXM | 141 GB |
+| `NVIDIA B200` | B200 | 180 GB |
+| `Tesla V100-FHHL-16GB` | V100 FHHL | 16 GB |
+| `Tesla V100-PCIE-16GB` | Tesla V100 | 16 GB |
+| `Tesla V100-SXM2-16GB` | V100 SXM2 | 16 GB |
+| `Tesla V100-SXM2-32GB` | V100 SXM2 32GB | 32 GB |
+
+**AMD**
+| ID | Model | VRAM |
+| :--- | :--- | :--- |
+| `AMD Instinct MI300X OAM` | MI300X | 192 GB |

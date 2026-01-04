@@ -1,7 +1,7 @@
 {
     "tests": [],
     "config": {
-        "gpuTypeId": "NVIDIA RTX 4000 Ada Generation",
+        "gpuTypeId": "AMPERE_16",
         "gpuCount": 1,
         "env": [
             {
