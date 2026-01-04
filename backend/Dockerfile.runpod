@@ -7,11 +7,16 @@
 # ============================================================================
 FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04 AS base
 
+# Install uv (The Python Package Installer)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
 # Prevent interactive prompts during build
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install system dependencies with cache
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt/lists \
+    apt-get update && apt-get install -y --no-install-recommends \
     python3.11 \
     python3.11-dev \
     python3.11-venv \
@@ -19,16 +24,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     git \
     curl \
-    libsndfile1 \
-    && rm -rf /var/lib/apt/lists/*
+    libsndfile1
 
 # Set Python 3.11 as default
 RUN update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
     && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
     && update-alternatives --install /usr/bin/pip pip /usr/bin/pip3 1
 
-# Upgrade pip
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel
+# Upgrade pip (via uv if possible, but keeping pip upgrade for compatibility)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system --upgrade pip setuptools wheel
 
 WORKDIR /app
 
@@ -37,33 +42,40 @@ WORKDIR /app
 # ============================================================================
 FROM base AS dependencies
 
-# Install PyTorch with CUDA 12.1 support FIRST
-RUN pip install --no-cache-dir \
+# Install PyTorch with CUDA 12.1 support FIRST (Cached)
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system \
     torch==2.2.0 \
     torchaudio==2.2.0 \
     --index-url https://download.pytorch.org/whl/cu121
 
 # Install faster-whisper for fast transcription
-RUN pip install --no-cache-dir faster-whisper
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system faster-whisper
 
 # Install NeMo toolkit for fast diarization
 # Note: This is a large package, may take a while
-RUN pip install --no-cache-dir \
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system \
     Cython \
-    nemo_toolkit[asr] || echo "NeMo install warning, continuing..."
+    "nemo_toolkit[asr]" || echo "NeMo install warning, continuing..."
 
 # Install ONNX Runtime with GPU support
-RUN pip install --no-cache-dir onnxruntime-gpu
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system onnxruntime-gpu
 
 # Install RunPod SDK
-RUN pip install --no-cache-dir runpod
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system runpod
 
 # Fallback: pyannote for diarization if NeMo fails
-RUN pip install --no-cache-dir pyannote.audio || echo "pyannote install warning, continuing..."
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system pyannote.audio || echo "pyannote install warning, continuing..."
 
 # Copy and install base requirements
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system -r requirements.txt
 
 # ============================================================================
 # Production stage

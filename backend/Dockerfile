@@ -6,11 +6,15 @@
 # ============================================================================
 FROM python:3.11-slim AS base
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install uv (The Python Package Installer)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
+
+# Install system dependencies with cache
+RUN --mount=type=cache,target=/var/cache/apt \
+    --mount=type=cache,target=/var/lib/apt/lists \
+    apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+    curl
 
 WORKDIR /app
 
@@ -19,9 +23,10 @@ WORKDIR /app
 # ============================================================================
 FROM base AS dependencies
 
-# Install Python dependencies
+# Install Python dependencies using uv (much faster)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system --no-cache-dir -r requirements.txt
 
 # ============================================================================
 # Development stage (includes dev tools)
@@ -29,7 +34,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 FROM dependencies AS development
 
 # Install dev dependencies
-RUN pip install --no-cache-dir \
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system --no-cache-dir \
     watchdog \
     pytest \
     pytest-cov
@@ -51,8 +57,9 @@ CMD ["python", "app.py"]
 # ============================================================================
 FROM dependencies AS production
 
-# Install production server
-RUN pip install --no-cache-dir gunicorn gevent
+# Install production server USE UV
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --system --no-cache-dir gunicorn gevent
 
 # Copy application code
 COPY . .
@@ -78,11 +85,11 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
 
 # Run with Gunicorn (gevent for SSE support)
 CMD ["gunicorn", \
-     "--worker-class", "gevent", \
-     "--workers", "2", \
-     "--bind", "0.0.0.0:5001", \
-     "--timeout", "300", \
-     "--keep-alive", "65", \
-     "--access-logfile", "-", \
-     "--error-logfile", "-", \
-     "app:app"]
+    "--worker-class", "gevent", \
+    "--workers", "2", \
+    "--bind", "0.0.0.0:5001", \
+    "--timeout", "300", \
+    "--keep-alive", "65", \
+    "--access-logfile", "-", \
+    "--error-logfile", "-", \
+    "app:app"]
