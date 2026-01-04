@@ -47,13 +47,40 @@ const TIER_HINTS_KEYS = {
 };
 
 /**
+ * Wake up the service worker and wait for it to respond
+ * Chrome MV3 service workers can be inactive and need time to start
+ */
+async function wakeUpServiceWorker(maxRetries = 3) {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            const response = await sendMessage({ action: 'ping' }, 3000);
+            if (response?.pong) {
+                console.log('[VideoTranslate] Service worker is ready');
+                return true;
+            }
+        } catch (e) {
+            console.log(`[VideoTranslate] Wake-up attempt ${i + 1}/${maxRetries} failed:`, e.message);
+            // Wait a bit before retrying
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+    console.warn('[VideoTranslate] Service worker may not be fully ready');
+    return false;
+}
+
+/**
  * Initialize popup
  */
 async function init() {
-    console.log('[VideoTranslate] Popup initialized');
+    console.log('[VideoTranslate] Popup initializing...');
 
-    // Localize page
+    // Localize page first (no async, instant)
     localizePage();
+
+    // Wake up the service worker BEFORE any other operations
+    await wakeUpServiceWorker();
+
+    console.log('[VideoTranslate] Popup initialized');
 
     // Load configuration
     await loadConfig();

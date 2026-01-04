@@ -96,6 +96,32 @@
   - Hallucination filtering (removes repeated patterns)
 - **Impact**: More complete and accurate transcriptions
 
+### RunPod Docker Import Path Error
+- **Issue**: RunPod serverless handler crashed with `ModuleNotFoundError: No module named 'backend'`
+- **Root Cause**: Dockerfile copied files to `/app/` but code imported from `backend.*`
+- **Fix**: Updated `Dockerfile.runpod` to:
+  - Copy to `/app/backend/` instead of `/app/`
+  - Add `ENV PYTHONPATH=/app`
+  - Add `WORKDIR /app/backend`
+- **Impact**: RunPod serverless deployments now work correctly
+
+### RunPod Extension Authorization Header Missing
+- **Issue**: API requests to RunPod returned "Permission denied" despite having API key configured
+- **Root Cause**: Extension stored Backend API Key but wasn't including it in Authorization header properly
+- **Fix**: Added proper Authorization header construction and detective logging in `service-worker.js`
+- **Impact**: RunPod endpoints now receive proper authentication
+
+### Popup Buttons Becoming Unresponsive
+- **Issue**: Save button and other popup buttons would stop working after first use, requiring 10+ second wait
+- **Root Cause**: `sendMessage` to service worker could hang if worker was busy, leaving button disabled
+- **Fix**: Added 10-second timeout wrapper to `sendMessage` function in `popup.js`
+- **Impact**: Buttons now always reset after timeout, preventing stuck UI state
+
+### Docker Image Too Large (NeMo Dependency)
+- **Issue**: RunPod Docker builds failed with "no space left on device" due to NeMo's large dependencies
+- **Fix**: Removed NeMo installation, switched to PyAnnote.audio as default diarization backend
+- **Impact**: Docker image is now significantly smaller and builds successfully on GitHub Actions
+
 
 ## Known Limitations ⚠️
 
@@ -141,4 +167,4 @@
 - Abstract video detection and UI injection
 
 ---
-*Last updated: 2026-01-03*
+*Last updated: 2026-01-05*

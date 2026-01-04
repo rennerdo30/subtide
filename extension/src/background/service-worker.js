@@ -1121,6 +1121,10 @@ async function handleMessage(message, sender) {
     const config = await getConfig();
 
     switch (message.action) {
+        case 'ping':
+            // Simple ping to wake up service worker
+            return { pong: true };
+
         case 'getConfig':
             return config;
 

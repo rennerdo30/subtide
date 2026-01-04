@@ -80,12 +80,16 @@ def download_audio(video_id: str) -> str:
     Returns:
         Path to downloaded audio file
     """
-    from backend.services.youtube_service import download_audio as yt_download
+    from backend.services.youtube_service import ensure_audio_downloaded
 
     log_info(f"Downloading audio for video: {video_id}")
-    audio_path = yt_download(video_id)
+    url = f"https://www.youtube.com/watch?v={video_id}"
+    audio_path = ensure_audio_downloaded(video_id, url)
+    
+    if not audio_path:
+        raise RuntimeError(f"Failed to download audio for {video_id}")
+    
     log_info(f"Audio downloaded: {audio_path}")
-
     return audio_path
 
 
@@ -96,7 +100,7 @@ def transcribe_audio(audio_path: str, progress_callback=None) -> list:
     Returns:
         List of transcription segments
     """
-    from services.whisper_backend_base import get_whisper_backend
+    from backend.services.whisper_backend_base import get_whisper_backend
 
     whisper = get_whisper_backend()
     logger.info(f"Transcribing with {whisper.get_backend_name()}...")
@@ -118,7 +122,7 @@ def add_speaker_labels(audio_path: str, segments: list, progress_callback=None) 
     Returns:
         Segments with speaker field added
     """
-    from services.diarization import get_diarization_backend
+    from backend.services.diarization import get_diarization_backend
 
     diarization = get_diarization_backend()
     logger.info(f"Diarizing with {diarization.get_backend_name()}...")
@@ -144,7 +148,7 @@ def translate_subtitles(segments: list, target_lang: str, progress_callback=None
     Returns:
         Segments with translatedText field added
     """
-    from services.translation_service import await_translate_subtitles
+    from backend.services.translation_service import await_translate_subtitles
 
     logger.info(f"Translating to {target_lang}...")
 
@@ -202,7 +206,7 @@ def handler(event: Dict[str, Any]) -> Any:
         # We need a custom implementation here that mirrors process_service.py 
         # but yields directly instead of using a queue.
         
-        from services.whisper_backend_base import get_whisper_backend
+        from backend.services.whisper_backend_base import get_whisper_backend
         whisper = get_whisper_backend()
         
         # Buffer for batch translation
@@ -234,7 +238,7 @@ def handler(event: Dict[str, Any]) -> Any:
         # However, `runpod_handler.py` runs inside the container where 
         # `whisper_service.py` is available.
         
-        from services.translation_service import await_translate_subtitles
+        from backend.services.translation_service import await_translate_subtitles
         
         yield {"stage": "whisper", "message": "Transcribing...", "percent": 30}
         

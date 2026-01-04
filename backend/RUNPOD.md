@@ -4,23 +4,24 @@ Deploy Video Translate on RunPod.io for fast, cost-effective GPU acceleration.
 
 ## 🚀 Quick Summary
 
-| Feature | Serverless Endpoint | Dedicated Pod |
-|---------|---------------------|---------------|
-| **Best For** | Variable/clean loads, Tier 3 (Batch) | Continuous use, **Tier 4 (Streaming)** |
+| Feature | Serverless Queue | Dedicated Pod |
+|---------|------------------|---------------|
+| **Best For** | Variable loads, Tier 3 (Batch) | Continuous use, **Tier 4 (Streaming)** |
 | **Cost** | Pay-per-second, scales to zero | Flat hourly rate |
 | **Setup** | Easy, managed | Full control, accessible IP |
 | **Streaming** | Limited (JSON chunks) | **Full SSE Support (Tier 4)** |
+| **URL Format** | `https://api.runpod.ai/v2/{id}` | `https://pod-id-5001.proxy.runpod.net` |
 
 ---
 
 ## 🔒 Authentication
 
-The serverless endpoint requires a valid RunPod API Key.
+All RunPod endpoints require a valid RunPod API Key.
 Your client (Extension or API consumer) must send the key in the `Authorization` header:
 
 1. Go to [RunPod Settings](https://www.runpod.io/console/user/settings).
 2. Scroll to **API Keys**.
-3. Create a new Read/Write key.
+3. Create a new **Read/Write** key.
 
 ```
 Authorization: Bearer <YOUR_RUNPOD_API_KEY>
@@ -28,14 +29,14 @@ Authorization: Bearer <YOUR_RUNPOD_API_KEY>
 
 ### Client / Extension Configuration
 1. Open the **Video Translate Extension Settings**.
-2. Select **Tier 4 (Stream)** (or Tier 3 for Batch).
-3. Set **Provider** to **Custom / RunPod** (this helps pre-fill defaults, but is less critical now).
-4. **Backend URL**: Paste your Serverless Endpoint URL (e.g., `https://api.runpod.ai/v2/vllm-xyz...`).
-    - Note: Ensure it includes the `https://` protocol.
-5. **Backend API Key**: Paste your Read/Write RunPod API Key (starts with `rpa_...`).
-    - This is a new dedicated field specifically for the backend connection.
+2. Select **Tier 3 (Batch)** or **Tier 4 (Stream)**.
+3. **Backend URL**:
+   - **Serverless Queue**: `https://api.runpod.ai/v2/{ENDPOINT_ID}` (no trailing slash)
+   - **Dedicated Pod**: `https://pod-id-5001.proxy.runpod.net`
+4. **Backend API Key**: Paste your RunPod API Key (starts with `rpa_...`).
+5. Click **Save** and then **Check Backend** to verify connectivity.
 
-
+> **Important**: The extension auto-detects the endpoint type from the URL format and uses the correct API calls automatically.
 
 ---
 
@@ -58,7 +59,7 @@ This runs the full Flask backend, providing native SSE support for the "live str
      ENABLE_WHISPER=true
      WHISPER_MODEL=base
      ENABLE_DIARIZATION=true
-     HF_TOKEN=hf_your-token             # Optional: for Diarization
+     HF_TOKEN=hf_your-token             # Required for PyAnnote Diarization
      ```
 
 #### 2. Get Backend Address
@@ -69,7 +70,7 @@ This runs the full Flask backend, providing native SSE support for the "live str
 
 ---
 
-### Option 2: Serverless (Best for Tier 3 / Batch)
+### Option 2: Serverless Queue (Best for Tier 3 / Batch)
 
 Best for on-demand usage where you don't want to pay for idle time.
 
@@ -78,6 +79,12 @@ Best for on-demand usage where you don't want to pay for idle time.
 2. Click **New Template**.
 3. **Container Image**: `ghcr.io/rennerdo30/video-translate-runpod:latest`
 4. **Container Disk**: `20 GB`.
+5. **Environment Variables**:
+   ```env
+   HF_TOKEN=hf_your-token              # Required for PyAnnote Diarization
+   SERVER_API_KEY=sk-your-openai-key   # Optional: for included translation
+   WHISPER_MODEL=base                  # Options: tiny, base, small, medium, large
+   ```
 
 #### 2. Create Endpoint
 1. Go to [Serverless](https://www.runpod.io/console/serverless).
@@ -85,12 +92,14 @@ Best for on-demand usage where you don't want to pay for idle time.
 3. Select your template.
 4. **Min Workers**: `0` (Scales to zero to save cost).
 5. **Max Workers**: `3`.
-6. **FlashBoot**: Enabled (Faster starts).
+6. **FlashBoot**: Enabled (Faster cold starts).
 
-#### 3. Get Endpoint Details
+#### 3. Get Endpoint URL
 1. Click on your new Endpoint.
-2. Copy the **Endpoint ID** (e.g., `vllm-xyz123`).
-3. Your **Endpoint URL** is: `https://api.runpod.ai/v2/{endpoint_id}`.
+2. Copy the **Endpoint ID** (e.g., `abc123xyz`).
+3. Your **Endpoint URL** is: `https://api.runpod.ai/v2/{endpoint_id}`
+   - Example: `https://api.runpod.ai/v2/abc123xyz`
+   - **Do NOT include a trailing slash**
 
 ---
 
@@ -136,19 +145,29 @@ The provided `Dockerfile` in the root is optimized for both use cases.
 
 ## 📦 Troubleshooting
 
-### 401 Unauthorized
-- Ensure you pasted your **RunPod API Key** into the Extension's API Key field.
-- Ensure your Serverless Endpoint allows your key scope.
+### 401/403 Permission Denied
+- Ensure your **RunPod API Key** is entered in the Extension's **Backend API Key** field (not the LLM API Key field).
+- Ensure the key has **Read/Write** permissions (not Read Only).
+- Verify the Endpoint ID in your URL matches the one in your RunPod dashboard.
+- For Serverless: Use `https://api.runpod.ai/v2/{id}` format, NOT `https://{id}.api.runpod.ai`.
 
-
+### 404 Not Found
+- Ensure there is **no trailing slash** in the Backend URL.
+- Verify the endpoint is deployed and showing as **Active** in RunPod dashboard.
+- For Serverless Queue, the extension automatically appends `/runsync` to your URL.
 
 ### "Connection Refused" (Dedicated Pod)
-- Ensure the Pod is showing "Running".
-- Check that port `5001` is strictly exposed in the Pod settings.
-- Check logs: `docker logs <container_id>`.
+- Ensure the Pod is showing **Running** (not Idle or Stopped).
+- Check that port `5001` is exposed in the Pod settings.
+- View logs in the RunPod console to check for startup errors.
+
+### ModuleNotFoundError: No module named 'backend'
+- This indicates an outdated Docker image. Rebuild with the latest Dockerfile that includes `PYTHONPATH=/app`.
+- Pull the latest image: `ghcr.io/rennerdo30/video-translate-runpod:latest`
 
 ### Streaming Lag (Serverless)
-- Serverless cold starts can take 10-20s.
+- Serverless cold starts can take 10-30s depending on GPU availability.
+- Use **FlashBoot** to reduce cold start times.
 - Use **Dedicated Pods** for instant, latency-sensitive streaming.
 
 ## 📚 Reference: GPU IDs & Pools

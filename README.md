@@ -123,6 +123,24 @@ SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
 
 > **Note**: Tier 4 uses the same backend configuration as Tier 3 but uses the `/api/stream` endpoint for progressive subtitle delivery.
 
+## Cloud Deployment (RunPod)
+
+For GPU-accelerated transcription, deploy on [RunPod.io](https://runpod.io):
+
+- **Serverless Queue**: Pay per second, scales to zero
+- **Dedicated Pod**: Flat rate, full streaming support
+
+```bash
+# Pull the latest image
+docker pull ghcr.io/rennerdo30/video-translate-runpod:latest
+```
+
+Configure the extension with your RunPod endpoint URL:
+- **Serverless**: `https://api.runpod.ai/v2/{ENDPOINT_ID}`
+- **Dedicated**: `https://pod-id-5001.proxy.runpod.net`
+
+See [backend/RUNPOD.md](backend/RUNPOD.md) for complete deployment instructions.
+
 ## Tech Stack
 
 - **Extension**: Chrome Manifest V3, Vanilla JavaScript
