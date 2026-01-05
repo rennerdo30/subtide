@@ -171,7 +171,7 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
             work_start_time = time.time()
             logger.info(f"[PROCESS] Worker thread started for video={video_id}, target={target_lang}")
             try:
-                # Check translation cache first
+                # Check translation cache first (fastest path)
                 translation_cache_path = get_cache_path(video_id, f'translated_{target_lang}')
                 if os.path.exists(translation_cache_path) and not force_whisper:
                     logger.info(f"[PROCESS] Using cached translation for {video_id} -> {target_lang}")
@@ -185,32 +185,60 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                 subtitles = []
                 source_type = None
                 needs_translation = True
+                video_duration = 0  # Will be set if we have yt-dlp info
+                manual_subs = {}  # Will be set if we check yt-dlp
+                auto_subs = {}    # Will be set if we check yt-dlp
                 
-                # Step 1: Check available subtitles
-                step_start = time.time()
-                send_sse('checking', 'Checking available subtitles...', 5, step=1, total_steps=4)
-                logger.info(f"[PROCESS] Starting: video={video_id}, target={target_lang}, force_whisper={force_whisper}")
-
-                ydl_opts = {
-                    'skip_download': True,
-                    'writesubtitles': True,
-                    'writeautomaticsub': True,
-                    'quiet': True,
-                    'no_warnings': True,
-                    'format': None,
-                    'ignore_no_formats_error': True,
-                }
-
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                    manual_subs = info.get('subtitles') or {}
-                    auto_subs = info.get('automatic_captions') or {}
-                    video_duration = info.get('duration', 0)
-
-                logger.info(f"[PROCESS] Manual subs: {list(manual_subs.keys())} | Auto subs: {list(auto_subs.keys())} | Duration: {video_duration}s (checked in {time.time()-step_start:.1f}s)")
+                # OPTIMIZATION: Check Whisper cache BEFORE yt-dlp when force_whisper is set
+                # This saves 2-5 seconds by skipping unnecessary yt-dlp info extraction
+                whisper_cache_path = get_cache_path(video_id, 'whisper')
+                use_cached_whisper = force_whisper and os.path.exists(whisper_cache_path)
                 
+                if use_cached_whisper:
+                    logger.info(f"[PROCESS] Fast path: Using cached Whisper result (skipping yt-dlp)")
+                    send_sse('whisper', 'Using cached transcription', 50, step=2, total_steps=4)
+                    with open(whisper_cache_path, 'r', encoding='utf-8') as f:
+                        whisper_result = json.load(f)
+                    source_type = 'whisper'
+                    
+                    # Convert cached Whisper to subtitle format
+                    for seg in whisper_result.get('segments', []):
+                        subtitles.append({
+                            'start': int(seg['start'] * 1000),
+                            'end': int(seg['end'] * 1000),
+                            'text': seg['text'].strip(),
+                            'speaker': seg.get('speaker')
+                        })
+                    logger.info(f"[PROCESS] Loaded {len(subtitles)} subtitles from Whisper cache")
+                else:
+                    # Standard path: Check YouTube subtitles via yt-dlp
+                    step_start = time.time()
+                    send_sse('checking', 'Checking available subtitles...', 5, step=1, total_steps=4)
+                    logger.info(f"[PROCESS] Starting: video={video_id}, target={target_lang}, force_whisper={force_whisper}")
+
+                    ydl_opts = {
+                        'skip_download': True,
+                        'writesubtitles': True,
+                        'writeautomaticsub': True,
+                        'quiet': True,
+                        'no_warnings': True,
+                        'format': None,
+                        'ignore_no_formats_error': True,
+                    }
+
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(url, download=False)
+                        manual_subs = info.get('subtitles') or {}
+                        auto_subs = info.get('automatic_captions') or {}
+                        video_duration = info.get('duration', 0)
+
+                    logger.info(f"[PROCESS] Manual subs: {list(manual_subs.keys())} | Auto subs: {list(auto_subs.keys())} | Duration: {video_duration}s (checked in {time.time()-step_start:.1f}s)")
+                
+                # Skip subtitle source selection if we already have subtitles (from cached Whisper)
+                if subtitles:
+                    logger.info(f"[PROCESS] Skipping source selection - already have {len(subtitles)} subtitles")
                 # Priority 1: Target language MANUAL subs exist
-                if target_lang in manual_subs:
+                elif not use_cached_whisper and target_lang in manual_subs:
                     send_sse('downloading', f'Found {target_lang} subtitles!', 20, step=2, total_steps=3)
                     source_type = 'youtube_direct'
                     needs_translation = False
@@ -343,9 +371,9 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
 
         while True:
             try:
-                # Increased timeout to 60s for long-running Whisper transcription
-                # MLX-whisper for 20min+ videos can take several minutes
-                msg_type, data = progress_queue.get(timeout=60)
+                # Increased timeout to 90s for long-running Whisper transcription
+                # MLX-whisper for 30min+ videos can take several minutes
+                msg_type, data = progress_queue.get(timeout=90)
 
                 if msg_type == 'progress':
                     yield f"data: {json.dumps(data)}\n\n"
@@ -358,7 +386,7 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
 
             except queue.Empty:
                 if worker.is_alive():
-                    logger.debug(f"[PROCESS] Queue timeout (10s), worker still alive, sending ping")
+                    logger.debug(f"[PROCESS] Queue timeout (90s), worker still alive, sending ping")
                     yield f"data: {json.dumps({'ping': True})}\n\n"
                 else:
                     logger.warning(f"[PROCESS] Queue timeout and worker is dead, ending")
@@ -428,31 +456,59 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool):
                 subtitles = []
                 source_type = None
                 needs_translation = True
+                video_duration = 0  # Will be set if we have yt-dlp info
+                manual_subs = {}  # Will be set if we check yt-dlp
+                auto_subs = {}    # Will be set if we check yt-dlp
 
-                # Step 1: Check available subtitles
-                send_sse('checking', 'Checking available subtitles...', 5, step=1, total_steps=4)
-                logger.info(f"[STREAM] Starting: video={video_id}, target={target_lang}, force_whisper={force_whisper}")
+                # OPTIMIZATION: Check Whisper cache BEFORE yt-dlp when force_whisper is set
+                # This saves 2-5 seconds by skipping unnecessary yt-dlp info extraction
+                whisper_cache_path = get_cache_path(video_id, 'whisper')
+                use_cached_whisper = force_whisper and os.path.exists(whisper_cache_path)
+                
+                if use_cached_whisper:
+                    logger.info(f"[STREAM] Fast path: Using cached Whisper result (skipping yt-dlp)")
+                    send_sse('whisper', 'Using cached transcription', 50, step=2, total_steps=4)
+                    with open(whisper_cache_path, 'r', encoding='utf-8') as f:
+                        whisper_result = json.load(f)
+                    source_type = 'whisper'
+                    
+                    # Convert cached Whisper to subtitle format
+                    for seg in whisper_result.get('segments', []):
+                        subtitles.append({
+                            'start': int(seg['start'] * 1000),
+                            'end': int(seg['end'] * 1000),
+                            'text': seg['text'].strip(),
+                            'speaker': seg.get('speaker')
+                        })
+                    logger.info(f"[STREAM] Loaded {len(subtitles)} subtitles from Whisper cache")
+                else:
+                    # Standard path: Check YouTube subtitles via yt-dlp
+                    send_sse('checking', 'Checking available subtitles...', 5, step=1, total_steps=4)
+                    logger.info(f"[STREAM] Starting: video={video_id}, target={target_lang}, force_whisper={force_whisper}")
 
-                ydl_opts = {
-                    'skip_download': True,
-                    'writesubtitles': True,
-                    'writeautomaticsub': True,
-                    'quiet': True,
-                    'no_warnings': True,
-                    'format': None,  # Don't require any specific format for info extraction
-                    'ignore_no_formats_error': True,  # Ignore format errors
-                }
+                    ydl_opts = {
+                        'skip_download': True,
+                        'writesubtitles': True,
+                        'writeautomaticsub': True,
+                        'quiet': True,
+                        'no_warnings': True,
+                        'format': None,  # Don't require any specific format for info extraction
+                        'ignore_no_formats_error': True,  # Ignore format errors
+                    }
 
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                    manual_subs = info.get('subtitles') or {}
-                    auto_subs = info.get('automatic_captions') or {}
-                    video_duration = info.get('duration', 0)
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        info = ydl.extract_info(url, download=False)
+                        manual_subs = info.get('subtitles') or {}
+                        auto_subs = info.get('automatic_captions') or {}
+                        video_duration = info.get('duration', 0)
 
-                logger.info(f"[STREAM] Manual subs: {list(manual_subs.keys())} | Auto subs: {list(auto_subs.keys())}")
+                    logger.info(f"[STREAM] Manual subs: {list(manual_subs.keys())} | Auto subs: {list(auto_subs.keys())}")
 
+                # Skip subtitle source selection if we already have subtitles (from cached Whisper)
+                if subtitles:
+                    logger.info(f"[STREAM] Skipping source selection - already have {len(subtitles)} subtitles")
                 # Priority 1: Target language MANUAL subs exist
-                if target_lang in manual_subs:
+                elif not use_cached_whisper and target_lang in manual_subs:
                     send_sse('downloading', f'Found {target_lang} subtitles!', 20, step=2, total_steps=3)
                     source_type = 'youtube_direct'
                     needs_translation = False

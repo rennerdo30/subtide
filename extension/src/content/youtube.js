@@ -71,12 +71,31 @@ function observeNavigation() {
  * Handle navigation events
  */
 function onNavigate() {
+    // Stop subtitle sync loop to prevent orphaned RAF callbacks
+    if (typeof stopSync === 'function') {
+        stopSync();
+    }
+
+    // Clear any pending live subtitle timeout
+    if (window._liveSubtitleTimeout) {
+        clearTimeout(window._liveSubtitleTimeout);
+        window._liveSubtitleTimeout = null;
+    }
+
+    // Clear fast retry interval if running
+    if (window._vtFastRetryInterval) {
+        clearInterval(window._vtFastRetryInterval);
+        window._vtFastRetryInterval = null;
+    }
+
+    // Reset state
     translatedSubtitles = null;
     sourceSubtitles = null;
     isProcessing = false;
     isLive = false; // Reset live state
     isStreaming = false; // Reset streaming state
     streamedSubtitles = []; // Clear streamed subtitles
+
     removeUI();
     setTimeout(checkForVideo, 1000);
 }
@@ -171,10 +190,12 @@ async function setupPage(videoId) {
     // Fast initial injection loop for the first 10 seconds (every 200ms)
     // This catches YouTube's aggressive initial DOM rebuilding
     let fastRetryCount = 0;
-    const fastRetryInterval = setInterval(() => {
+    // Store reference for cleanup on navigation
+    window._vtFastRetryInterval = setInterval(() => {
         fastRetryCount++;
         if (fastRetryCount > 50) { // 50 * 200ms = 10 seconds
-            clearInterval(fastRetryInterval);
+            clearInterval(window._vtFastRetryInterval);
+            window._vtFastRetryInterval = null;
             return;
         }
         if (!document.querySelector('.vt-container')) {

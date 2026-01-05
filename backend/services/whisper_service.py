@@ -150,6 +150,10 @@ _diarization_pipeline = None
 _vad_model = None
 _vad_utils = None  # Store VAD utils (get_speech_timestamps, etc.)
 
+# Thread lock for model initialization (prevents duplicate loading on concurrent requests)
+import threading
+_model_lock = threading.Lock()
+
 # Control whether to use subprocess for mlx-whisper (default: False = direct/faster)
 MLX_USE_SUBPROCESS = os.getenv('MLX_USE_SUBPROCESS', 'false').lower() == 'true'
 # New: Force direct mode even for long files
@@ -683,11 +687,19 @@ def get_mlx_model_path():
     return mlx_model_map.get(WHISPER_MODEL_SIZE, 'mlx-community/whisper-base-mlx')
 
 def get_whisper_model():
-    """Lazy load Whisper model."""
+    """Lazy load Whisper model with thread safety."""
     global _whisper_model
-    if _whisper_model is None:
+    
+    # Fast path: model already loaded (no lock needed for read)
+    if _whisper_model is not None:
+        return _whisper_model
+    
+    # Slow path: acquire lock and check again (double-checked locking)
+    with _model_lock:
+        if _whisper_model is not None:
+            return _whisper_model
+            
         device = get_whisper_device()
-
         backend = get_whisper_backend()
 
         if backend == "mlx-whisper":

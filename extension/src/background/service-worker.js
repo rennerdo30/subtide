@@ -812,10 +812,6 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
             });
         }
 
-        // Use AbortController for timeout (5 minutes for long videos)
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
-
         const fetchHeaders = {
             'Content-Type': 'application/json',
             ...(config.backendApiKey ? { 'Authorization': `Bearer ${config.backendApiKey}` } : {})
