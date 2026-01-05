@@ -75,6 +75,7 @@ def _ensure_torch():
 
 from backend.config import (
     CACHE_DIR,
+    MODEL_CACHE_DIR,
     WHISPER_MODEL_SIZE,
     ENABLE_DIARIZATION,
     HF_TOKEN,
