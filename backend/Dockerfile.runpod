@@ -9,7 +9,8 @@ FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base
 
 # Install uv (The Python Package Installer)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
-# Install Deno (preferred runtime for yt-dlp)
+# Install Deno (JS runtime for yt-dlp YouTube nsig/signature decoding)
+# Node.js is also installed as fallback via apt
 COPY --from=denoland/deno:bin /deno /bin/deno
 
 # Prevent interactive prompts during build
@@ -25,6 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
     libsndfile1 \
+    nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 # Set Python 3.11 as default
