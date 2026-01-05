@@ -41,6 +41,20 @@ def preload_models():
     except Exception as e:
         logger.error(f"Failed to preload Diarization model: {e}")
 
+    # 3. Preload VAD Model (if enabled)
+    try:
+        from backend.services.whisper_service import get_vad_model
+        from backend.config import ENABLE_VAD
+        if ENABLE_VAD:
+            logger.info("Pre-loading Silero VAD model...")
+            vad_model, _ = get_vad_model()
+            if vad_model:
+                logger.info("Successfully loaded Silero VAD model")
+            else:
+                logger.info("Silero VAD skipped (disabled or failed)")
+    except Exception as e:
+        logger.error(f"Failed to preload VAD model: {e}")
+
     logger.info("--- Model Preload Complete ---")
 
 if __name__ == "__main__":

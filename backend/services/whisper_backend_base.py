@@ -103,11 +103,12 @@ def get_whisper_backend(backend_type: Optional[str] = None) -> WhisperBackend:
 
     # Import and instantiate the appropriate backend
     if backend_type in ('faster', 'faster-whisper'):
-        from services.whisper_backend_faster import FasterWhisperBackend
+        from backend.services.whisper_backend_faster import FasterWhisperBackend
         return FasterWhisperBackend()
     elif backend_type in ('mlx', 'mlx-whisper'):
-        from services.whisper_backend_mlx import MLXWhisperBackend
+        from backend.services.whisper_backend_mlx import MLXWhisperBackend
         return MLXWhisperBackend()
     else:
-        from services.whisper_backend_openai import OpenAIWhisperBackend
+        from backend.services.whisper_backend_openai import OpenAIWhisperBackend
         return OpenAIWhisperBackend()
+

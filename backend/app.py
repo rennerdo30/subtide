@@ -105,8 +105,8 @@ app.register_blueprint(subtitles_bp)
 app.register_blueprint(transcribe_bp)
 app.register_blueprint(translation_bp)
 
-# Mark server as ready for RunPod Load Balancer /ping endpoint
-set_models_ready(True)
+# Note: set_models_ready(True) is called AFTER preload_models() in __main__
+# This prevents RunPod Load Balancer from routing traffic before models are loaded
 
 from backend.routes.live import live_bp, init_socketio as init_live_socketio
 app.register_blueprint(live_bp)
@@ -160,6 +160,10 @@ if __name__ == '__main__':
             preload_models()
     except Exception as e:
         logger.error(f"Failed to preload models: {e}")
+
+    # 3. NOW mark server as ready (after models are loaded)
+    set_models_ready(True)
+    logger.info("Server marked as ready for traffic")
 
     logger.info(f"Starting SocketIO server on port {port}...")
     socketio.run(app, host='0.0.0.0', port=port, debug=False, log_output=True)

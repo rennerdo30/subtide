@@ -73,6 +73,8 @@ def cleanup_cache():
 def start_cache_scheduler():
     """Start background thread for periodic cache cleanup."""
     def run_scheduler():
+        # Sleep first to avoid blocking startup with unnecessary cleanup
+        time.sleep(CACHE_CLEANUP_INTERVAL_MINUTES * 60)
         while True:
             logger.info("Running scheduled cache cleanup...")
             cleanup_cache()
@@ -81,3 +83,4 @@ def start_cache_scheduler():
     thread = threading.Thread(target=run_scheduler, daemon=True)
     thread.start()
     logger.info(f"Cache cleanup scheduler started (Interval: {CACHE_CLEANUP_INTERVAL_MINUTES}min)")
+
