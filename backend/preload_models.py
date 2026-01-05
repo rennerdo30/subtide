@@ -47,9 +47,9 @@ def preload_models():
         from backend.config import ENABLE_VAD
         if ENABLE_VAD:
             logger.info("Pre-loading Silero VAD model...")
-            vad_model, _ = get_vad_model()
+            vad_model, vad_utils, vad_device = get_vad_model()
             if vad_model:
-                logger.info("Successfully loaded Silero VAD model")
+                logger.info(f"Successfully loaded Silero VAD model (device: {vad_device})")
             else:
                 logger.info("Silero VAD skipped (disabled or failed)")
     except Exception as e:
