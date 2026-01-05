@@ -95,6 +95,7 @@ def parse_vtt_to_json3(vtt_content: str) -> Dict[str, Any]:
 
 def ms_to_timestamp(ms: int) -> str:
     """Convert milliseconds to HH:MM:SS format."""
+    ms = int(ms)  # Handle float inputs gracefully
     s = ms // 1000
     h = s // 3600
     m = (s % 3600) // 60
