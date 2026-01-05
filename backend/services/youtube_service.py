@@ -311,7 +311,7 @@ def ensure_audio_downloaded(video_id: str, url: str) -> Optional[str]:
                 logger.info(f"[AUDIO CACHE] Found cached audio (variant): {p}")
                 return p
 
-    # Download audio to cache
+    # Download audio to cache with retry logic
     logger.info(f"[AUDIO CACHE] Downloading audio for {video_id}...")
 
     ydl_opts = {
@@ -320,35 +320,68 @@ def ensure_audio_downloaded(video_id: str, url: str) -> Optional[str]:
         'quiet': False,
         'no_warnings': False,
         'extract_audio': True,
+        # Stability improvements
+        'socket_timeout': 30,
+        'retries': 3,
+        'fragment_retries': 3,
+        'file_access_retries': 3,
+        'extractor_retries': 3,
     }
 
     if COOKIES_FILE and os.path.exists(COOKIES_FILE):
         ydl_opts['cookiefile'] = COOKIES_FILE
         logger.info(f"[AUDIO CACHE] Using cookies file: {COOKIES_FILE}")
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=True)
+    # Retry logic with exponential backoff
+    max_retries = 3
+    last_error = None
+    
+    for attempt in range(max_retries):
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=True)
 
-            if info:
-                downloads = info.get('requested_downloads', [])
-                if downloads and downloads[0].get('filepath'):
-                    downloaded_file = downloads[0]['filepath']
-                    if os.path.exists(downloaded_file):
-                        logger.info(f"[AUDIO CACHE] Downloaded: {downloaded_file}")
-                        return downloaded_file
+                if info:
+                    downloads = info.get('requested_downloads', [])
+                    if downloads and downloads[0].get('filepath'):
+                        downloaded_file = downloads[0]['filepath']
+                        if os.path.exists(downloaded_file):
+                            logger.info(f"[AUDIO CACHE] Downloaded: {downloaded_file}")
+                            return downloaded_file
 
-        # Fallback: scan the directory
-        logger.info("[AUDIO CACHE] Scanning directory for downloaded file...")
-        for f in os.listdir(audio_cache_dir):
-            if f.startswith(safe_vid_id):
-                p = os.path.join(audio_cache_dir, f)
-                if os.path.getsize(p) > 1000:
-                    logger.info(f"[AUDIO CACHE] Found downloaded file: {p}")
-                    return p
+            # Fallback: scan the directory
+            logger.info("[AUDIO CACHE] Scanning directory for downloaded file...")
+            for f in os.listdir(audio_cache_dir):
+                if f.startswith(safe_vid_id):
+                    p = os.path.join(audio_cache_dir, f)
+                    if os.path.getsize(p) > 1000:
+                        logger.info(f"[AUDIO CACHE] Found downloaded file: {p}")
+                        return p
 
-        return None
+            # If we reach here, download succeeded but file not found - don't retry
+            logger.error("[AUDIO CACHE] Download reported success but file not found")
+            return None
 
-    except Exception as e:
-        logger.exception(f"[AUDIO CACHE] Download failed: {e}")
-        return None
+        except Exception as e:
+            last_error = e
+            error_str = str(e).lower()
+            
+            # Check for specific error types
+            if 'sign in' in error_str or 'age' in error_str:
+                logger.error(f"[AUDIO CACHE] Video requires authentication: {e}")
+                return None  # Don't retry auth issues
+            elif 'private' in error_str or 'unavailable' in error_str:
+                logger.error(f"[AUDIO CACHE] Video is private or unavailable: {e}")
+                return None  # Don't retry unavailable videos
+            elif 'geo' in error_str or 'country' in error_str:
+                logger.error(f"[AUDIO CACHE] Video is geo-restricted: {e}")
+                return None  # Don't retry geo-restrictions
+            elif attempt < max_retries - 1:
+                wait_time = (attempt + 1) * 2  # 2s, 4s
+                logger.warning(f"[AUDIO CACHE] Attempt {attempt+1}/{max_retries} failed: {e}. Retrying in {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                logger.exception(f"[AUDIO CACHE] All {max_retries} attempts failed: {e}")
+    
+    return None
+

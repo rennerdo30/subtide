@@ -128,6 +128,15 @@
 - **Fix**: Added WSGI initialization hook in `app.py` that runs when gunicorn imports the module, calling `set_models_ready(True)` in a background thread after initialization
 - **Impact**: `/ping` now returns `200` after ~2 seconds, and RunPod Load Balancer correctly routes traffic
 
+### YouTube Audio Download Stability
+- **Issue**: Audio downloads sometimes failed silently with "Audio download failed" error
+- **Fix**: 
+  - Switched to yt-dlp nightly builds (via `--pre` flag) which get YouTube API fix updates faster
+  - Added retry logic with exponential backoff (up to 3 attempts)
+  - Added yt-dlp internal retry options (`retries`, `fragment_retries`, `extractor_retries`)
+  - Improved error diagnostics for auth/geo-restriction/private video issues
+- **Impact**: More reliable audio downloads with better error messages
+
 
 ## Known Limitations ⚠️
 

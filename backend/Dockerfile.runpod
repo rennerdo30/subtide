@@ -60,7 +60,12 @@ RUN uv pip install --system --no-cache runpod
 # Install pyannote.audio (Diarization)
 RUN uv pip install --system --no-cache pyannote.audio
 
-# Copy and install base requirements
+# Install yt-dlp from master branch for maximum YouTube stability
+# Master branch gets fixes faster than nightly (which is daily builds)
+RUN uv pip install --system --no-cache --force-reinstall \
+    "yt-dlp[default] @ https://github.com/yt-dlp/yt-dlp/archive/master.tar.gz"
+
+# Copy and install base requirements (yt-dlp in requirements.txt will be skipped as already installed)
 COPY backend/requirements.txt .
 RUN uv pip install --system --no-cache -r requirements.txt
 
