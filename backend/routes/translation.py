@@ -84,6 +84,7 @@ def translate_subtitles():
         return jsonify(result)
 
     except Exception as e:
+        logger.exception("Translation API failed")
         return jsonify({'error': str(e)}), 500
 
 
@@ -94,13 +95,18 @@ def process_video():
     Tier 3 only - uses server-managed API key.
     Returns Server-Sent Events for progress updates.
     """
-    data = request.json or {}
+    data = request.get_json(silent=True)
+    if data is None:
+        logger.warning(f"Failed to parse JSON body. Raw data: {request.get_data(as_text=True)[:1000]}")
+        data = {} # Proceed with empty dict to trigger validation error below (or handle explicit body error)
+
     video_id = data.get('video_id')
     target_lang = data.get('target_lang', 'en')
     force_whisper = data.get('force_whisper', False)
     use_sse = request.headers.get('Accept') == 'text/event-stream'
 
     if not video_id:
+        logger.warning(f"Process request missing video_id. Received data: {data}")
         return jsonify({'error': 'video_id is required'}), 400
 
     # Tier 3 requires server API key

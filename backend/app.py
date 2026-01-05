@@ -57,6 +57,10 @@ MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
 def validate_request():
     """Validate incoming requests for size limits."""
     if request.method == 'POST':
+        # Debug logging for /api/process 400 error investigation
+        if request.path.endswith('/api/process'):
+             logger.info(f"POST /api/process - Headers: {dict(request.headers)}")
+        
         content_length = request.content_length
         if content_length and content_length > MAX_CONTENT_LENGTH:
             return jsonify({

@@ -749,7 +749,7 @@ def get_whisper_model():
                          continue
                      
                      # If not checksum error or out of retries, raise
-                     logger.error(f"Failed to load faster-whisper model: {e}")
+                     logger.exception(f"Failed to load faster-whisper model: {e}")
                      raise
         else:
             logger.info(f"Loading openai-whisper model '{WHISPER_MODEL_SIZE}' on {device.upper()}...")
@@ -758,7 +758,7 @@ def get_whisper_model():
                 _whisper_model = whisper.load_model(WHISPER_MODEL_SIZE, device=device)
                 logger.info(f"openai-whisper loaded on {device.upper()}")
             except Exception as e:
-                logger.error(f"Failed to load Whisper model: {e}")
+                logger.exception(f"Failed to load Whisper model: {e}")
                 raise
 
     return _whisper_model

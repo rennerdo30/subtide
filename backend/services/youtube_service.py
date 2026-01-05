@@ -350,5 +350,5 @@ def ensure_audio_downloaded(video_id: str, url: str) -> Optional[str]:
         return None
 
     except Exception as e:
-        logger.error(f"[AUDIO CACHE] Download failed: {e}")
+        logger.exception(f"[AUDIO CACHE] Download failed: {e}")
         return None

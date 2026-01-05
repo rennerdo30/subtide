@@ -39,5 +39,5 @@ def transcribe_video():
         })
 
     except Exception as e:
-        logger.error(f"Transcription failed: {e}")
+        logger.exception(f"Transcription failed: {e}")
         return jsonify({'error': str(e)}), 500

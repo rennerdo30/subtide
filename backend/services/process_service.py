@@ -106,7 +106,7 @@ def await_whisper_transcribe(video_id: str, url: str) -> List[Dict[str, Any]]:
                 json.dump(whisper_result, f, indent=2)
                 
         except Exception as e:
-            logger.error(f"Whisper transcription failed: {e}")
+            logger.exception(f"Whisper transcription failed: {e}")
             return []
 
     # Convert to subtitle format
@@ -127,6 +127,8 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
     Combined endpoint logic: fetch subtitles + translate.
     Returns generator if use_sse is True, else list of events.
     """
+    logger.info(f"Entry process_video_logic: video_id={video_id}, target={target_lang}, force={force_whisper}, sse={use_sse}")
+
     if not SERVER_API_KEY:
          # This should be handled by the route, but ensuring here logic-wise
          yield f"data: {json.dumps({'error': 'Tier 3 not configured'})}\n\n"
@@ -149,7 +151,7 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
             progress_queue.put(('result', result))
 
         def send_error(error):
-            logger.error(f"[PROCESS] Sending error: {error}")
+            logger.error(f"[PROCESS] Sending error: {error}", exc_info=True)
             
             # Construct structured error
             error_data = {
@@ -288,7 +290,7 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                             with open(cache_path, 'w', encoding='utf-8') as f:
                                 json.dump(whisper_result, f, indent=2)
                         except Exception as whisper_error:
-                            logger.error(f"Whisper transcription failed: {whisper_error}")
+                            logger.exception(f"Whisper transcription failed: {whisper_error}")
                             send_error(f"Transcription failed: {str(whisper_error)[:100]}")
                             return
 
