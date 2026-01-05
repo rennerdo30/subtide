@@ -12,7 +12,7 @@ from typing import List, Dict, Any, Optional, Callable
 
 from services.whisper_backend_base import WhisperBackend, TranscriptionSegment
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('video-translate')
 
 
 class FasterWhisperBackend(WhisperBackend):

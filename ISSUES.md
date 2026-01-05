@@ -122,6 +122,12 @@
 - **Fix**: Removed NeMo installation, switched to PyAnnote.audio as default diarization backend
 - **Impact**: Docker image is now significantly smaller and builds successfully on GitHub Actions
 
+### RunPod Load Balancer 400 Bad Request
+- **Issue**: All POST requests to RunPod Load Balancer endpoints returned `400 Bad Request`
+- **Root Cause**: The `/ping` health check always returned `204` (initializing) because `set_models_ready(True)` was inside `if __name__ == '__main__':` block in `app.py`, which never runs when gunicorn imports the module
+- **Fix**: Added WSGI initialization hook in `app.py` that runs when gunicorn imports the module, calling `set_models_ready(True)` in a background thread after initialization
+- **Impact**: `/ping` now returns `200` after ~2 seconds, and RunPod Load Balancer correctly routes traffic
+
 
 ## Known Limitations ⚠️
 

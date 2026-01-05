@@ -146,6 +146,47 @@ def print_banner():
 from backend.preload_models import preload_models
 from backend.services.cache_service import start_cache_scheduler
 
+# ============================================================================
+# WSGI Initialization (for gunicorn / production servers)
+# ============================================================================
+# When running via gunicorn, __name__ is NOT '__main__', so the startup code
+# below won't run. This hook ensures initialization happens for WSGI servers.
+
+def _init_for_wsgi():
+    """Initialize services when running via gunicorn/WSGI."""
+    import threading
+    import time as time_module
+    
+    def _delayed_init():
+        # Small delay to let gunicorn fully boot
+        time_module.sleep(2)
+        
+        logger.info("[WSGI] Initializing services for gunicorn...")
+        
+        # 1. Start cache cleanup scheduler
+        start_cache_scheduler()
+        
+        # 2. Pre-load models (RunPod Load Balancer optimization)
+        if os.environ.get('PLATFORM') == 'runpod':
+            try:
+                logger.info("[WSGI] Pre-loading models for RunPod...")
+                preload_models()
+            except Exception as e:
+                logger.error(f"[WSGI] Failed to preload models: {e}")
+        
+        # 3. Mark server as ready
+        set_models_ready(True)
+        logger.info("[WSGI] Server marked as ready for traffic (/ping will now return 200)")
+    
+    # Run in background thread to not block worker startup
+    t = threading.Thread(target=_delayed_init, daemon=True, name="wsgi-init")
+    t.start()
+    logger.info("[WSGI] Background initialization started...")
+
+# Only run WSGI init if NOT running directly (i.e., via gunicorn)
+if __name__ != '__main__' and os.environ.get('PLATFORM') == 'runpod':
+    _init_for_wsgi()
+
 if __name__ == '__main__':
     print_banner()
     port = int(os.getenv('PORT', 5001))

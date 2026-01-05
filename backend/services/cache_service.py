@@ -11,7 +11,7 @@ from backend.config import (
     CACHE_CLEANUP_INTERVAL_MINUTES
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('video-translate')
 
 def get_dir_size_mb(path):
     """Calculate directory size in MB."""

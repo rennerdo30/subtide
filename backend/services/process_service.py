@@ -8,6 +8,7 @@ from typing import Generator, Dict, Any, List, Optional
 
 from backend.config import CACHE_DIR, ENABLE_WHISPER, SERVER_API_KEY
 from backend.utils.file_utils import get_cache_path, validate_audio_file
+from backend.utils.logging_utils import LogContext, generate_request_id
 from backend.services.youtube_service import ensure_audio_downloaded, await_download_subtitles, get_video_title
 from backend.services.whisper_service import run_whisper_process, run_whisper_streaming
 from backend.services.translation_service import (
@@ -170,6 +171,10 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
             progress_queue.put(('error', error_data))
 
         def do_work():
+            # Set context for this thread
+            req_id = generate_request_id()
+            LogContext.set(request_id=req_id, video_id=video_id)
+            
             work_start_time = time.time()
             logger.info(f"[PROCESS] Worker thread started for video={video_id}, target={target_lang}")
             try:
@@ -367,6 +372,7 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                 send_error(str(e))
             finally:
                 logger.info(f"[PROCESS] Worker thread finished in {time.time()-work_start_time:.1f}s")
+                LogContext.clear()
 
         worker = threading.Thread(target=do_work, daemon=True)
         worker.start()
@@ -437,6 +443,10 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool):
             progress_queue.put(('error', str(error)))
 
         def do_work():
+            # Set context for this thread
+            req_id = generate_request_id()
+            LogContext.set(request_id=req_id, video_id=video_id)
+            
             work_start_time = time.time()
             logger.info(f"[STREAM] Worker started for video={video_id}, target={target_lang}")
             all_streamed_subtitles = []
@@ -715,6 +725,7 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool):
                 send_error(str(e))
             finally:
                 logger.info(f"[STREAM] Worker finished in {time.time()-work_start_time:.1f}s")
+                LogContext.clear()
 
         worker = threading.Thread(target=do_work, daemon=True)
         worker.start()

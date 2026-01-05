@@ -149,6 +149,7 @@ _whisper_model = None
 _diarization_pipeline = None
 _vad_model = None
 _vad_utils = None  # Store VAD utils (get_speech_timestamps, etc.)
+_vad_device = None  # Track VAD device explicitly (silero TorchScript doesn't expose .device)
 
 # Thread lock for model initialization (prevents duplicate loading on concurrent requests)
 import threading
@@ -162,7 +163,7 @@ MLX_FORCE_DIRECT = os.getenv('MLX_FORCE_DIRECT', 'false').lower() == 'true'
 
 def get_vad_model():
     """Lazy load silero-vad model."""
-    global _vad_model, _vad_utils
+    global _vad_model, _vad_utils, _vad_device
     if _vad_model is None and ENABLE_VAD:
         try:
             torch = _ensure_torch()
@@ -180,26 +181,30 @@ def get_vad_model():
             )
             _vad_model = model
             _vad_utils = utils  # Contains get_speech_timestamps, read_audio, etc.
+            _vad_device = 'cpu'  # Default to CPU
             
             # Move VAD to GPU if available for performance
             if torch.cuda.is_available():
                 try:
                     _vad_model.to(torch.device('cuda'))
+                    _vad_device = 'cuda'
                     logger.info("silero-vad moved to CUDA (GPU)")
                 except Exception as e:
                     logger.warning(f"Failed to move VAD to CUDA: {e}")
+                    _vad_device = 'cpu'
             elif torch.backends.mps.is_available():
-                 try:
-                    _vad_model.to(torch.device('mps'))
-                    logger.info("silero-vad moved to MPS (GPU)")
-                 except Exception as e:
-                    logger.warning(f"Failed to move VAD to MPS: {e}")
+                # MPS can be unstable with silero-vad's TorchScript model
+                # The STFT/conv1d operations may not work properly on MPS
+                # Fall back to CPU for reliability
+                logger.info("silero-vad staying on CPU (MPS has compatibility issues with TorchScript STFT)")
+                _vad_device = 'cpu'
 
-            logger.info("silero-vad loaded successfully")
+            logger.info(f"silero-vad loaded successfully (device: {_vad_device})")
         except Exception as e:
             logger.warning(f"Could not load silero-vad: {e}")
             _vad_model = False  # Mark as failed so we don't retry
-    return (_vad_model, _vad_utils) if _vad_model else (None, None)
+            _vad_device = None
+    return (_vad_model, _vad_utils, _vad_device) if _vad_model else (None, None, None)
 
 
 def get_speech_timestamps(audio_path: str, progress_callback=None) -> list:
@@ -210,7 +215,7 @@ def get_speech_timestamps(audio_path: str, progress_callback=None) -> list:
     if not ENABLE_VAD:
         return None
     
-    vad_model, vad_utils = get_vad_model()
+    vad_model, vad_utils, vad_device = get_vad_model()
     if not vad_model or not vad_utils:
         return None
     
@@ -226,7 +231,7 @@ def get_speech_timestamps(audio_path: str, progress_callback=None) -> list:
         import tempfile
         import subprocess
         
-        logger.info(f"[VAD] Processing audio: {audio_path}")
+        logger.info(f"[VAD] Processing audio: {audio_path} (device: {vad_device})")
         
         # Try to load audio directly, fall back to ffmpeg conversion if needed
         temp_wav = None
@@ -266,6 +271,10 @@ def get_speech_timestamps(audio_path: str, progress_callback=None) -> list:
         # Flatten to 1D
         waveform = waveform.squeeze()
         
+        # Move entire waveform to VAD device if needed (CPU is default, safe for all platforms)
+        if vad_device and vad_device != 'cpu':
+            waveform = waveform.to(torch.device(vad_device))
+        
         # Get speech timestamps
         speech_timestamps = []
         
@@ -277,11 +286,7 @@ def get_speech_timestamps(audio_path: str, progress_callback=None) -> list:
             chunk = waveform[i:i + chunk_size]
             chunk_offset = i / sample_rate
             
-            # Get timestamps for this chunk using the utils function
-            # Ensure chunk is on the same device as the model
-            if hasattr(vad_model, 'device'):
-                chunk = chunk.to(vad_model.device)
-                
+            # chunk is already on the correct device from waveform
             timestamps = get_speech_ts(chunk, vad_model, sampling_rate=sample_rate, threshold=VAD_THRESHOLD)
             
             for ts in timestamps:

@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional, Callable
 from dataclasses import dataclass
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('video-translate')
 
 
 @dataclass

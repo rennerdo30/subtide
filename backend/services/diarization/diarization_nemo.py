@@ -13,7 +13,7 @@ from typing import List, Optional, Callable
 
 from services.diarization.diarization_base import DiarizationBackend, SpeakerSegment
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('video-translate')
 
 
 class NemoDiarization(DiarizationBackend):

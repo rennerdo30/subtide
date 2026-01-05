@@ -9,6 +9,7 @@ from typing import List, Dict, Any, Tuple, Optional, Callable
 from openai import OpenAI
 
 from backend.config import CACHE_DIR, LANG_NAMES, SERVER_API_KEY, SERVER_API_URL, SERVER_MODEL
+from backend.utils.logging_utils import log_with_context, LogContext
 
 logger = logging.getLogger('video-translate')
 
@@ -92,6 +93,14 @@ def parse_vtt_to_json3(vtt_content: str) -> Dict[str, Any]:
 
     return {'events': events}
 
+def ms_to_timestamp(ms: int) -> str:
+    """Convert milliseconds to HH:MM:SS format."""
+    s = ms // 1000
+    h = s // 3600
+    m = (s % 3600) // 60
+    s = s % 60
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
 def await_translate_subtitles(
     subtitles: List[Dict[str, Any]],
     target_lang: str,
@@ -144,8 +153,6 @@ def await_translate_subtitles(
     if not client_args['base_url']:
         del client_args['base_url']
     if not client_args['api_key']:
-        # This function relies on SERVER_API_KEY being present (Tier 3)
-        # But we handle None elegantly anyway
         pass
 
     if SERVER_API_URL and 'openrouter.ai' in SERVER_API_URL:
@@ -167,14 +174,28 @@ def await_translate_subtitles(
     batch_times = []  # Track time per batch for ETA
     historical_avg = get_historical_batch_time()
     
-    logger.info(f"[TRANSLATE] Translating {len(subtitles)} subtitles in {total_batches} batches ({MAX_WORKERS} parallel, hist avg: {historical_avg:.1f}s)")
+    # Calculate time range for logs
+    time_range = ""
+    if subtitles:
+        start_ms = subtitles[0].get('start', 0)
+        end_ms = subtitles[-1].get('end', 0)
+        time_range = f"({ms_to_timestamp(start_ms)} - {ms_to_timestamp(end_ms)})"
+
+    log_with_context(logger, 'INFO', f"[TRANSLATE] Translating {len(subtitles)} subtitles {time_range} in {total_batches} batches ({MAX_WORKERS} parallel)")
 
     def translate_batch(batch_data, is_retry=False):
         """Translate a single batch with rate limit handling."""
         batch_idx, batch = batch_data
         batch_num = batch_idx // BATCH_SIZE + 1
         
-        logger.info(f"[TRANSLATE] Batch {batch_num}/{total_batches} starting ({len(batch)} subtitles)...")
+        # Log batch time range
+        b_time_range = ""
+        if batch:
+            b_start = batch[0].get('start', 0)
+            b_end = batch[-1].get('end', 0)
+            b_time_range = f"[{ms_to_timestamp(b_start)}-{ms_to_timestamp(b_end)}]"
+        
+        log_with_context(logger, 'INFO', f"[TRANSLATE] Batch {batch_num}/{total_batches} starting {b_time_range} ({len(batch)} subtitles)...")
         batch_start = time.time()
 
         numbered_subs = "\n".join([f"{i+1}. {s['text']}" for i, s in enumerate(batch)])
@@ -231,14 +252,14 @@ Remember: Output MUST be in {t_name} only."""
                 # Verify count - if we have most of them, accept it
                 if len(translations) >= len(batch) * 0.8:
                     batch_duration = time.time() - batch_start
-                    logger.info(f"[TRANSLATE] Batch {batch_num}/{total_batches} OK ({len(translations)}/{len(batch)}) in {batch_duration:.1f}s")
+                    log_with_context(logger, 'INFO', f"[TRANSLATE] Batch {batch_num}/{total_batches} OK ({len(translations)}/{len(batch)}) in {batch_duration:.1f}s")
                     return batch_idx, translations, True, batch_duration
                 else:
                     logger.warning(f"[TRANSLATE] Batch {batch_num} incomplete: {len(translations)}/{len(batch)}")
 
             except Exception as e:
                 error_str = str(e)
-                logger.error(f"[TRANSLATE] Batch {batch_num} attempt {attempt+1} failed: {e}")
+                log_with_context(logger, 'ERROR', f"[TRANSLATE] Batch {batch_num} attempt {attempt+1} failed: {e}")
 
                 # Handle rate limits with exponential backoff
                 if '429' in error_str or 'rate' in error_str.lower():
@@ -343,9 +364,9 @@ Remember: Output MUST be in {t_name} only."""
     total_empty = sum(1 for s in subtitles if not s.get('translatedText'))
     elapsed = time.time() - start_time[0]
     if total_empty > 0:
-        logger.warning(f"[TRANSLATE] DONE: {total_empty}/{len(subtitles)} empty translations in {elapsed:.1f}s")
+        log_with_context(logger, 'WARNING', f"[TRANSLATE] DONE: {total_empty}/{len(subtitles)} empty translations in {elapsed:.1f}s")
     else:
-        logger.info(f"[TRANSLATE] DONE: All {len(subtitles)} translated in {elapsed:.1f}s!")
+        log_with_context(logger, 'INFO', f"[TRANSLATE] DONE: All {len(subtitles)} translated in {elapsed:.1f}s!")
 
     return subtitles
 
@@ -364,7 +385,7 @@ def translate_subtitles_simple(
     estimated_tokens = total_chars // 4
     
     logger.info(f"{'='*60}")
-    logger.info(f"TRANSLATION REQUEST")
+    log_with_context(logger, 'INFO', f"TRANSLATION REQUEST")
     logger.info(f"  Subtitles: {len(subtitles)} | Chars: {total_chars} | Est. tokens: {estimated_tokens}")
     logger.info(f"  Direction: {source_lang} -> {target_lang}")
     logger.info(f"  Model: {model_id}")
