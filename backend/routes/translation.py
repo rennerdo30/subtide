@@ -95,6 +95,8 @@ def process_video():
     Tier 3 only - uses server-managed API key.
     Returns Server-Sent Events for progress updates.
     """
+    import os
+    
     data = request.get_json(silent=True)
     if data is None:
         logger.warning(f"Failed to parse JSON body. Raw data: {request.get_data(as_text=True)[:1000]}")
@@ -104,6 +106,12 @@ def process_video():
     target_lang = data.get('target_lang', 'en')
     force_whisper = data.get('force_whisper', False)
     use_sse = request.headers.get('Accept') == 'text/event-stream'
+    
+    # Force SSE mode for RunPod to prevent gateway timeouts
+    # RunPod Load Balancer times out after ~30-45s without response
+    if os.environ.get('PLATFORM') == 'runpod':
+        use_sse = True
+        logger.info("[PROCESS] RunPod detected - forcing SSE mode to prevent gateway timeout")
 
     if not video_id:
         logger.warning(f"Process request missing video_id. Received data: {data}")

@@ -78,60 +78,33 @@ function updateStatus(text, type = '', percent = null, options = {}) {
         }
 
         if (shouldAnimate) {
-            // Determine which message set to use
-            let messageSet = STATUS_MESSAGES.translating;
+            // Map animation keys to i18n message keys
+            const KEY_MAP = {
+                translating: 'statusMsgTranslating',
+                loading: 'statusMsgLoading',
+                processing: 'statusMsgProcessing',
+                transcribing: 'statusMsgTranscribing',
+                checking: 'statusMsgChecking',
+                downloading: 'statusMsgDownloading',
+                generic: 'statusMsgGeneric',
+                finalizing: 'statusMsgFinalizing',
+                whisper: 'statusMsgWhisper',
+                diarization: 'statusMsgDiarization',
+                streaming: 'statusMsgStreaming'
+            };
 
-            if (options.animationKey && STATUS_MESSAGES[options.animationKey]) {
-                messageSet = STATUS_MESSAGES[options.animationKey];
+            let message = text;
+            if (options.animationKey && KEY_MAP[options.animationKey]) {
+                message = chrome.i18n.getMessage(KEY_MAP[options.animationKey]);
             } else if (text.toLowerCase().includes('loading')) {
-                messageSet = STATUS_MESSAGES.loading;
+                message = chrome.i18n.getMessage('statusMsgLoading');
             } else if (text.toLowerCase().includes('process')) {
-                messageSet = STATUS_MESSAGES.processing;
-            } else {
-                messageSet = STATUS_MESSAGES.generic;
+                message = chrome.i18n.getMessage('statusMsgProcessing');
             }
 
-            textEl.classList.add('vt-text-fade');
-
-            // Start with target language if available, otherwise browser language
-            const browserLang = navigator.language.split('-')[0];
-            const targetLang = (selectedLanguage || browserLang).split('-')[0];
-            const startIndex = messageSet.findIndex(m => m.lang === targetLang);
-            currentStatusIndex = startIndex >= 0 ? startIndex : 0;
-
-            // Set initial text
-            textEl.textContent = messageSet[currentStatusIndex].text;
+            textEl.textContent = message;
             textEl.style.opacity = '1';
-
-            // Cycle through languages
-            let cycleCount = 0;
-            statusAnimationInterval = setInterval(() => {
-                cycleCount++;
-
-                const showPrimary = (cycleCount % 4 !== 0);
-
-                let nextIndex;
-                if (showPrimary) {
-                    nextIndex = messageSet.findIndex(m => m.lang === targetLang);
-                    if (nextIndex === -1) nextIndex = 0;
-                } else {
-                    const others = messageSet.filter(m => m.lang !== targetLang);
-                    if (others.length > 0) {
-                        const randomOther = others[Math.floor(Math.random() * others.length)];
-                        nextIndex = messageSet.indexOf(randomOther);
-                    } else {
-                        nextIndex = (currentStatusIndex + 1) % messageSet.length;
-                    }
-                }
-
-                currentStatusIndex = nextIndex;
-
-                textEl.style.opacity = '0';
-                setTimeout(() => {
-                    textEl.textContent = messageSet[currentStatusIndex].text;
-                    textEl.style.opacity = '1';
-                }, 100);
-            }, 1500);
+            textEl.classList.remove('vt-text-fade');
         } else {
             // Static text
             textEl.textContent = text;

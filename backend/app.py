@@ -113,7 +113,9 @@ app.register_blueprint(translation_bp)
 # This prevents RunPod Load Balancer from routing traffic before models are loaded
 
 from backend.routes.live import live_bp, init_socketio as init_live_socketio
+from backend.routes.feedback import feedback_bp
 app.register_blueprint(live_bp)
+app.register_blueprint(feedback_bp)
 init_live_socketio(socketio)
 
 # Initialize rate limiter for routes that need custom limits

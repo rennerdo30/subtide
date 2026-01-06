@@ -271,7 +271,7 @@
         "message": "Hecho ✓"
     },
     "menuBack": {
-        "message": "Subtítulos"
+        "message": "Volver"
     },
     "llmApiError": {
         "message": "Error de API LLM: $STATUS$ - $ERROR$",
@@ -333,5 +333,148 @@
     },
     "langRu": {
         "message": "Ruso"
+    },
+    "tierStream": {
+        "message": "🚀 Stream — Progressive Translation"
+    },
+    "tierHint4": {
+        "message": "Progressive streaming — see subtitles immediately as they translate. Fastest experience!"
+    },
+    "btnVideoTranslate": {
+        "message": "Traducir Video"
+    },
+    "menuMoreOptions": {
+        "message": "Más opciones"
+    },
+    "menuToggleSubtitles": {
+        "message": "Alternar subtítulos"
+    },
+    "menuSubtitleStyle": {
+        "message": "Estilo de subtítulos"
+    },
+    "menuDualSubtitles": {
+        "message": "Subtítulos dobles"
+    },
+    "menuSync": {
+        "message": "Sincronización:"
+    },
+    "menuReset": {
+        "message": "Restablecer"
+    },
+    "menuDownload": {
+        "message": "Descargar subtítulos"
+    },
+    "menuAddToQueue": {
+        "message": "Añadir a la cola"
+    },
+    "menuAdded": {
+        "message": "Añadido ✓"
+    },
+    "menuDownloadSRT": {
+        "message": "Download as SRT"
+    },
+    "menuDownloadVTT": {
+        "message": "Download as VTT"
+    },
+    "menuFontSans": {
+        "message": "Sans-serif"
+    },
+    "menuFontSerif": {
+        "message": "Serif"
+    },
+    "menuFontMono": {
+        "message": "Monospace"
+    },
+    "menuFontCasual": {
+        "message": "Casual"
+    },
+    "menuOutlineNone": {
+        "message": "None"
+    },
+    "menuOutlineLight": {
+        "message": "Light"
+    },
+    "menuOutlineMedium": {
+        "message": "Medium"
+    },
+    "menuOutlineHeavy": {
+        "message": "Heavy"
+    },
+    "menuOpacityFull": {
+        "message": "Full (100%)"
+    },
+    "menuOpacityHigh": {
+        "message": "High (85%)"
+    },
+    "menuOpacityMedium": {
+        "message": "Medium (70%)"
+    },
+    "menuOpacityLow": {
+        "message": "Low (50%)"
+    },
+    "menuSpeakerOff": {
+        "message": "Apagado"
+    },
+    "menuSpeakerColor": {
+        "message": "Solo color"
+    },
+    "menuSpeakerLabel": {
+        "message": "Mostrar etiqueta"
+    },
+    "menuSpeakerBoth": {
+        "message": "Color + Etiqueta"
+    },
+    "statusMsgTranslating": {
+        "message": "Traduciendo subtítulos a tu idioma..."
+    },
+    "statusMsgLoading": {
+        "message": "Cargando modelo de IA y componentes..."
+    },
+    "statusMsgProcessing": {
+        "message": "Optimizando video para traducción..."
+    },
+    "statusMsgTranscribing": {
+        "message": "Generando transcripciones con IA..."
+    },
+    "statusMsgChecking": {
+        "message": "Verifying subtitle tracks and segments..."
+    },
+    "statusMsgDownloading": {
+        "message": "Obteniendo datos de audio..."
+    },
+    "statusMsgGeneric": {
+        "message": "Completando su solicitud..."
+    },
+    "statusMsgFinalizing": {
+        "message": "Finalizando transcripción..."
+    },
+    "statusMsgWhisper": {
+        "message": "La IA está escuchando y transcribiendo..."
+    },
+    "statusMsgDiarization": {
+        "message": "Identificando hablantes..."
+    },
+    "statusMsgStreaming": {
+        "message": "Transmitiendo subtítulos traducidos..."
+    },
+    "errorReload": {
+        "message": "Por favor, recarga la página de YouTube e intenta de nuevo."
+    },
+    "errorNoActiveTab": {
+        "message": "No active YouTube tab found. Please open a video."
+    },
+    "errorLiveTranslateFail": {
+        "message": "Failed to toggle live translation:\n$ERROR$",
+        "placeholders": {
+            "error": {
+                "content": "$1"
+            }
+        }
+    },
+    "btnStopLiveTranslate": {
+        "message": "Detener traducción en vivo"
+    },
+    "btnStartLiveTranslate": {
+        "message": "Iniciar traducción en vivo"
     }
 }

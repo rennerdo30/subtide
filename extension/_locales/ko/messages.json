@@ -271,7 +271,7 @@
         "message": "완료 ✓"
     },
     "menuBack": {
-        "message": "자막"
+        "message": "뒤로"
     },
     "llmApiError": {
         "message": "LLM API 오류: $STATUS$ - $ERROR$",
@@ -333,5 +333,148 @@
     },
     "langRu": {
         "message": "러시아어"
+    },
+    "tierStream": {
+        "message": "🚀 Stream — Progressive Translation"
+    },
+    "tierHint4": {
+        "message": "Progressive streaming — see subtitles immediately as they translate. Fastest experience!"
+    },
+    "btnVideoTranslate": {
+        "message": "동영상 번역"
+    },
+    "menuMoreOptions": {
+        "message": "더 보기"
+    },
+    "menuToggleSubtitles": {
+        "message": "자막 켜기/끄기"
+    },
+    "menuSubtitleStyle": {
+        "message": "자막 스타일"
+    },
+    "menuDualSubtitles": {
+        "message": "이중 자막"
+    },
+    "menuSync": {
+        "message": "싱크:"
+    },
+    "menuReset": {
+        "message": "초기화"
+    },
+    "menuDownload": {
+        "message": "자막 다운로드"
+    },
+    "menuAddToQueue": {
+        "message": "대기열에 추가"
+    },
+    "menuAdded": {
+        "message": "추가됨 ✓"
+    },
+    "menuDownloadSRT": {
+        "message": "Download as SRT"
+    },
+    "menuDownloadVTT": {
+        "message": "Download as VTT"
+    },
+    "menuFontSans": {
+        "message": "Sans-serif"
+    },
+    "menuFontSerif": {
+        "message": "Serif"
+    },
+    "menuFontMono": {
+        "message": "Monospace"
+    },
+    "menuFontCasual": {
+        "message": "Casual"
+    },
+    "menuOutlineNone": {
+        "message": "None"
+    },
+    "menuOutlineLight": {
+        "message": "Light"
+    },
+    "menuOutlineMedium": {
+        "message": "Medium"
+    },
+    "menuOutlineHeavy": {
+        "message": "Heavy"
+    },
+    "menuOpacityFull": {
+        "message": "Full (100%)"
+    },
+    "menuOpacityHigh": {
+        "message": "High (85%)"
+    },
+    "menuOpacityMedium": {
+        "message": "Medium (70%)"
+    },
+    "menuOpacityLow": {
+        "message": "Low (50%)"
+    },
+    "menuSpeakerOff": {
+        "message": "꺼짐"
+    },
+    "menuSpeakerColor": {
+        "message": "색상만"
+    },
+    "menuSpeakerLabel": {
+        "message": "라벨 표시"
+    },
+    "menuSpeakerBoth": {
+        "message": "색상 + 라벨"
+    },
+    "statusMsgTranslating": {
+        "message": "자막을 번역 중입니다..."
+    },
+    "statusMsgLoading": {
+        "message": "AI 모델 로딩 중..."
+    },
+    "statusMsgProcessing": {
+        "message": "동영상 최적화 중..."
+    },
+    "statusMsgTranscribing": {
+        "message": "AI 자막 생성 중..."
+    },
+    "statusMsgChecking": {
+        "message": "Verifying subtitle tracks and segments..."
+    },
+    "statusMsgDownloading": {
+        "message": "오디오 데이터 가져오는 중..."
+    },
+    "statusMsgGeneric": {
+        "message": "요청 처리 중..."
+    },
+    "statusMsgFinalizing": {
+        "message": "자막 마무리 중..."
+    },
+    "statusMsgWhisper": {
+        "message": "AI가 듣고 있습니다..."
+    },
+    "statusMsgDiarization": {
+        "message": "화자 식별 중..."
+    },
+    "statusMsgStreaming": {
+        "message": "자막 스트리밍 중..."
+    },
+    "errorReload": {
+        "message": "YouTube 페이지를 새로고침하고 다시 시도하세요."
+    },
+    "errorNoActiveTab": {
+        "message": "No active YouTube tab found. Please open a video."
+    },
+    "errorLiveTranslateFail": {
+        "message": "Failed to toggle live translation:\n$ERROR$",
+        "placeholders": {
+            "error": {
+                "content": "$1"
+            }
+        }
+    },
+    "btnStopLiveTranslate": {
+        "message": "라이브 번역 중지"
+    },
+    "btnStartLiveTranslate": {
+        "message": "라이브 번역 시작"
     }
 }

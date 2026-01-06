@@ -271,7 +271,7 @@
         "message": "Terminé ✓"
     },
     "menuBack": {
-        "message": "Sous-titres"
+        "message": "Retour"
     },
     "llmApiError": {
         "message": "Erreur API LLM : $STATUS$ - $ERROR$",
@@ -333,5 +333,148 @@
     },
     "langRu": {
         "message": "Russe"
+    },
+    "tierStream": {
+        "message": "🚀 Stream — Progressive Translation"
+    },
+    "tierHint4": {
+        "message": "Progressive streaming — see subtitles immediately as they translate. Fastest experience!"
+    },
+    "btnVideoTranslate": {
+        "message": "Traduire la vidéo"
+    },
+    "menuMoreOptions": {
+        "message": "Plus d'options"
+    },
+    "menuToggleSubtitles": {
+        "message": "Basculer les sous-titres"
+    },
+    "menuSubtitleStyle": {
+        "message": "Style des sous-titres"
+    },
+    "menuDualSubtitles": {
+        "message": "Sous-titres doubles"
+    },
+    "menuSync": {
+        "message": "Synchro :"
+    },
+    "menuReset": {
+        "message": "Réinitialiser"
+    },
+    "menuDownload": {
+        "message": "Télécharger les sous-titres"
+    },
+    "menuAddToQueue": {
+        "message": "Ajouter à la file"
+    },
+    "menuAdded": {
+        "message": "Ajouté ✓"
+    },
+    "menuDownloadSRT": {
+        "message": "Download as SRT"
+    },
+    "menuDownloadVTT": {
+        "message": "Download as VTT"
+    },
+    "menuFontSans": {
+        "message": "Sans-serif"
+    },
+    "menuFontSerif": {
+        "message": "Serif"
+    },
+    "menuFontMono": {
+        "message": "Monospace"
+    },
+    "menuFontCasual": {
+        "message": "Casual"
+    },
+    "menuOutlineNone": {
+        "message": "None"
+    },
+    "menuOutlineLight": {
+        "message": "Light"
+    },
+    "menuOutlineMedium": {
+        "message": "Medium"
+    },
+    "menuOutlineHeavy": {
+        "message": "Heavy"
+    },
+    "menuOpacityFull": {
+        "message": "Full (100%)"
+    },
+    "menuOpacityHigh": {
+        "message": "High (85%)"
+    },
+    "menuOpacityMedium": {
+        "message": "Medium (70%)"
+    },
+    "menuOpacityLow": {
+        "message": "Low (50%)"
+    },
+    "menuSpeakerOff": {
+        "message": "Désactivé"
+    },
+    "menuSpeakerColor": {
+        "message": "Couleur seulement"
+    },
+    "menuSpeakerLabel": {
+        "message": "Afficher l'étiquette"
+    },
+    "menuSpeakerBoth": {
+        "message": "Couleur + Étiquette"
+    },
+    "statusMsgTranslating": {
+        "message": "Traduction des sous-titres dans votre langue..."
+    },
+    "statusMsgLoading": {
+        "message": "Chargement du modèle IA..."
+    },
+    "statusMsgProcessing": {
+        "message": "Optimisation de la vidéo..."
+    },
+    "statusMsgTranscribing": {
+        "message": "Génération des transcriptions IA..."
+    },
+    "statusMsgChecking": {
+        "message": "Verifying subtitle tracks and segments..."
+    },
+    "statusMsgDownloading": {
+        "message": "Récupération des données audio..."
+    },
+    "statusMsgGeneric": {
+        "message": "Traitement de votre demande..."
+    },
+    "statusMsgFinalizing": {
+        "message": "Finalisation de la transcription..."
+    },
+    "statusMsgWhisper": {
+        "message": "L'IA écoute et transcrit..."
+    },
+    "statusMsgDiarization": {
+        "message": "Identification des locuteurs..."
+    },
+    "statusMsgStreaming": {
+        "message": "Diffusion des sous-titres traduits..."
+    },
+    "errorReload": {
+        "message": "Veuillez recharger la page YouTube et réessayer."
+    },
+    "errorNoActiveTab": {
+        "message": "No active YouTube tab found. Please open a video."
+    },
+    "errorLiveTranslateFail": {
+        "message": "Failed to toggle live translation:\n$ERROR$",
+        "placeholders": {
+            "error": {
+                "content": "$1"
+            }
+        }
+    },
+    "btnStopLiveTranslate": {
+        "message": "Arrêter la traduction en direct"
+    },
+    "btnStartLiveTranslate": {
+        "message": "Démarrer la traduction en direct"
     }
 }

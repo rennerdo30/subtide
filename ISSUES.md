@@ -131,11 +131,18 @@
 ### YouTube Audio Download Stability
 - **Issue**: Audio downloads sometimes failed silently with "Audio download failed" error
 - **Fix**: 
-  - Switched to yt-dlp nightly builds (via `--pre` flag) which get YouTube API fix updates faster
+  - Switched to yt-dlp master branch (bleeding edge) which get YouTube API fix updates faster
   - Added retry logic with exponential backoff (up to 3 attempts)
   - Added yt-dlp internal retry options (`retries`, `fragment_retries`, `extractor_retries`)
   - Improved error diagnostics for auth/geo-restriction/private video issues
+  - Added Node.js as fallback JS runtime alongside Deno for nsig decoding
 - **Impact**: More reliable audio downloads with better error messages
+
+### RunPod 502 Gateway Timeout
+- **Issue**: Long-running requests (Whisper transcription) caused 502 Bad Gateway after ~43 seconds
+- **Root Cause**: Non-SSE mode waited synchronously for completion, but RunPod Load Balancer times out without response
+- **Fix**: Force SSE mode for RunPod platform in `/api/process` endpoint - SSE streams progress events that keep the connection alive
+- **Impact**: Long videos can now be processed without gateway timeout
 
 
 ## Known Limitations ⚠️

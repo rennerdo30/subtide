@@ -56,6 +56,8 @@ PORT=5001
 # Whisper Configuration (Tier 2+)
 ENABLE_WHISPER=true
 WHISPER_MODEL=base
+WHISPER_BEAM_SIZE=5                   # Higher = more accurate (default: 5)
+ENABLE_AUDIO_NORMALIZATION=true       # Boost quiet voices
 
 # Whisper Accuracy Tuning
 WHISPER_NO_SPEECH_THRESHOLD=0.4       # Lower = capture more (default: 0.4)
@@ -69,9 +71,12 @@ DIARIZATION_SMOOTHING=true
 MIN_SEGMENT_DURATION=0.5
 
 # Tier 3 Managed Translation (optional)
-SERVER_API_KEY=sk-your-api-key
-SERVER_API_URL=https://api.openai.com/v1
-SERVER_MODEL=gpt-4o-mini
+# Recommended FREE models via OpenRouter:
+#   google/gemini-2.0-flash-exp:free - Best for non-English
+#   meta-llama/llama-4-maverick:free - 12 languages
+SERVER_API_KEY=your-openrouter-api-key
+SERVER_API_URL=https://openrouter.ai/api/v1
+SERVER_MODEL=google/gemini-2.0-flash-exp:free
 ```
 
 ## API Endpoints

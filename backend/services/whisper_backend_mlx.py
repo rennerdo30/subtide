@@ -86,6 +86,7 @@ class MLXWhisperBackend(WhisperBackend):
         no_speech_threshold = float(os.getenv('WHISPER_NO_SPEECH_THRESHOLD', '0.4'))
         compression_ratio_threshold = float(os.getenv('WHISPER_COMPRESSION_RATIO_THRESHOLD', '2.4'))
         logprob_threshold = float(os.getenv('WHISPER_LOGPROB_THRESHOLD', '-1.0'))
+        beam_size = int(os.getenv('WHISPER_BEAM_SIZE', '5'))
 
         # Build transcribe options
         transcribe_options = {
@@ -94,6 +95,12 @@ class MLXWhisperBackend(WhisperBackend):
             'compression_ratio_threshold': compression_ratio_threshold,
             'logprob_threshold': logprob_threshold,
             'verbose': False,  # We handle our own progress
+        }
+
+        # Add decode options with beam_size
+        transcribe_options['decode_options'] = {
+            'beam_size': beam_size,
+            'temperature': 0,  # Required for beam search
         }
 
         if language:
@@ -106,7 +113,7 @@ class MLXWhisperBackend(WhisperBackend):
             progress_callback('whisper', 'Transcribing with MLX...', 20)
 
         # Run transcription
-        logger.info(f"MLX Whisper: Transcribing {audio_path} with model {model_path}")
+        logger.info(f"MLX Whisper: Transcribing {audio_path} with model {model_path} (beam_size={beam_size})")
         result = mlx_whisper.transcribe(audio_path, **transcribe_options)
 
         # Convert MLX result to our format

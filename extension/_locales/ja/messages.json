@@ -271,7 +271,7 @@
         "message": "完了 ✓"
     },
     "menuBack": {
-        "message": "字幕"
+        "message": "戻る"
     },
     "llmApiError": {
         "message": "LLM APIエラー: $STATUS$ - $ERROR$",
@@ -333,5 +333,148 @@
     },
     "langRu": {
         "message": "ロシア語"
+    },
+    "tierStream": {
+        "message": "🚀 Stream — Progressive Translation"
+    },
+    "tierHint4": {
+        "message": "Progressive streaming — see subtitles immediately as they translate. Fastest experience!"
+    },
+    "btnVideoTranslate": {
+        "message": "動画翻訳"
+    },
+    "menuMoreOptions": {
+        "message": "その他のオプション"
+    },
+    "menuToggleSubtitles": {
+        "message": "字幕の切り替え"
+    },
+    "menuSubtitleStyle": {
+        "message": "字幕スタイル"
+    },
+    "menuDualSubtitles": {
+        "message": "二言語字幕"
+    },
+    "menuSync": {
+        "message": "同期:"
+    },
+    "menuReset": {
+        "message": "リセット"
+    },
+    "menuDownload": {
+        "message": "字幕をダウンロード"
+    },
+    "menuAddToQueue": {
+        "message": "キューに追加"
+    },
+    "menuAdded": {
+        "message": "追加しました ✓"
+    },
+    "menuDownloadSRT": {
+        "message": "Download as SRT"
+    },
+    "menuDownloadVTT": {
+        "message": "Download as VTT"
+    },
+    "menuFontSans": {
+        "message": "Sans-serif"
+    },
+    "menuFontSerif": {
+        "message": "Serif"
+    },
+    "menuFontMono": {
+        "message": "Monospace"
+    },
+    "menuFontCasual": {
+        "message": "Casual"
+    },
+    "menuOutlineNone": {
+        "message": "None"
+    },
+    "menuOutlineLight": {
+        "message": "Light"
+    },
+    "menuOutlineMedium": {
+        "message": "Medium"
+    },
+    "menuOutlineHeavy": {
+        "message": "Heavy"
+    },
+    "menuOpacityFull": {
+        "message": "Full (100%)"
+    },
+    "menuOpacityHigh": {
+        "message": "High (85%)"
+    },
+    "menuOpacityMedium": {
+        "message": "Medium (70%)"
+    },
+    "menuOpacityLow": {
+        "message": "Low (50%)"
+    },
+    "menuSpeakerOff": {
+        "message": "オフ"
+    },
+    "menuSpeakerColor": {
+        "message": "色のみ"
+    },
+    "menuSpeakerLabel": {
+        "message": "ラベルを表示"
+    },
+    "menuSpeakerBoth": {
+        "message": "色とラベル"
+    },
+    "statusMsgTranslating": {
+        "message": "字幕を翻訳しています..."
+    },
+    "statusMsgLoading": {
+        "message": "AIモデルを読み込み中..."
+    },
+    "statusMsgProcessing": {
+        "message": "動画を最適化中..."
+    },
+    "statusMsgTranscribing": {
+        "message": "AI文字起こしを作成中..."
+    },
+    "statusMsgChecking": {
+        "message": "Verifying subtitle tracks and segments..."
+    },
+    "statusMsgDownloading": {
+        "message": "音声データを取得中..."
+    },
+    "statusMsgGeneric": {
+        "message": "リクエストを処理中..."
+    },
+    "statusMsgFinalizing": {
+        "message": "文字起こしを完了中..."
+    },
+    "statusMsgWhisper": {
+        "message": "AIが聞き取り中..."
+    },
+    "statusMsgDiarization": {
+        "message": "話者を識別中..."
+    },
+    "statusMsgStreaming": {
+        "message": "字幕をストリーミング中..."
+    },
+    "errorReload": {
+        "message": "YouTubeページを再読み込みして、もう一度お試しください。"
+    },
+    "errorNoActiveTab": {
+        "message": "No active YouTube tab found. Please open a video."
+    },
+    "errorLiveTranslateFail": {
+        "message": "Failed to toggle live translation:\n$ERROR$",
+        "placeholders": {
+            "error": {
+                "content": "$1"
+            }
+        }
+    },
+    "btnStopLiveTranslate": {
+        "message": "ライブ翻訳を停止"
+    },
+    "btnStartLiveTranslate": {
+        "message": "ライブ翻訳を開始"
     }
 }

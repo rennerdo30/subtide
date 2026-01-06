@@ -70,6 +70,33 @@ SERVER_API_KEY = os.getenv('SERVER_API_KEY')
 SERVER_MODEL = os.getenv('SERVER_MODEL', 'gpt-3.5-turbo')
 SERVER_API_URL = os.getenv('SERVER_API_URL')
 
+# Language-specific model mapping (JSON format)
+# Example: {"ja":"claude-3-haiku","ko":"claude-3-haiku","zh":"gemini-2.0-flash","default":"gpt-4o-mini"}
+_MODEL_LANG_MAP_STR = os.getenv('MODEL_LANG_MAP', '{}')
+try:
+    import json
+    MODEL_LANG_MAP = json.loads(_MODEL_LANG_MAP_STR)
+except:
+    MODEL_LANG_MAP = {}
+
+
+def get_model_for_language(target_lang: str) -> str:
+    """Get the best model for a target language.
+    
+    Falls back to SERVER_MODEL if no specific mapping exists.
+    """
+    # Check exact match
+    if target_lang in MODEL_LANG_MAP:
+        return MODEL_LANG_MAP[target_lang]
+    
+    # Check base language (e.g., 'zh' for 'zh-CN')
+    base_lang = target_lang.split('-')[0]
+    if base_lang in MODEL_LANG_MAP:
+        return MODEL_LANG_MAP[base_lang]
+    
+    # Use default from map or fall back to SERVER_MODEL
+    return MODEL_LANG_MAP.get('default', SERVER_MODEL)
+
 # Whisper Config
 WHISPER_MODEL_SIZE = os.getenv('WHISPER_MODEL', 'base')  # tiny, base, small, medium, large
 WHISPER_QUANTIZED = os.getenv('WHISPER_QUANTIZED', 'false').lower() == 'true'
@@ -107,7 +134,7 @@ WHISPER_NO_SPEECH_THRESHOLD = float(os.getenv('WHISPER_NO_SPEECH_THRESHOLD', '0.
 WHISPER_COMPRESSION_RATIO_THRESHOLD = float(os.getenv('WHISPER_COMPRESSION_RATIO_THRESHOLD', '2.4'))
 WHISPER_LOGPROB_THRESHOLD = float(os.getenv('WHISPER_LOGPROB_THRESHOLD', '-1.0'))
 WHISPER_CONDITION_ON_PREVIOUS = os.getenv('WHISPER_CONDITION_ON_PREVIOUS', 'true').lower() == 'true'
-WHISPER_BEAM_SIZE = int(os.getenv('WHISPER_BEAM_SIZE', '1'))
+WHISPER_BEAM_SIZE = int(os.getenv('WHISPER_BEAM_SIZE', '5'))
 
 
 # ============================================================================

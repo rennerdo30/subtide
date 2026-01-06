@@ -271,7 +271,7 @@
         "message": "Готово ✓"
     },
     "menuBack": {
-        "message": "Субтитры"
+        "message": "Назад"
     },
     "llmApiError": {
         "message": "Ошибка LLM API: $STATUS$ - $ERROR$",
@@ -333,5 +333,148 @@
     },
     "langRu": {
         "message": "Русский"
+    },
+    "tierStream": {
+        "message": "🚀 Stream — Progressive Translation"
+    },
+    "tierHint4": {
+        "message": "Progressive streaming — see subtitles immediately as they translate. Fastest experience!"
+    },
+    "btnVideoTranslate": {
+        "message": "Перевести видео"
+    },
+    "menuMoreOptions": {
+        "message": "Ещё опции"
+    },
+    "menuToggleSubtitles": {
+        "message": "Вкл/Выкл субтитры"
+    },
+    "menuSubtitleStyle": {
+        "message": "Стиль субтитров"
+    },
+    "menuDualSubtitles": {
+        "message": "Двойные субтитры"
+    },
+    "menuSync": {
+        "message": "Синхр:"
+    },
+    "menuReset": {
+        "message": "Сброс"
+    },
+    "menuDownload": {
+        "message": "Скачать субтитры"
+    },
+    "menuAddToQueue": {
+        "message": "В очередь"
+    },
+    "menuAdded": {
+        "message": "Добавлено ✓"
+    },
+    "menuDownloadSRT": {
+        "message": "Download as SRT"
+    },
+    "menuDownloadVTT": {
+        "message": "Download as VTT"
+    },
+    "menuFontSans": {
+        "message": "Sans-serif"
+    },
+    "menuFontSerif": {
+        "message": "Serif"
+    },
+    "menuFontMono": {
+        "message": "Monospace"
+    },
+    "menuFontCasual": {
+        "message": "Casual"
+    },
+    "menuOutlineNone": {
+        "message": "None"
+    },
+    "menuOutlineLight": {
+        "message": "Light"
+    },
+    "menuOutlineMedium": {
+        "message": "Medium"
+    },
+    "menuOutlineHeavy": {
+        "message": "Heavy"
+    },
+    "menuOpacityFull": {
+        "message": "Full (100%)"
+    },
+    "menuOpacityHigh": {
+        "message": "High (85%)"
+    },
+    "menuOpacityMedium": {
+        "message": "Medium (70%)"
+    },
+    "menuOpacityLow": {
+        "message": "Low (50%)"
+    },
+    "menuSpeakerOff": {
+        "message": "Выкл"
+    },
+    "menuSpeakerColor": {
+        "message": "Только цвет"
+    },
+    "menuSpeakerLabel": {
+        "message": "Показать метку"
+    },
+    "menuSpeakerBoth": {
+        "message": "Цвет + Метка"
+    },
+    "statusMsgTranslating": {
+        "message": "Перевод субтитров..."
+    },
+    "statusMsgLoading": {
+        "message": "Загрузка модели ИИ..."
+    },
+    "statusMsgProcessing": {
+        "message": "Оптимизация видео..."
+    },
+    "statusMsgTranscribing": {
+        "message": "Создание транскрипции..."
+    },
+    "statusMsgChecking": {
+        "message": "Verifying subtitle tracks and segments..."
+    },
+    "statusMsgDownloading": {
+        "message": "Получение аудио..."
+    },
+    "statusMsgGeneric": {
+        "message": "Обработка запроса..."
+    },
+    "statusMsgFinalizing": {
+        "message": "Завершение..."
+    },
+    "statusMsgWhisper": {
+        "message": "ИИ слушает и пишет..."
+    },
+    "statusMsgDiarization": {
+        "message": "Определение дикторов..."
+    },
+    "statusMsgStreaming": {
+        "message": "Потоковая передача..."
+    },
+    "errorReload": {
+        "message": "Пожалуйста, обновите страницу YouTube и попробуйте снова."
+    },
+    "errorNoActiveTab": {
+        "message": "No active YouTube tab found. Please open a video."
+    },
+    "errorLiveTranslateFail": {
+        "message": "Failed to toggle live translation:\n$ERROR$",
+        "placeholders": {
+            "error": {
+                "content": "$1"
+            }
+        }
+    },
+    "btnStopLiveTranslate": {
+        "message": "Остановить Live перевод"
+    },
+    "btnStartLiveTranslate": {
+        "message": "Начать Live перевод"
     }
 }

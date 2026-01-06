@@ -6,3 +6,4 @@ backend/.env
 .trae
 .coverage
 .DS_Store
+backend/.env.backup.*

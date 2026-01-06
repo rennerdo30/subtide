@@ -271,7 +271,7 @@
         "message": "完成 ✓"
     },
     "menuBack": {
-        "message": "字幕"
+        "message": "返回"
     },
     "llmApiError": {
         "message": "LLM API错误: $STATUS$ - $ERROR$",
@@ -333,5 +333,148 @@
     },
     "langRu": {
         "message": "俄语"
+    },
+    "tierStream": {
+        "message": "🚀 Stream — Progressive Translation"
+    },
+    "tierHint4": {
+        "message": "Progressive streaming — see subtitles immediately as they translate. Fastest experience!"
+    },
+    "btnVideoTranslate": {
+        "message": "视频翻译"
+    },
+    "menuMoreOptions": {
+        "message": "更多选项"
+    },
+    "menuToggleSubtitles": {
+        "message": "切换字幕"
+    },
+    "menuSubtitleStyle": {
+        "message": "字幕样式"
+    },
+    "menuDualSubtitles": {
+        "message": "双语字幕"
+    },
+    "menuSync": {
+        "message": "同步："
+    },
+    "menuReset": {
+        "message": "重置"
+    },
+    "menuDownload": {
+        "message": "下载字幕"
+    },
+    "menuAddToQueue": {
+        "message": "加入队列"
+    },
+    "menuAdded": {
+        "message": "已添加 ✓"
+    },
+    "menuDownloadSRT": {
+        "message": "Download as SRT"
+    },
+    "menuDownloadVTT": {
+        "message": "Download as VTT"
+    },
+    "menuFontSans": {
+        "message": "Sans-serif"
+    },
+    "menuFontSerif": {
+        "message": "Serif"
+    },
+    "menuFontMono": {
+        "message": "Monospace"
+    },
+    "menuFontCasual": {
+        "message": "Casual"
+    },
+    "menuOutlineNone": {
+        "message": "None"
+    },
+    "menuOutlineLight": {
+        "message": "Light"
+    },
+    "menuOutlineMedium": {
+        "message": "Medium"
+    },
+    "menuOutlineHeavy": {
+        "message": "Heavy"
+    },
+    "menuOpacityFull": {
+        "message": "Full (100%)"
+    },
+    "menuOpacityHigh": {
+        "message": "High (85%)"
+    },
+    "menuOpacityMedium": {
+        "message": "Medium (70%)"
+    },
+    "menuOpacityLow": {
+        "message": "Low (50%)"
+    },
+    "menuSpeakerOff": {
+        "message": "关闭"
+    },
+    "menuSpeakerColor": {
+        "message": "仅颜色"
+    },
+    "menuSpeakerLabel": {
+        "message": "显示标签"
+    },
+    "menuSpeakerBoth": {
+        "message": "颜色 + 标签"
+    },
+    "statusMsgTranslating": {
+        "message": "正在将字幕翻译为您的语言..."
+    },
+    "statusMsgLoading": {
+        "message": "正在加载 AI 模型和组件..."
+    },
+    "statusMsgProcessing": {
+        "message": "正在优化视频以进行翻译..."
+    },
+    "statusMsgTranscribing": {
+        "message": "正在生成 AI 转录..."
+    },
+    "statusMsgChecking": {
+        "message": "Verifying subtitle tracks and segments..."
+    },
+    "statusMsgDownloading": {
+        "message": "正在获取音频数据..."
+    },
+    "statusMsgGeneric": {
+        "message": "正在处理您的请求..."
+    },
+    "statusMsgFinalizing": {
+        "message": "正在完成转录..."
+    },
+    "statusMsgWhisper": {
+        "message": "AI 正在聆听并转录..."
+    },
+    "statusMsgDiarization": {
+        "message": "正在识别说话者..."
+    },
+    "statusMsgStreaming": {
+        "message": "正在流式传输翻译字幕..."
+    },
+    "errorReload": {
+        "message": "请刷新 YouTube 页面并重试。"
+    },
+    "errorNoActiveTab": {
+        "message": "No active YouTube tab found. Please open a video."
+    },
+    "errorLiveTranslateFail": {
+        "message": "Failed to toggle live translation:\n$ERROR$",
+        "placeholders": {
+            "error": {
+                "content": "$1"
+            }
+        }
+    },
+    "btnStopLiveTranslate": {
+        "message": "停止实时翻译"
+    },
+    "btnStartLiveTranslate": {
+        "message": "开始实时翻译"
     }
 }

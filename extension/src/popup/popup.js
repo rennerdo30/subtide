@@ -315,11 +315,11 @@ function setupEventListeners() {
             // Show user friendly error
             let errorMsg = error.message;
             if (errorMsg.includes('Extension has not been invoked')) {
-                errorMsg = "Please reload the YouTube page and try again.";
+                errorMsg = chrome.i18n.getMessage('errorReload');
             } else if (errorMsg.includes('No active tab')) {
-                errorMsg = "No active YouTube tab found. Please open a video.";
+                errorMsg = chrome.i18n.getMessage('errorNoActiveTab');
             }
-            alert('Failed to toggle live translation:\n' + errorMsg);
+            alert(chrome.i18n.getMessage('errorLiveTranslateFail', [errorMsg]));
         }
     });
 
@@ -411,7 +411,7 @@ function updateLiveButtonState(state) {
         btn.style.backgroundColor = '#ef4444';
         btn.style.color = 'white';
         icon.textContent = '⏹️';
-        text.textContent = 'Stop Live Translate';
+        text.textContent = chrome.i18n.getMessage('btnStopLiveTranslate');
     } else {
         btn.disabled = false;
         btn.classList.remove('btn-danger');

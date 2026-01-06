@@ -8,8 +8,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Any, Tuple, Optional, Callable
 from openai import OpenAI
 
-from backend.config import CACHE_DIR, LANG_NAMES, SERVER_API_KEY, SERVER_API_URL, SERVER_MODEL
+from backend.config import CACHE_DIR, LANG_NAMES, SERVER_API_KEY, SERVER_API_URL, SERVER_MODEL, get_model_for_language
 from backend.utils.logging_utils import log_with_context, LogContext
+from backend.utils.partial_cache import (
+    save_partial_progress, load_partial_progress, clear_partial_progress, compute_source_hash
+)
 
 logger = logging.getLogger('video-translate')
 
@@ -106,7 +109,9 @@ def await_translate_subtitles(
     subtitles: List[Dict[str, Any]],
     target_lang: str,
     progress_callback: Optional[Callable[[int, int, int, str], None]] = None,
-    batch_result_callback: Optional[Callable[[int, int, List[Dict[str, Any]]], None]] = None
+    batch_result_callback: Optional[Callable[[int, int, List[Dict[str, Any]]], None]] = None,
+    terminology: Optional[List[str]] = None,
+    video_id: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     Translate subtitles using LLM with parallel batching, rate limit handling, and retry.
@@ -117,6 +122,8 @@ def await_translate_subtitles(
         progress_callback: Called with (completed_batches, total_batches, percent, eta_str)
         batch_result_callback: Called with (batch_index, total_batches, translated_batch)
                                when each batch completes - enables streaming results
+        terminology: Optional list of proper nouns/terms to preserve in translation
+        video_id: Optional video ID for partial cache (enables batch resume on failure)
     """
 
     # Configuration constants with documented rationale
@@ -175,6 +182,14 @@ def await_translate_subtitles(
     batch_times = []  # Track time per batch for ETA
     historical_avg = get_historical_batch_time()
     
+    # Partial cache for batch resume
+    source_hash = compute_source_hash(subtitles) if video_id else None
+    cached_results = {}
+    if video_id and source_hash:
+        cached_results = load_partial_progress(video_id, target_lang, source_hash) or {}
+        if cached_results:
+            log_with_context(logger, 'INFO', f"[TRANSLATE] Resuming from cache: {len(cached_results)}/{total_batches} batches already done")
+    
     # Calculate time range for logs
     time_range = ""
     if subtitles:
@@ -200,8 +215,23 @@ def await_translate_subtitles(
         batch_start = time.time()
 
         numbered_subs = "\n".join([f"{i+1}. {s['text']}" for i, s in enumerate(batch)])
+        
+        # Context window: include up to 3 previous segments for better context
+        context_str = ""
+        if batch_idx > 0:
+            context_start = max(0, batch_idx - 3)
+            context_subs = subtitles[context_start:batch_idx]
+            if context_subs:
+                prev_texts = [s.get('text', '') for s in context_subs]
+                context_str = f"\n\n(Previous context for reference - DO NOT translate these, they are for context only:)\n" + "\n".join([f"[prev] {t}" for t in prev_texts])
 
-        system_prompt = f"You are a professional subtitle translator. You ONLY output {t_name}. Never output Chinese unless the target language is Chinese."
+        # Build terminology string if provided
+        terminology_str = ""
+        if terminology and len(terminology) > 0:
+            terms_list = ", ".join(terminology[:15])  # Limit to prevent prompt bloat
+            terminology_str = f" Keep these proper nouns/terms consistent: {terms_list}."
+
+        system_prompt = f"You are a professional subtitle translator. You ONLY output {t_name}. Never output Chinese unless the target language is Chinese.{terminology_str}"
         user_prompt = f"""Translate these {len(batch)} subtitles to {t_name}.
 
 TARGET LANGUAGE: {t_name} (code: {target_lang})
@@ -217,7 +247,7 @@ Rules:
 - No explanations or notes
 
 Subtitles to translate:
-{numbered_subs}
+{numbered_subs}{context_str}
 
 Remember: Output MUST be in {t_name} only."""
 
@@ -225,8 +255,10 @@ Remember: Output MUST be in {t_name} only."""
         # Local Max Retries for this thread
         for attempt in range(MAX_RETRIES + 1):
             try:
+                # Use language-specific model if configured
+                model = get_model_for_language(target_lang)
                 response = client.chat.completions.create(
-                    model=SERVER_MODEL,
+                    model=model,
                     messages=[
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt}
@@ -253,6 +285,17 @@ Remember: Output MUST be in {t_name} only."""
                 # Verify count - if we have most of them, accept it
                 if len(translations) >= len(batch) * 0.8:
                     batch_duration = time.time() - batch_start
+                    
+                    # Quality verification - log issues but don't block
+                    try:
+                        from backend.utils.translation_quality import verify_batch
+                        source_texts = [s.get('text', '') for s in batch[:len(translations)]]
+                        valid, invalid, issues = verify_batch(source_texts, translations, target_lang)
+                        if invalid > 0:
+                            log_with_context(logger, 'WARNING', f"[TRANSLATE] Batch {batch_num} has {invalid} quality issues")
+                    except ImportError:
+                        pass  # Quality module not available
+                    
                     log_with_context(logger, 'INFO', f"[TRANSLATE] Batch {batch_num}/{total_batches} OK ({len(translations)}/{len(batch)}) in {batch_duration:.1f}s")
                     return batch_idx, translations, True, batch_duration
                 else:
@@ -315,6 +358,11 @@ Remember: Output MUST be in {t_name} only."""
                             total_batches,
                             batch_data  # Already has translatedText applied
                         )
+                    
+                    # Save progress for batch resume
+                    if video_id and source_hash:
+                        results_for_cache = {str(k): v for k, v in results.items()}
+                        save_partial_progress(video_id, target_lang, results_for_cache, total_batches, source_hash)
 
                 # Calculate ETA
                 remaining_batches = total_batches - completed_batches[0]
@@ -368,6 +416,9 @@ Remember: Output MUST be in {t_name} only."""
         log_with_context(logger, 'WARNING', f"[TRANSLATE] DONE: {total_empty}/{len(subtitles)} empty translations in {elapsed:.1f}s")
     else:
         log_with_context(logger, 'INFO', f"[TRANSLATE] DONE: All {len(subtitles)} translated in {elapsed:.1f}s!")
+        # Clear cache on full success
+        if video_id:
+            clear_partial_progress(video_id, target_lang)
 
     return subtitles
 

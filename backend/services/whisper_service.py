@@ -374,76 +374,18 @@ def smooth_speaker_segments(segments: list) -> list:
 
 
 def filter_hallucinations(segments: list) -> list:
-    """Filter out Whisper hallucinations (repeated text, common patterns).
+    """Filter out Whisper hallucinations using the improved utility.
     
-    Whisper can hallucinate in silence, producing repeated phrases or
-    common patterns like 'Thank you for watching'.
+    Detects: repetitive text, impossible speech rates, common patterns,
+    consecutive duplicates, and mostly-punctuation segments.
     """
-    if not segments:
+    try:
+        from backend.utils.hallucination_filter import filter_hallucinations as _filter_impl
+        return _filter_impl(segments)
+    except ImportError:
+        # Fallback: just return segments as-is
+        logger.warning("[HALLUCINATION] Could not import filter utility, skipping")
         return segments
-    
-    filtered = []
-    
-    # Common hallucination patterns (case-insensitive)
-    HALLUCINATION_PATTERNS = [
-        r'^(thank you for watching|thanks for watching)',
-        r'^(please subscribe|don\'t forget to subscribe)',
-        r'^(like and subscribe|subscribe to)',
-        r'^\[music\]$',
-        r'^\[applause\]$',
-        r'^\.+$',  # Just dots
-        r'^\s*$',  # Empty or whitespace
-    ]
-    
-    pattern_regexes = [re.compile(p, re.IGNORECASE) for p in HALLUCINATION_PATTERNS]
-    
-    for i, seg in enumerate(segments):
-        text = seg.get('text', '').strip()
-        
-        # Skip empty segments
-        if not text:
-            continue
-        
-        # Check for pattern matches
-        is_hallucination = False
-        for regex in pattern_regexes:
-            if regex.search(text):
-                is_hallucination = True
-                logger.debug(f"[HALLUCINATION] Pattern match: '{text[:50]}'")
-                break
-        
-        if is_hallucination:
-            continue
-        
-        # Check for excessive repetition within segment
-        words = text.split()
-        if len(words) >= 4:
-            # Check if same phrase repeats 3+ times
-            for phrase_len in range(1, min(5, len(words) // 3)):
-                for j in range(len(words) - phrase_len * 3):
-                    phrase = ' '.join(words[j:j+phrase_len])
-                    repeat_count = text.lower().count(phrase.lower())
-                    if repeat_count >= 3 and len(phrase) > 2:
-                        is_hallucination = True
-                        logger.debug(f"[HALLUCINATION] Repetition: '{phrase}' x{repeat_count}")
-                        break
-                if is_hallucination:
-                    break
-        
-        if is_hallucination:
-            continue
-        
-        # Check for repeated consecutive segments
-        if filtered and text.lower() == filtered[-1].get('text', '').lower():
-            logger.debug(f"[HALLUCINATION] Duplicate: '{text[:30]}'")
-            continue
-        
-        filtered.append(seg)
-    
-    if len(filtered) != len(segments):
-        logger.info(f"[HALLUCINATION] Filtered {len(segments)} -> {len(filtered)} segments")
-    
-    return filtered
 
 
 # Subprocess mode removed.
@@ -845,6 +787,18 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
     """
     if not ENABLE_WHISPER:
         raise Exception("Whisper is disabled on this server")
+    
+    # Normalize audio for better quiet voice detection
+    normalized_audio = audio_file
+    if os.getenv('ENABLE_AUDIO_NORMALIZATION', 'true').lower() == 'true':
+        try:
+            from backend.utils.audio_normalization import normalize_audio
+            normalized_audio = normalize_audio(audio_file)
+            if normalized_audio != audio_file:
+                logger.info(f"[WHISPER] Using normalized audio: {normalized_audio}")
+        except Exception as e:
+            logger.warning(f"[WHISPER] Audio normalization failed, using original: {e}")
+            normalized_audio = audio_file
         
     backend = get_whisper_backend()
     logger.info(f"Running Whisper transcription ({backend})...")
@@ -988,7 +942,7 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
             # Legacy version used this and was 100x faster.
             # Since faster-whisper is removed, we don't need subprocess isolation anymore.
             logger.info("[WHISPER] Using DIRECT mode (in-process, faster GPU execution)")
-            result = _run_mlx_direct(audio_file, mlx_model_path, progress_callback, initial_prompt)
+            result = _run_mlx_direct(normalized_audio, mlx_model_path, progress_callback, initial_prompt)
         except Exception as mlx_error:
             logger.error(f"mlx-whisper failed: {mlx_error}")
             raise mlx_error
@@ -1042,7 +996,7 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
 
         try:
             segments_gen, info = model.transcribe(
-                audio_file,
+                normalized_audio,
                 beam_size=WHISPER_BEAM_SIZE,
                 initial_prompt=initial_prompt,
                 word_timestamps=True,
@@ -1100,7 +1054,7 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
             transcribe_kwargs['initial_prompt'] = initial_prompt
         
         # Enable word timestamps for openai-whisper with configurable thresholds
-        result = model.transcribe(audio_file, **transcribe_kwargs)
+        result = model.transcribe(normalized_audio, **transcribe_kwargs)
 
         # openai-whisper structure with word_timestamps=True might differ slightly or be same
         # It typically returns 'segments' with 'words' inside if supported
@@ -1127,7 +1081,7 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
         logger.info("Skipping manual VAD (faster-whisper handles it internally)")
 
     if should_run_vad:
-        speech_timestamps = get_speech_timestamps(audio_file, progress_callback)
+        speech_timestamps = get_speech_timestamps(normalized_audio, progress_callback)
         if speech_timestamps:
             segments = filter_segments_by_vad(segments, speech_timestamps)
     

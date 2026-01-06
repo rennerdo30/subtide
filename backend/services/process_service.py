@@ -239,6 +239,9 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                         auto_subs = info.get('automatic_captions') or {}
                         video_duration = info.get('duration', 0)
 
+                    # Filter out live_chat - it's chat replay data, not actual subtitles
+                    manual_subs = {k: v for k, v in manual_subs.items() if k != 'live_chat'}
+
                     logger.info(f"[PROCESS] Manual subs: {list(manual_subs.keys())} | Auto subs: {list(auto_subs.keys())} | Duration: {video_duration}s (checked in {time.time()-step_start:.1f}s)")
                 
                 # Skip subtitle source selection if we already have subtitles (from cached Whisper)
@@ -343,7 +346,7 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                         batch_info = {'current': done, 'total': total}
                         send_sse('translating', f'Translating subtitles...', overall_pct, step=3, total_steps=4, eta=eta if eta else None, batch_info=batch_info)
 
-                    subtitles = await_translate_subtitles(subtitles, target_lang, on_translate_progress)
+                    subtitles = await_translate_subtitles(subtitles, target_lang, on_translate_progress, video_id=video_id)
                     logger.info(f"[PROCESS] Translation complete in {time.time()-trans_start:.1f}s")
                     send_sse('translating', 'Translation complete', 95, step=3, total_steps=4)
                 else:
@@ -514,6 +517,9 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool):
                         auto_subs = info.get('automatic_captions') or {}
                         video_duration = info.get('duration', 0)
 
+                    # Filter out live_chat - it's chat replay data, not actual subtitles
+                    manual_subs = {k: v for k, v in manual_subs.items() if k != 'live_chat'}
+
                     logger.info(f"[STREAM] Manual subs: {list(manual_subs.keys())} | Auto subs: {list(auto_subs.keys())}")
 
                 # Skip subtitle source selection if we already have subtitles (from cached Whisper)
@@ -599,7 +605,8 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool):
                                         batch_to_translate,
                                         target_lang,
                                         progress_callback=None,
-                                        batch_result_callback=None
+                                        batch_result_callback=None,
+                                        video_id=video_id
                                     )
                                     
                                     # Stream translated batch to client
@@ -637,7 +644,8 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool):
                                     segment_buffer,
                                     target_lang,
                                     progress_callback=None,
-                                    batch_result_callback=None
+                                    batch_result_callback=None,
+                                    video_id=video_id
                                 )
                                 send_subtitles(batch_count[0], batch_count[0], translated)
                                 all_streamed_subtitles.extend(translated)
@@ -693,7 +701,8 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool):
                         subtitles,
                         target_lang,
                         on_translate_progress,
-                        on_batch_result  # New streaming callback
+                        on_batch_result,  # Streaming callback
+                        video_id=video_id
                     )
                     logger.info(f"[STREAM] Translation complete")
                     send_sse('translating', 'Translation complete', 95, step=3, total_steps=4)

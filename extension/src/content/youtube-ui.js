@@ -185,7 +185,7 @@ function createSettingsPanelHTML() {
                 <div class="vt-menu-section-group">
                     <div class="vt-menu-option vt-toggle-visibility">
                         <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/></svg>
-                        <span class="vt-option-label">Toggle Subtitles</span>
+                        <span class="vt-option-label">${chrome.i18n.getMessage('menuToggleSubtitles')}</span>
                         <span class="vt-shortcut-hint">Alt+S</span>
                     </div>
                     <div class="vt-menu-option" data-setting="styleMenu">
@@ -195,7 +195,7 @@ function createSettingsPanelHTML() {
                     </div>
                     <div class="vt-menu-option" data-setting="moreOptions">
                         <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
-                        <span class="vt-option-label">More Options</span>
+                        <span class="vt-option-label">${chrome.i18n.getMessage('menuMoreOptions')}</span>
                         <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
                     </div>
                 </div>
@@ -233,25 +233,25 @@ function createMoreOptionsSubmenuHTML() {
             <div class="vt-menu-separator"></div>
             <div class="vt-menu-option vt-dual-toggle">
                 <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/></svg>
-                <span class="vt-option-label">Dual Subtitles</span>
-                <span class="vt-option-value vt-dual-status">Off</span>
+                <span class="vt-option-label">${chrome.i18n.getMessage('menuDualSubtitles')}</span>
+                <span class="vt-option-value vt-dual-status">${chrome.i18n.getMessage('menuSpeakerOff')}</span>
             </div>
             <div class="vt-sync-controls">
-                <span class="vt-sync-label">Sync:</span>
+                <span class="vt-sync-label">${chrome.i18n.getMessage('menuSync')}</span>
                 <button class="vt-sync-btn" data-offset="-500">-0.5s</button>
                 <span class="vt-sync-display">+0.0s</span>
                 <button class="vt-sync-btn" data-offset="500">+0.5s</button>
-                <button class="vt-sync-btn vt-sync-reset">Reset</button>
+                <button class="vt-sync-btn vt-sync-reset">${chrome.i18n.getMessage('menuReset')}</button>
             </div>
             <div class="vt-menu-separator"></div>
             <div class="vt-menu-option" data-setting="download">
                 <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
-                <span class="vt-option-label">Download Subtitles</span>
+                <span class="vt-option-label">${chrome.i18n.getMessage('menuDownload')}</span>
                 <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/></svg>
             </div>
             <div class="vt-menu-option vt-add-to-queue">
                 <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                <span class="vt-option-label">Add to Queue</span>
+                <span class="vt-option-label">${chrome.i18n.getMessage('menuAddToQueue')}</span>
             </div>
         </div>
     `;
@@ -267,10 +267,10 @@ function createSettingsOptionsHTML() {
         { key: 'position', label: chrome.i18n.getMessage('position'), defaultValue: chrome.i18n.getMessage('posBottom') },
         { key: 'background', label: chrome.i18n.getMessage('background'), defaultValue: chrome.i18n.getMessage('bgDark') },
         { key: 'color', label: chrome.i18n.getMessage('textColor'), defaultValue: chrome.i18n.getMessage('colorWhite') },
-        { key: 'font', label: 'Font', defaultValue: 'Sans-serif' },
-        { key: 'outline', label: 'Text Outline', defaultValue: 'Medium' },
-        { key: 'opacity', label: 'Opacity', defaultValue: 'Full' },
-        { key: 'showSpeaker', label: 'Speaker Labels', defaultValue: 'Color Only' },
+        { key: 'font', label: 'Font', defaultValue: chrome.i18n.getMessage('menuFontSans') },
+        { key: 'outline', label: 'Text Outline', defaultValue: chrome.i18n.getMessage('menuOutlineMedium') },
+        { key: 'opacity', label: 'Opacity', defaultValue: chrome.i18n.getMessage('menuOpacityFull') },
+        { key: 'showSpeaker', label: 'Speaker Labels', defaultValue: chrome.i18n.getMessage('menuSpeakerColor') },
     ];
 
     return options.map(opt => `
@@ -300,56 +300,56 @@ function createSubmenusHTML() {
             { val: 'ru', label: chrome.i18n.getMessage('langRu') },
         ],
         size: [
-            { val: 'small', label: 'Small' },
-            { val: 'medium', label: 'Medium' },
-            { val: 'large', label: 'Large' },
-            { val: 'xlarge', label: 'Extra Large' },
-            { val: 'huge', label: 'Huge' },
-            { val: 'gigantic', label: 'Gigantic' },
+            { val: 'small', label: chrome.i18n.getMessage('sizeSmall') },
+            { val: 'medium', label: chrome.i18n.getMessage('sizeMedium') },
+            { val: 'large', label: chrome.i18n.getMessage('sizeLarge') },
+            { val: 'xlarge', label: chrome.i18n.getMessage('sizeExtraLarge') },
+            { val: 'huge', label: chrome.i18n.getMessage('sizeHuge') },
+            { val: 'gigantic', label: chrome.i18n.getMessage('sizeGigantic') },
         ],
         position: [
             { val: 'bottom', label: 'Bottom' },
             { val: 'top', label: 'Top' },
         ],
         background: [
-            { val: 'dark', label: 'Dark' },
-            { val: 'darker', label: 'Darker' },
-            { val: 'transparent', label: 'Semi-transparent' },
-            { val: 'none', label: 'None' },
+            { val: 'dark', label: chrome.i18n.getMessage('bgDark') },
+            { val: 'darker', label: chrome.i18n.getMessage('bgDarker') },
+            { val: 'transparent', label: chrome.i18n.getMessage('bgTransparent') },
+            { val: 'none', label: chrome.i18n.getMessage('bgNone') },
         ],
         color: [
-            { val: 'white', label: 'White' },
-            { val: 'yellow', label: 'Yellow' },
-            { val: 'cyan', label: 'Cyan' },
-            { val: 'speaker', label: 'By Speaker' },
+            { val: 'white', label: chrome.i18n.getMessage('colorWhite') },
+            { val: 'yellow', label: chrome.i18n.getMessage('colorYellow') },
+            { val: 'cyan', label: chrome.i18n.getMessage('colorCyan') },
+            { val: 'speaker', label: chrome.i18n.getMessage('menuSpeakerColor') },
         ],
         font: [
-            { val: 'sans-serif', label: 'Sans-serif' },
-            { val: 'serif', label: 'Serif' },
-            { val: 'monospace', label: 'Monospace' },
-            { val: 'casual', label: 'Casual' },
+            { val: 'sans-serif', label: chrome.i18n.getMessage('menuFontSans') },
+            { val: 'serif', label: chrome.i18n.getMessage('menuFontSerif') },
+            { val: 'monospace', label: chrome.i18n.getMessage('menuFontMono') },
+            { val: 'casual', label: chrome.i18n.getMessage('menuFontCasual') },
         ],
         outline: [
-            { val: 'none', label: 'None' },
-            { val: 'light', label: 'Light' },
-            { val: 'medium', label: 'Medium' },
-            { val: 'heavy', label: 'Heavy' },
+            { val: 'none', label: chrome.i18n.getMessage('menuOutlineNone') },
+            { val: 'light', label: chrome.i18n.getMessage('menuOutlineLight') },
+            { val: 'medium', label: chrome.i18n.getMessage('menuOutlineMedium') },
+            { val: 'heavy', label: chrome.i18n.getMessage('menuOutlineHeavy') },
         ],
         opacity: [
-            { val: 'full', label: 'Full (100%)' },
-            { val: 'high', label: 'High (85%)' },
-            { val: 'medium', label: 'Medium (70%)' },
-            { val: 'low', label: 'Low (50%)' },
+            { val: 'full', label: chrome.i18n.getMessage('menuOpacityFull') },
+            { val: 'high', label: chrome.i18n.getMessage('menuOpacityHigh') },
+            { val: 'medium', label: chrome.i18n.getMessage('menuOpacityMedium') },
+            { val: 'low', label: chrome.i18n.getMessage('menuOpacityLow') },
         ],
         showSpeaker: [
-            { val: 'off', label: 'Off' },
-            { val: 'color', label: 'Color Only' },
-            { val: 'label', label: 'Show Label' },
-            { val: 'both', label: 'Color + Label' },
+            { val: 'off', label: chrome.i18n.getMessage('menuSpeakerOff') },
+            { val: 'color', label: chrome.i18n.getMessage('menuSpeakerColor') },
+            { val: 'label', label: chrome.i18n.getMessage('menuSpeakerLabel') },
+            { val: 'both', label: chrome.i18n.getMessage('menuSpeakerBoth') },
         ],
         download: [
-            { val: 'srt', label: 'Download as SRT' },
-            { val: 'vtt', label: 'Download as VTT' },
+            { val: 'srt', label: chrome.i18n.getMessage('menuDownloadSRT') },
+            { val: 'vtt', label: chrome.i18n.getMessage('menuDownloadVTT') },
         ],
     };
 
@@ -388,31 +388,31 @@ function getValueLabels() {
             white: chrome.i18n.getMessage('colorWhite'),
             yellow: chrome.i18n.getMessage('colorYellow'),
             cyan: chrome.i18n.getMessage('colorCyan'),
-            speaker: 'By Speaker'
+            speaker: chrome.i18n.getMessage('menuSpeakerColor')
         },
         font: {
-            'sans-serif': 'Sans-serif',
-            'serif': 'Serif',
-            'monospace': 'Monospace',
-            'casual': 'Casual'
+            'sans-serif': chrome.i18n.getMessage('menuFontSans'),
+            'serif': chrome.i18n.getMessage('menuFontSerif'),
+            'monospace': chrome.i18n.getMessage('menuFontMono'),
+            'casual': chrome.i18n.getMessage('menuFontCasual')
         },
         outline: {
-            none: 'None',
-            light: 'Light',
-            medium: 'Medium',
-            heavy: 'Heavy'
+            none: chrome.i18n.getMessage('menuOutlineNone'),
+            light: chrome.i18n.getMessage('menuOutlineLight'),
+            medium: chrome.i18n.getMessage('menuOutlineMedium'),
+            heavy: chrome.i18n.getMessage('menuOutlineHeavy')
         },
         opacity: {
-            full: 'Full (100%)',
-            high: 'High (85%)',
-            medium: 'Medium (70%)',
-            low: 'Low (50%)'
+            full: chrome.i18n.getMessage('menuOpacityFull'),
+            high: chrome.i18n.getMessage('menuOpacityHigh'),
+            medium: chrome.i18n.getMessage('menuOpacityMedium'),
+            low: chrome.i18n.getMessage('menuOpacityLow')
         },
         showSpeaker: {
-            off: 'Off',
-            color: 'Color Only',
-            label: 'Show Label',
-            both: 'Color + Label'
+            off: chrome.i18n.getMessage('menuSpeakerOff'),
+            color: chrome.i18n.getMessage('menuSpeakerColor'),
+            label: chrome.i18n.getMessage('menuSpeakerLabel'),
+            both: chrome.i18n.getMessage('menuSpeakerBoth')
         },
         lang: {
             'en': chrome.i18n.getMessage('langEn'),
@@ -479,7 +479,7 @@ function setupSettingsPanelListeners(settingsPanel) {
         // Update dual status
         const dualStatus = settingsPanel.querySelector('.vt-dual-status');
         if (dualStatus) {
-            dualStatus.textContent = subtitleSettings.dualMode ? 'On' : 'Off';
+            dualStatus.textContent = subtitleSettings.dualMode ? 'On' : chrome.i18n.getMessage('menuSpeakerOff');
         }
     };
     updateDisplayedValues();
@@ -554,15 +554,15 @@ function setupSettingsPanelListeners(settingsPanel) {
 
                 if (response.success) {
                     console.log('[VideoTranslate] Added to queue:', currentVideoId);
-                    addToQueueBtn.querySelector('.vt-option-label').textContent = 'Added ✓';
+                    addToQueueBtn.querySelector('.vt-option-label').textContent = chrome.i18n.getMessage('menuAdded');
                     setTimeout(() => {
-                        addToQueueBtn.querySelector('.vt-option-label').textContent = 'Add to Queue';
+                        addToQueueBtn.querySelector('.vt-option-label').textContent = chrome.i18n.getMessage('menuAddToQueue');
                     }, 2000);
                 } else {
                     console.warn('[VideoTranslate] Queue error:', response.error);
                     addToQueueBtn.querySelector('.vt-option-label').textContent = response.error || 'Error';
                     setTimeout(() => {
-                        addToQueueBtn.querySelector('.vt-option-label').textContent = 'Add to Queue';
+                        addToQueueBtn.querySelector('.vt-option-label').textContent = chrome.i18n.getMessage('menuAddToQueue');
                     }, 2000);
                 }
             } catch (error) {
@@ -607,8 +607,8 @@ function setupSettingsPanelListeners(settingsPanel) {
                     settingsPanel.querySelectorAll('.vt-submenu').forEach(s => s.style.display = 'none');
                     parentSubmenu.style.display = 'block';
                     // Update back title based on parent
-                    const parentTitles = { styleMenu: chrome.i18n.getMessage('subtitleStyle'), moreOptions: 'More Options' };
-                    backTitle.textContent = parentTitles[current.parent] || 'Back';
+                    const parentTitles = { styleMenu: chrome.i18n.getMessage('menuSubtitleStyle'), moreOptions: chrome.i18n.getMessage('menuMoreOptions') };
+                    backTitle.textContent = parentTitles[current.parent] || chrome.i18n.getMessage('menuBack');
                 }
             } else {
                 // Go to main menu
@@ -746,7 +746,7 @@ function injectUI(controlsElement) {
     // Add main button
     const mainBtn = document.createElement('button');
     mainBtn.className = 'vt-main-btn ytp-button';
-    mainBtn.title = 'Video Translate';
+    mainBtn.title = chrome.i18n.getMessage('btnVideoTranslate');
     mainBtn.innerHTML = `
         <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
             <path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
