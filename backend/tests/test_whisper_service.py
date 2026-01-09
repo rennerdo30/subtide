@@ -136,3 +136,115 @@ def test_run_whisper_process_long_segment_split(mock_get_whisper_model, mock_vad
         # All segments should have the same speaker
         for seg in result['segments']:
             assert seg['speaker'] == 'SPEAKER_A'
+
+def test_get_speech_timestamps_pipe(mock_vad):
+    """Test that get_speech_timestamps uses ffmpeg pipe when torchaudio load fails."""
+    # Ensure modules are imported so we can patch them globally
+    import torchaudio
+    import torch
+    import numpy as np
+    from backend.services.whisper_service import get_speech_timestamps
+    
+    with patch('backend.services.whisper_service.ENABLE_VAD', True), \
+         patch('backend.services.whisper_service.get_vad_model') as mock_get_model, \
+         patch('backend.services.whisper_service._ensure_torch'), \
+         patch('torchaudio.load') as mock_torchaudio_load, \
+         patch('backend.services.whisper_service.subprocess.run') as mock_run, \
+         patch('torch.from_numpy') as mock_from_numpy, \
+         patch('numpy.frombuffer') as mock_np_frombuffer:
+         
+        # Mock VAD model return
+        mock_model = MagicMock()
+        mock_utils = (MagicMock(),) # Tuple as in real implementation
+        mock_get_model.return_value = (mock_model, mock_utils, 'cpu')
+        
+        # Mock torchaudio.load FAILURE to trigger pipe
+        mock_torchaudio_load.side_effect = Exception("Format not supported")
+        
+        # Mock subprocess.run success
+        mock_process = MagicMock()
+        # Return 32k bytes (enough for 1 second of 16-bit mono 16kHz audio)
+        mock_process.stdout = b'\x00' * 32000 
+        mock_process.returncode = 0
+        mock_run.return_value = mock_process
+        
+        # Mock numpy/torch conversion
+        mock_np_array = MagicMock()
+        mock_np_frombuffer.return_value.flatten.return_value.astype.return_value = mock_np_array
+        # Division result
+        mock_np_array.__truediv__.return_value = mock_np_array 
+        
+        # Mock torch.from_numpy to return a tensor
+        mock_tensor = MagicMock()
+        mock_tensor.unsqueeze.return_value = mock_tensor
+        mock_tensor.__len__.return_value = 16000 # 1 second length
+        mock_tensor.__getitem__.return_value = mock_tensor # Chunk slicing
+        
+        mock_from_numpy.return_value = mock_tensor
+        
+        # Run function
+        get_speech_timestamps("test.m4a")
+        
+        # Verify torchaudio.load called first
+        mock_torchaudio_load.assert_called_with("test.m4a")
+        
+        # Verify ffmpeg pipe called
+        mock_run.assert_called_once()
+        cmd = mock_run.call_args[0][0]
+        assert cmd[0] == 'ffmpeg'
+        assert '-i' in cmd
+        assert 'test.m4a' in cmd
+        assert '-' in cmd # Pipe output
+        assert 's16le' in cmd # Format
+
+
+def test_run_whisper_process_mlx_backend(mock_vad):
+    """Test MLX backend transcription path."""
+    with patch('backend.services.whisper_service.get_whisper_backend', return_value='mlx-whisper'), \
+         patch('backend.services.whisper_service.ENABLE_WHISPER', True), \
+         patch('backend.services.whisper_service.get_diarization_pipeline', return_value=None), \
+         patch('backend.services.whisper_service.normalize_audio', side_effect=lambda x, **kw: x), \
+         patch('backend.services.whisper_service.should_normalize', return_value=False), \
+         patch('backend.services.whisper_service._run_mlx_direct') as mock_mlx_direct, \
+         patch('backend.services.whisper_service.estimate_transcription_time', return_value=10.0), \
+         patch('backend.services.whisper_service.threading.Thread') as mock_thread, \
+         patch('backend.services.whisper_service.os.path.exists', return_value=True), \
+         patch('backend.services.whisper_service.WHISPER_MODEL_SIZE', 'base'):
+
+        # Mock the MLX direct result
+        mock_mlx_direct.return_value = {
+            'segments': [{'start': 0.0, 'end': 2.0, 'text': 'Hello MLX', 'words': []}],
+            'text': 'Hello MLX',
+            'language': 'en'
+        }
+
+        # Mock thread to prevent actual threading
+        mock_thread_instance = MagicMock()
+        mock_thread.return_value = mock_thread_instance
+
+        result = run_whisper_process("fake_audio.mp3")
+
+        # Verify MLX direct was called
+        mock_mlx_direct.assert_called_once()
+
+        # Verify result structure
+        assert 'segments' in result
+        assert result['text'] == 'Hello MLX'
+
+
+def test_get_whisper_device_all_backends():
+    """Test device detection for all supported backends."""
+    with patch('backend.services.whisper_service.get_whisper_backend', return_value='mlx-whisper'):
+        assert get_whisper_device() == "metal"
+
+    with patch('backend.services.whisper_service.get_whisper_backend', return_value='openai-whisper'):
+        with patch('backend.services.whisper_service.torch') as mock_torch:
+            mock_torch.cuda.is_available.return_value = True
+            assert get_whisper_device() == "cuda"
+
+            mock_torch.cuda.is_available.return_value = False
+            mock_torch.backends.mps.is_available.return_value = True
+            assert get_whisper_device() == "mps"
+
+            mock_torch.backends.mps.is_available.return_value = False
+            assert get_whisper_device() == "cpu"

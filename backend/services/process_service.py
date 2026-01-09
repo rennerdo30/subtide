@@ -9,7 +9,8 @@ from typing import Generator, Dict, Any, List, Optional
 from backend.config import CACHE_DIR, ENABLE_WHISPER, SERVER_API_KEY
 from backend.utils.file_utils import get_cache_path, validate_audio_file
 from backend.utils.logging_utils import LogContext, generate_request_id
-from backend.services.youtube_service import ensure_audio_downloaded, await_download_subtitles, get_video_title
+from backend.services.youtube_service import await_download_subtitles, get_video_title
+from backend.services.video_loader import is_supported_site, download_audio, get_video_info
 from backend.services.whisper_service import run_whisper_process, run_whisper_streaming
 from backend.services.translation_service import (
     await_translate_subtitles, 
@@ -43,7 +44,7 @@ def estimate_whisper_time(duration_seconds: float) -> float:
                     if ENABLE_DIARIZATION:
                         historical_rtf *= 1.3  # Diarization adds ~30%
                     return duration_seconds * historical_rtf * 1.1  # +10% buffer
-    except:
+    except (OSError, json.JSONDecodeError, KeyError, TypeError):
         pass
 
     device = get_whisper_device()
@@ -123,12 +124,12 @@ def await_whisper_transcribe(video_id: str, url: str) -> List[Dict[str, Any]]:
     return subtitles
 
 
-def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, use_sse: bool):
+def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, use_sse: bool, video_url: Optional[str] = None, stream_url: Optional[str] = None):
     """
     Combined endpoint logic: fetch subtitles + translate.
     Returns generator if use_sse is True, else list of events.
     """
-    logger.info(f"Entry process_video_logic: video_id={video_id}, target={target_lang}, force={force_whisper}, sse={use_sse}")
+    logger.info(f"Entry process_video_logic: video_id={video_id}, target={target_lang}, force={force_whisper}, sse={use_sse}, url={video_url}, stream_url={stream_url}")
 
     if not SERVER_API_KEY:
          # This should be handled by the route, but ensuring here logic-wise
@@ -188,15 +189,36 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                     send_result(cached_result)
                     return
 
-                url = f"https://www.youtube.com/watch?v={video_id}"
+                # URL Selection Strategy
+                # Default to YouTube if no video_url is provided
+                url_to_use = f"https://www.youtube.com/watch?v={video_id}"
+                
+                if video_url:
+                    is_official_support = is_supported_site(video_url)
+                    if is_official_support:
+                         url_to_use = video_url
+                         logger.info(f"[PROCESS] Using supported page URL: {url_to_use}")
+                    elif stream_url:
+                         url_to_use = stream_url
+                         is_official_support = False # Direct stream is not "officially supported" for subtitle extraction
+                         logger.info(f"[PROCESS] Page not supported, using stream URL: {url_to_use}")
+                    else:
+                         url_to_use = video_url # Fallback to video_url even if not supported
+                         is_official_support = False
+                         logger.info(f"[PROCESS] Using generic page URL (not officially supported): {url_to_use}")
+                else:
+                    is_official_support = is_supported_site(url_to_use)
+                    logger.info(f"[PROCESS] Using default YouTube URL: {url_to_use}")
+                
                 subtitles = []
                 source_type = None
                 needs_translation = True
-                video_duration = 0  # Will be set if we have yt-dlp info
-                manual_subs = {}  # Will be set if we check yt-dlp
-                auto_subs = {}    # Will be set if we check yt-dlp
                 
-                # OPTIMIZATION: Check Whisper cache BEFORE yt-dlp when force_whisper is set
+                manual_subs = {} 
+                auto_subs = {}
+                video_duration = 0
+                
+                # Check Whisper cache BEFORE yt-dlp when force_whisper is set
                 # This saves 2-5 seconds by skipping unnecessary yt-dlp info extraction
                 whisper_cache_path = get_cache_path(video_id, 'whisper')
                 use_cached_whisper = force_whisper and os.path.exists(whisper_cache_path)
@@ -217,41 +239,40 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                             'speaker': seg.get('speaker')
                         })
                     logger.info(f"[PROCESS] Loaded {len(subtitles)} subtitles from Whisper cache")
-                else:
-                    # Standard path: Check YouTube subtitles via yt-dlp
+                elif is_official_support:
+                    # Standard path: Check for subtitles via yt-dlp (works for YouTube etc)
                     step_start = time.time()
                     send_sse('checking', 'Checking available subtitles...', 5, step=1, total_steps=4)
                     logger.info(f"[PROCESS] Starting: video={video_id}, target={target_lang}, force_whisper={force_whisper}")
 
-                    ydl_opts = {
-                        'skip_download': True,
-                        'writesubtitles': True,
-                        'writeautomaticsub': True,
-                        'quiet': True,
-                        'no_warnings': True,
-                        'format': None,
-                        'ignore_no_formats_error': True,
-                    }
-
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        info = ydl.extract_info(url, download=False)
-                        manual_subs = info.get('subtitles') or {}
-                        auto_subs = info.get('automatic_captions') or {}
-                        video_duration = info.get('duration', 0)
+                    info = get_video_info(url_to_use)
+                    manual_subs = info.get('subtitles') or {}
+                    auto_subs = info.get('automatic_captions') or {}
+                    video_duration = info.get('duration', 0)
 
                     # Filter out live_chat - it's chat replay data, not actual subtitles
                     manual_subs = {k: v for k, v in manual_subs.items() if k != 'live_chat'}
 
                     logger.info(f"[PROCESS] Manual subs: {list(manual_subs.keys())} | Auto subs: {list(auto_subs.keys())} | Duration: {video_duration}s (checked in {time.time()-step_start:.1f}s)")
+                else:
+                    # Generic site or direct stream URL: Skip subtitle check, go straight to Whisper
+                    logger.info(f"[PROCESS] Generic site detected, defaulting to Whisper")
+                    if not ENABLE_WHISPER:
+                         send_error("Transcription is required for generic sites but is disabled.")
+                         return
                 
                 # Skip subtitle source selection if we already have subtitles (from cached Whisper)
                 if subtitles:
-                    logger.info(f"[PROCESS] Skipping source selection - already have {len(subtitles)} subtitles")
+                     pass
                 # Priority 1: Target language MANUAL subs exist
                 elif not use_cached_whisper and target_lang in manual_subs:
                     send_sse('downloading', f'Found {target_lang} subtitles!', 20, step=2, total_steps=3)
                     source_type = 'youtube_direct'
                     needs_translation = False
+                    # Note: await_download_subtitles is specific to YouTube formats usually, 
+                    # but if get_video_info returns standard structure it might work. 
+                    # For safety, on generic supported sites, we might want to check format compatibility.
+                    # But for now assuming official supported sites return compatible structure.
                     subtitles = await_download_subtitles(video_id, target_lang, manual_subs[target_lang])
 
                 # Priority 2: Manual subtitles in another language
@@ -261,9 +282,9 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                     source_type = 'youtube_manual'
                     subtitles = await_download_subtitles(video_id, source_lang, manual_subs[source_lang])
 
-                # Priority 3: Use Whisper (higher quality than YouTube auto-translate)
+                # Priority 3: Use Whisper (higher quality than YouTube auto-translate or ONLY option for generic)
                 elif ENABLE_WHISPER:
-                    whisper_eta = estimate_whisper_time(video_duration)
+                    whisper_eta = estimate_whisper_time(video_duration) if video_duration else 60
                     whisper_eta_str = format_eta(whisper_eta)
                     
                     send_sse('whisper', 'Downloading audio...', 10, step=2, total_steps=4, eta=whisper_eta_str)
@@ -276,7 +297,7 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                         with open(cache_path, 'r', encoding='utf-8') as f:
                             whisper_result = json.load(f)
                     else:
-                        audio_file = ensure_audio_downloaded(video_id, url)
+                        audio_file = download_audio(url_to_use, custom_id=video_id)
 
                         if not audio_file:
                             send_error('Audio download failed')
@@ -293,7 +314,17 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                             def whisper_progress(stage, message, pct):
                                 send_sse(stage, message, pct, step=2, total_steps=4)
 
-                            whisper_result = run_whisper_process(audio_file, progress_callback=whisper_progress)
+                            # Get video title for initial prompt
+                            video_title = get_video_title(video_id)
+                            # Sanitize prompt
+                            if video_title and (video_title == video_id or len(video_title) > 50 and "http" in video_title):
+                                logger.info(f"[PROCESS] Ignoring generic title for prompt: {video_title[:30]}...")
+                                video_title = None
+
+                            if video_title:
+                                logger.info(f"[PROCESS] Using initial prompt: {video_title}")
+
+                            whisper_result = run_whisper_process(audio_file, progress_callback=whisper_progress, initial_prompt=video_title)
 
                             with open(cache_path, 'w', encoding='utf-8') as f:
                                 json.dump(whisper_result, f, indent=2)
@@ -407,7 +438,7 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
     yield from generate()
 
 
-def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool):
+def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool, video_url: Optional[str] = None, stream_url: Optional[str] = None):
     """
     Tier 4 streaming endpoint: fetch subtitles + translate with progressive streaming.
     Yields SSE events including subtitle batches as they complete translation.
@@ -467,13 +498,30 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool):
                     send_result(cached_result)
                     return
 
-                url = f"https://www.youtube.com/watch?v={video_id}"
+                # URL Selection Strategy
+                url_to_use = f"https://www.youtube.com/watch?v={video_id}"
+                
+                if video_url:
+                    is_official_support = is_supported_site(video_url)
+                    if is_official_support:
+                         url_to_use = video_url
+                         logger.info(f"[STREAM] Using supported page URL: {url_to_use}")
+                    elif stream_url:
+                         url_to_use = stream_url
+                         logger.info(f"[STREAM] Page not supported, using stream URL: {url_to_use}")
+                    else:
+                         url_to_use = video_url
+                         logger.info(f"[STREAM] Using generic page URL: {url_to_use}")
+                
                 subtitles = []
                 source_type = None
                 needs_translation = True
-                video_duration = 0  # Will be set if we have yt-dlp info
-                manual_subs = {}  # Will be set if we check yt-dlp
-                auto_subs = {}    # Will be set if we check yt-dlp
+                
+                manual_subs = {} 
+                auto_subs = {}
+                video_duration = 0
+
+                is_official_support = is_supported_site(url_to_use)
 
                 # OPTIMIZATION: Check Whisper cache BEFORE yt-dlp when force_whisper is set
                 # This saves 2-5 seconds by skipping unnecessary yt-dlp info extraction
@@ -496,31 +544,26 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool):
                             'speaker': seg.get('speaker')
                         })
                     logger.info(f"[STREAM] Loaded {len(subtitles)} subtitles from Whisper cache")
-                else:
+                    
+                elif is_official_support:
                     # Standard path: Check YouTube subtitles via yt-dlp
                     send_sse('checking', 'Checking available subtitles...', 5, step=1, total_steps=4)
                     logger.info(f"[STREAM] Starting: video={video_id}, target={target_lang}, force_whisper={force_whisper}")
-
-                    ydl_opts = {
-                        'skip_download': True,
-                        'writesubtitles': True,
-                        'writeautomaticsub': True,
-                        'quiet': True,
-                        'no_warnings': True,
-                        'format': None,  # Don't require any specific format for info extraction
-                        'ignore_no_formats_error': True,  # Ignore format errors
-                    }
-
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        info = ydl.extract_info(url, download=False)
-                        manual_subs = info.get('subtitles') or {}
-                        auto_subs = info.get('automatic_captions') or {}
-                        video_duration = info.get('duration', 0)
+                    
+                    info = get_video_info(url_to_use)
+                    manual_subs = info.get('subtitles') or {}
+                    auto_subs = info.get('automatic_captions') or {}
+                    video_duration = info.get('duration', 0)
 
                     # Filter out live_chat - it's chat replay data, not actual subtitles
                     manual_subs = {k: v for k, v in manual_subs.items() if k != 'live_chat'}
 
                     logger.info(f"[STREAM] Manual subs: {list(manual_subs.keys())} | Auto subs: {list(auto_subs.keys())}")
+                else:
+                     logger.info(f"[STREAM] Generic site detected, defaulting to Whisper")
+                     if not ENABLE_WHISPER:
+                         send_error("Transcription is required for generic sites but is disabled.")
+                         return
 
                 # Skip subtitle source selection if we already have subtitles (from cached Whisper)
                 if subtitles:
@@ -562,7 +605,7 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool):
                                 'speaker': seg.get('speaker')
                             })
                     else:
-                        audio_file = ensure_audio_downloaded(video_id, url)
+                        audio_file = download_audio(url_to_use, custom_id=video_id)
 
                         if not audio_file:
                             send_error('Audio download failed')
@@ -624,6 +667,14 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool):
                             # Get video title for initial prompt (helps with proper nouns)
                             video_title = get_video_title(video_id)
                             
+                            # Sanitize prompt: Don't use ID/Url-based titles as prompts
+                            if video_title and (video_title == video_id or len(video_title) > 50 and "http" in video_title):
+                                logger.info(f"[STREAM] Ignoring generic title for prompt: {video_title[:30]}...")
+                                video_title = None
+
+                            if video_title:
+                                logger.info(f"[STREAM] Using initial prompt: {video_title}")
+
                             whisper_result = run_whisper_streaming(
                                 audio_file,
                                 segment_callback=on_whisper_segment,

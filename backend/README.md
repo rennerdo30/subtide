@@ -79,6 +79,24 @@ SERVER_API_URL=https://openrouter.ai/api/v1
 SERVER_MODEL=google/gemini-2.0-flash-exp:free
 ```
 
+### Local LLM Configuration (LM Studio / Ollama)
+
+For fully local operation, use LM Studio or Ollama instead of cloud APIs:
+
+```env
+# LM Studio (default port 1234)
+SERVER_API_URL=http://localhost:1234/v1
+SERVER_MODEL=llama3.1:8b
+SERVER_API_KEY=lm-studio
+
+# Ollama (default port 11434)
+# SERVER_API_URL=http://localhost:11434/v1
+# SERVER_MODEL=llama3.1:8b
+# SERVER_API_KEY=ollama
+```
+
+See the main README for detailed hardware requirements when running Whisper + LLM together.
+
 ## API Endpoints
 
 | Endpoint | Method | Description |
@@ -88,6 +106,8 @@ SERVER_MODEL=google/gemini-2.0-flash-exp:free
 | `/api/transcribe` | GET | Generate subtitles with Whisper (Tier 2+) |
 | `/api/process` | POST | Combined fetch + translate (Tier 3 only) |
 | `/api/stream` | POST | Progressive streaming translation (Tier 4) |
+| `/api/feedback` | POST | Submit translation quality feedback |
+| `/api/feedback/stats` | GET | Get feedback statistics |
 
 ### Tier 4 Streaming Mode
 

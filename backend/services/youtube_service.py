@@ -35,11 +35,6 @@ def validate_video_id(video_id: str) -> bool:
     """
     if not video_id or not isinstance(video_id, str):
         return False
-    if not VIDEO_ID_PATTERN.match(video_id):
-        return False
-    # Check for reserved names (case-insensitive)
-    if video_id.upper() in RESERVED_NAMES:
-        return False
     return True
 
 
@@ -62,8 +57,8 @@ def sanitize_video_id(video_id: str) -> str:
     # Remove any characters that aren't alphanumeric, hyphen, or underscore
     safe_vid_id = "".join([c for c in video_id if c.isalnum() or c in ('-', '_')])
 
-    # Validate length (YouTube IDs are typically 11 chars, but we allow 1-64 for test mocks)
-    if not (1 <= len(safe_vid_id) <= 64):
+    # Validate length (allow up to 128 chars for hashes/urls)
+    if not (1 <= len(safe_vid_id) <= 128):
         raise ValueError(f"Invalid video ID length: {len(safe_vid_id)}")
 
     # Check for reserved names
@@ -283,105 +278,15 @@ def await_download_subtitles(video_id: str, lang: str, tracks: List[Dict]) -> Li
     return subtitles
 
 def ensure_audio_downloaded(video_id: str, url: str) -> Optional[str]:
-    """Download audio to persistent cache if not exists."""
-    audio_cache_dir = os.path.join(CACHE_DIR, "audio")
-    os.makedirs(audio_cache_dir, exist_ok=True)
-
-    # Validate and sanitize the video ID for safe filesystem use
-    try:
-        safe_vid_id = sanitize_video_id(video_id)
-    except ValueError as e:
-        logger.error(f"[AUDIO CACHE] Invalid video ID: {e}")
-        return None
-
-    # Check if audio already exists (any audio format)
-    possible_exts = ['m4a', 'mp3', 'wav', 'webm', 'opus', 'ogg', 'aac']
-
-    for ext in possible_exts:
-        p = os.path.join(audio_cache_dir, f"{safe_vid_id}.{ext}")
-        if os.path.exists(p) and os.path.getsize(p) > 1000:
-            logger.info(f"[AUDIO CACHE] Using cached audio: {p}")
-            return p
-
-    # Also check for files starting with video_id
-    for f in os.listdir(audio_cache_dir):
-        if f.startswith(safe_vid_id) and any(f.endswith(ext) for ext in possible_exts):
-            p = os.path.join(audio_cache_dir, f)
-            if os.path.getsize(p) > 1000:
-                logger.info(f"[AUDIO CACHE] Found cached audio (variant): {p}")
-                return p
-
-    # Download audio to cache with retry logic
-    logger.info(f"[AUDIO CACHE] Downloading audio for {video_id}...")
-
-    ydl_opts = {
-        'format': 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best',
-        'outtmpl': os.path.join(audio_cache_dir, f"{safe_vid_id}.%(ext)s"),
-        'quiet': False,
-        'no_warnings': False,
-        'extract_audio': True,
-        # Stability improvements
-        'socket_timeout': 30,
-        'retries': 3,
-        'fragment_retries': 3,
-        'file_access_retries': 3,
-        'extractor_retries': 3,
-    }
-
-    if COOKIES_FILE and os.path.exists(COOKIES_FILE):
-        ydl_opts['cookiefile'] = COOKIES_FILE
-        logger.info(f"[AUDIO CACHE] Using cookies file: {COOKIES_FILE}")
-
-    # Retry logic with exponential backoff
-    max_retries = 3
-    last_error = None
+    """
+    Download audio to persistent cache if not exists.
+    Now delegates to generic video_loader.
+    """
+    from backend.services.video_loader import download_audio as generic_download_audio
     
-    for attempt in range(max_retries):
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-
-                if info:
-                    downloads = info.get('requested_downloads', [])
-                    if downloads and downloads[0].get('filepath'):
-                        downloaded_file = downloads[0]['filepath']
-                        if os.path.exists(downloaded_file):
-                            logger.info(f"[AUDIO CACHE] Downloaded: {downloaded_file}")
-                            return downloaded_file
-
-            # Fallback: scan the directory
-            logger.info("[AUDIO CACHE] Scanning directory for downloaded file...")
-            for f in os.listdir(audio_cache_dir):
-                if f.startswith(safe_vid_id):
-                    p = os.path.join(audio_cache_dir, f)
-                    if os.path.getsize(p) > 1000:
-                        logger.info(f"[AUDIO CACHE] Found downloaded file: {p}")
-                        return p
-
-            # If we reach here, download succeeded but file not found - don't retry
-            logger.error("[AUDIO CACHE] Download reported success but file not found")
-            return None
-
-        except Exception as e:
-            last_error = e
-            error_str = str(e).lower()
-            
-            # Check for specific error types
-            if 'sign in' in error_str or 'age' in error_str:
-                logger.error(f"[AUDIO CACHE] Video requires authentication: {e}")
-                return None  # Don't retry auth issues
-            elif 'private' in error_str or 'unavailable' in error_str:
-                logger.error(f"[AUDIO CACHE] Video is private or unavailable: {e}")
-                return None  # Don't retry unavailable videos
-            elif 'geo' in error_str or 'country' in error_str:
-                logger.error(f"[AUDIO CACHE] Video is geo-restricted: {e}")
-                return None  # Don't retry geo-restrictions
-            elif attempt < max_retries - 1:
-                wait_time = (attempt + 1) * 2  # 2s, 4s
-                logger.warning(f"[AUDIO CACHE] Attempt {attempt+1}/{max_retries} failed: {e}. Retrying in {wait_time}s...")
-                time.sleep(wait_time)
-            else:
-                logger.exception(f"[AUDIO CACHE] All {max_retries} attempts failed: {e}")
-    
-    return None
+    # If URL is not provided, construct it from video_id (legacy YouTube support)
+    if not url:
+        url = f"https://www.youtube.com/watch?v={video_id}"
+        
+    return generic_download_audio(url, custom_id=video_id)
 

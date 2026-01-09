@@ -103,6 +103,8 @@ def process_video():
         data = {} # Proceed with empty dict to trigger validation error below (or handle explicit body error)
 
     video_id = data.get('video_id')
+    video_url = data.get('video_url')
+    stream_url = data.get('stream_url')
     target_lang = data.get('target_lang', 'en')
     force_whisper = data.get('force_whisper', False)
     use_sse = request.headers.get('Accept') == 'text/event-stream'
@@ -125,7 +127,7 @@ def process_video():
         }), 503
 
     try:
-        generator = process_video_logic(video_id, target_lang, force_whisper, use_sse)
+        generator = process_video_logic(video_id, target_lang, force_whisper, use_sse, video_url=video_url, stream_url=stream_url)
     except Exception as e:
         logger.exception("Failed to start processing")
         return jsonify({'error': str(e)}), 500
@@ -145,7 +147,7 @@ def process_video():
                      result = payload['result']
                  if 'error' in payload:
                      error = payload['error']
-             except:
+             except (json.JSONDecodeError, KeyError, TypeError):
                  pass
         
         if error:
@@ -162,6 +164,8 @@ def stream_video():
     """
     data = request.json or {}
     video_id = data.get('video_id')
+    video_url = data.get('video_url')
+    stream_url = data.get('stream_url')
     target_lang = data.get('target_lang', 'en')
     force_whisper = data.get('force_whisper', False)
 
@@ -176,7 +180,7 @@ def stream_video():
         }), 503
 
     try:
-        generator = stream_video_logic(video_id, target_lang, force_whisper)
+        generator = stream_video_logic(video_id, target_lang, force_whisper, video_url=video_url, stream_url=stream_url)
     except Exception as e:
         logger.exception("Failed to start streaming")
         return jsonify({'error': str(e)}), 500

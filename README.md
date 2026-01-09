@@ -22,7 +22,7 @@
 - 🌍 **12+ Languages** — Support for major world languages
 - 🔑 **Flexible API** — Works with OpenAI, OpenRouter, or any OpenAI-compatible API
 - 💾 **Smart Caching** — Translations are cached for instant replay
-- 🎨 **Beautiful UI** — Clean, modern dark theme interface
+- 🎨 **Modern UI** — Clean dark theme with soft cyan accents, Outfit typography
 - ⌨️ **Keyboard Shortcuts** — Toggle subtitles (T), switch mode (D), download (S)
 - 📺 **Dual Subtitles** — Show original + translated text simultaneously
 - 📥 **Subtitle Download** — Export as SRT, VTT, or TXT
@@ -140,6 +140,103 @@ Configure the extension with your RunPod endpoint URL:
 - **Dedicated**: `https://pod-id-5001.proxy.runpod.net`
 
 See [backend/RUNPOD.md](backend/RUNPOD.md) for complete deployment instructions.
+
+## Local LLM Setup (LM Studio / Ollama)
+
+You can run translations completely locally using LM Studio or Ollama instead of cloud APIs.
+
+### LM Studio
+
+1. Download [LM Studio](https://lmstudio.ai/)
+2. Download a model (see recommendations below)
+3. Start the local server (default: `http://localhost:1234/v1`)
+4. In the extension, set:
+   - **Provider**: Custom Endpoint
+   - **API URL**: `http://localhost:1234/v1`
+   - **API Key**: `lm-studio` (or leave blank)
+
+### Ollama
+
+1. Install [Ollama](https://ollama.ai/)
+2. Pull a model: `ollama pull llama3.1:8b`
+3. Ollama runs on `http://localhost:11434` by default
+4. In the extension, set:
+   - **Provider**: Custom Endpoint
+   - **API URL**: `http://localhost:11434/v1`
+   - **API Key**: `ollama` (or leave blank)
+
+### Hardware Requirements
+
+Running translation LLMs alongside Whisper requires planning. Here's what you need:
+
+#### Memory Allocation (Running Both)
+
+| Component | VRAM/RAM Needed |
+|-----------|-----------------|
+| Whisper tiny | ~1 GB |
+| Whisper base | ~1.5 GB |
+| Whisper small | ~2 GB |
+| Whisper medium | ~5 GB |
+| Whisper large-v3 | ~10 GB |
+| **LLM 7-8B (Q4)** | **~4-6 GB** |
+| **LLM 13B (Q4)** | **~8-10 GB** |
+| **LLM 70B (Q4)** | **~40 GB** |
+
+#### Mac Recommendations (Apple Silicon)
+
+| Mac | Unified Memory | Whisper | LLM | Notes |
+|-----|---------------|---------|-----|-------|
+| M1/M2 (8GB) | 8 GB | tiny/base only | ❌ Not recommended | Swap thrashing likely |
+| M1/M2 (16GB) | 16 GB | small | Llama 3.1 8B Q4 | Comfortable for both |
+| M1/M2 Pro (16GB) | 16 GB | medium | Llama 3.1 8B Q4 | Good balance |
+| M1/M2 Pro (32GB) | 32 GB | large-v3 | Llama 3.1 8B Q4 | Full quality |
+| M1/M2 Max (32GB) | 32 GB | large-v3 | Mistral 7B Q8 | High quality LLM |
+| M1/M2 Max (64GB) | 64 GB | large-v3 | Llama 3.1 70B Q4 | Best local quality |
+| M2/M3 Ultra (128GB+) | 128+ GB | large-v3 | Llama 3.1 70B Q8 | Premium setup |
+
+**Recommended MLX Whisper model**: `large-v3-turbo` (optimized for Apple Silicon)
+
+```bash
+# Set in .env
+WHISPER_MODEL=large-v3-turbo
+WHISPER_BACKEND=mlx
+```
+
+#### NVIDIA GPU Recommendations
+
+| GPU | VRAM | Whisper | LLM | Notes |
+|-----|------|---------|-----|-------|
+| RTX 3060 | 12 GB | medium | Llama 3.1 8B Q4 | Entry point for both |
+| RTX 3070/3080 | 8-10 GB | small | Llama 3.1 8B Q4 | Tight but works |
+| RTX 3090/4080 | 16-24 GB | large-v3 | Llama 3.1 8B Q8 | Comfortable |
+| RTX 4090 | 24 GB | large-v3 | Llama 3.1 13B Q4 | Great quality |
+| 2x RTX 4090 | 48 GB | large-v3 | Llama 3.1 70B Q4 | Near-cloud quality |
+| A100/H100 | 40-80 GB | large-v3 | Llama 3.1 70B Q8 | Server-grade |
+
+**Recommended faster-whisper model**: `large-v3` with `WHISPER_BACKEND=faster`
+
+### Recommended Models for Translation
+
+| Model | Size | Quality | Speed | Best For |
+|-------|------|---------|-------|----------|
+| `llama3.1:8b` | 4.7 GB | Good | Fast | Most users |
+| `mistral:7b` | 4.1 GB | Good | Fast | General use |
+| `qwen2.5:7b` | 4.4 GB | Excellent | Fast | Asian languages |
+| `llama3.1:70b-q4` | 40 GB | Excellent | Slow | Best quality |
+| `command-r:35b-q4` | 20 GB | Excellent | Medium | Multilingual |
+
+### Configuration Example
+
+```bash
+# .env for local LLM
+SERVER_API_URL=http://localhost:1234/v1
+SERVER_MODEL=llama3.1:8b
+SERVER_API_KEY=lm-studio
+
+# Whisper for your hardware
+WHISPER_MODEL=large-v3-turbo  # Mac
+# WHISPER_MODEL=large-v3       # NVIDIA GPU
+```
 
 ## Tech Stack
 

@@ -25,7 +25,7 @@ def get_historical_batch_time() -> float:
                 history = json.load(f)
                 if history.get('times'):
                     return sum(history['times']) / len(history['times'])
-    except:
+    except (OSError, json.JSONDecodeError, KeyError, TypeError):
         pass
     return 3.0  # Default 3 seconds per batch
 
@@ -313,7 +313,7 @@ Remember: Output MUST be in {t_name} only."""
                             match = re.search(r'retry in (\d+)', error_str.lower())
                             if match:
                                 wait_time = int(match.group(1)) + 1
-                        except:
+                        except (ValueError, AttributeError):
                             pass
                     logger.warning(f"[TRANSLATE] Rate limited on batch {batch_num}, waiting {wait_time}s (attempt {attempt+1}/{MAX_RETRIES})")
                     time.sleep(wait_time)

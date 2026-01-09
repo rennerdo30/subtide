@@ -47,6 +47,11 @@ def normalize_audio(
         return output_path
     
     logger.info(f"[AUDIO] Normalizing audio ({method}, target={target_level} LUFS)...")
+    try:
+        size_mb = os.path.getsize(input_path) / (1024 * 1024)
+        logger.info(f"[AUDIO] Input file: {os.path.basename(input_path)} ({size_mb:.2f} MB)")
+    except Exception:
+        pass
     
     try:
         if method == 'loudnorm':

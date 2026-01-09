@@ -83,6 +83,7 @@ from backend.config import (
     DIARIZATION_MODE,
     WHISPER_QUANTIZED,
     WHISPER_HF_REPO,
+    WHISPER_LANGUAGE,
     ENABLE_VAD,
     VAD_THRESHOLD,
     MAX_SUBTITLE_DURATION,
@@ -228,35 +229,46 @@ def get_speech_timestamps(audio_path: str, progress_callback=None) -> list:
     try:
         torch = _ensure_torch()
         import torchaudio
-        import tempfile
         import subprocess
+        import numpy as np
         
         logger.info(f"[VAD] Processing audio: {audio_path} (device: {vad_device})")
         
-        # Try to load audio directly, fall back to ffmpeg conversion if needed
-        temp_wav = None
+        # Try to load audio directly, fall back to ffmpeg pipe if needed
         try:
             waveform, sample_rate = torchaudio.load(audio_path)
         except Exception as load_error:
-            # torchaudio doesn't support this format (e.g. m4a), convert with ffmpeg
-            logger.info(f"[VAD] Converting audio format with ffmpeg...")
-            temp_wav = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-            temp_wav.close()
+            # torchaudio failed (likely m4a/mp3 on platform without sox/ffmpeg backend configured),
+            # Decode directly to memory using ffmpeg pipe to avoid large temp files.
+            logger.info(f"[VAD] Loading audio via ffmpeg pipe...")
             
             try:
-                subprocess.run([
-                    'ffmpeg', '-y', '-i', audio_path,
-                    '-ar', '16000', '-ac', '1',  # 16kHz mono for VAD
-                    '-f', 'wav', temp_wav.name
-                ], check=True, capture_output=True)
-                waveform, sample_rate = torchaudio.load(temp_wav.name)
-            except subprocess.CalledProcessError as e:
-                logger.warning(f"[VAD] ffmpeg conversion failed: {e}")
+                cmd = [
+                    'ffmpeg',
+                    '-nostdin',
+                    '-threads', '0',
+                    '-i', audio_path,
+                    '-f', 's16le',
+                    '-ac', '1',
+                    '-acodec', 'pcm_s16le',
+                    '-ar', '16000',
+                    '-'
+                ]
+                
+                process = subprocess.run(cmd, capture_output=True, check=True)
+                audio_bytes = process.stdout
+                
+                # Convert 16-bit PCM bytes to float32 tensor
+                audio_array = np.frombuffer(audio_bytes, np.int16).flatten().astype(np.float32) / 32768.0
+                waveform = torch.from_numpy(audio_array)
+                
+                # Torchaudio load returns (channels, time), so we add simple channel dim -> (1, time)
+                waveform = waveform.unsqueeze(0)
+                sample_rate = 16000
+                
+            except Exception as ffmpeg_err:
+                logger.error(f"[VAD] ffmpeg pipe failed: {ffmpeg_err}")
                 return None
-            finally:
-                # Clean up temp file
-                if temp_wav and os.path.exists(temp_wav.name):
-                    os.unlink(temp_wav.name)
         
         # Resample to 16kHz if needed (silero-vad requirement)
         if sample_rate != 16000:
@@ -392,8 +404,16 @@ def filter_hallucinations(segments: list) -> list:
 # def _run_mlx_child(...): ...
 
 
-def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None, initial_prompt: str = None) -> dict:
-    """Run mlx-whisper directly in-process (faster, uses GPU properly)."""
+def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None, initial_prompt: str = None, language: str = None) -> dict:
+    """Run mlx-whisper directly in-process (faster, uses GPU properly).
+    
+    Args:
+        audio_path: Path to audio file
+        model_path: HuggingFace model path
+        progress_callback: Optional progress callback
+        initial_prompt: Optional prompt to guide transcription
+        language: Optional language code (e.g., 'ja', 'en'). None = auto-detect.
+    """
     import mlx_whisper
     import mlx.core as mx
 
@@ -403,6 +423,8 @@ def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None, in
     logger.info(f"[MLX] Model: {model_path}")
     logger.info(f"[MLX] Audio: {audio_path}")
     logger.info(f"[MLX] Thresholds: no_speech={WHISPER_NO_SPEECH_THRESHOLD}, compression={WHISPER_COMPRESSION_RATIO_THRESHOLD}, logprob={WHISPER_LOGPROB_THRESHOLD}")
+    if language:
+        logger.info(f"[MLX] Forced language: {language}")
     if initial_prompt:
         logger.info(f"[MLX] Initial prompt: {initial_prompt[:80]}...")
 
@@ -419,6 +441,10 @@ def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None, in
         'condition_on_previous_text': WHISPER_CONDITION_ON_PREVIOUS,
     }
     
+    # Add language if specified (forces detection, fixes Japanese issues)
+    if language:
+        transcribe_kwargs['language'] = language
+    
     # Add initial_prompt if provided (helps with proper nouns, technical terms)
     if initial_prompt:
         transcribe_kwargs['initial_prompt'] = initial_prompt
@@ -433,6 +459,12 @@ def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None, in
     }
 
     logger.info(f"[MLX] Transcription completed in {elapsed:.1f}s on {device}")
+    
+    # Filter hallucinations
+    if 'segments' in result:
+         result['segments'] = filter_hallucinations(result['segments'])
+         # Reconstruct text from filtered segments
+         result['text'] = " ".join(s.get('text', '').strip() for s in result['segments'])
     
     # Send completion progress update if callback provided
     if progress_callback:
@@ -777,16 +809,25 @@ def get_diarization_pipeline():
 
     return _diarization_pipeline
 
-def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt: str = None) -> Dict[str, Any]:
+def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt: str = None, language: str = None) -> Dict[str, Any]:
     """Transcribe audio with Whisper + optional Pyannote diarization.
     
     Args:
         audio_file: Path to audio file
         progress_callback: Optional progress callback function
         initial_prompt: Optional prompt to guide transcription (e.g., video title)
+        language: Optional language code to force (e.g., 'ja' for Japanese, 'en' for English).
+                  If None, Whisper will auto-detect.
     """
     if not ENABLE_WHISPER:
         raise Exception("Whisper is disabled on this server")
+    
+    # Use config default if language not explicitly provided
+    if language is None:
+        language = WHISPER_LANGUAGE
+    
+    if language:
+        logger.info(f"[WHISPER] Forcing source language: {language}")
     
     # Normalize audio for better quiet voice detection
     normalized_audio = audio_file
@@ -808,7 +849,7 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
 
     segments = []
     text = ""
-    language = "en"
+    detected_language = "en"  # Default, will be overwritten by Whisper's detection
 
     if backend == "mlx-whisper":
         import threading
@@ -871,19 +912,27 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
             'large-v3': 'mlx-community/whisper-large-v3-mlx',
             'large-v3-turbo': 'mlx-community/whisper-large-v3-mlx', # mlx-community/whisper-large-v3-turbo does not exist
         }
+        
+        # Determine model path
         if WHISPER_HF_REPO:
+            # Explicit HF repo override
             mlx_model_path = WHISPER_HF_REPO
+        elif WHISPER_MODEL_SIZE.startswith('mlx-community/') or '/' in WHISPER_MODEL_SIZE:
+            # Full HuggingFace path provided in WHISPER_MODEL
+            mlx_model_path = WHISPER_MODEL_SIZE
+            logger.info(f"[MLX] Using full HF path from WHISPER_MODEL: {mlx_model_path}")
         else:
+            # Map model size to HF path
             mlx_model_path = mlx_model_map.get(WHISPER_MODEL_SIZE, 'mlx-community/whisper-base-mlx')
         
         # Progress tracking in background thread
-        transcribing = [True]
+        stop_event = threading.Event()
         start_time = time_module.time()
         last_status = ['transcribing']  # Track status for better messages
         overtime_warned = [False]  # Track if we've warned about overtime
 
         def progress_reporter():
-            while transcribing[0]:
+            while not stop_event.is_set():
                 elapsed = time_module.time() - start_time
 
                 if estimated_time > 0:
@@ -932,7 +981,8 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
                     if progress_callback:
                         progress_callback('whisper', status_msg, 30 + int(min(pct, 99) * 0.2))
 
-                time_module.sleep(0.5)  # Update every 0.5s for smoother UI
+                # Use event.wait() instead of sleep for faster response to stop signal
+                stop_event.wait(timeout=0.5)
         
         progress_thread = threading.Thread(target=progress_reporter, daemon=True)
         progress_thread.start()
@@ -942,12 +992,12 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
             # Legacy version used this and was 100x faster.
             # Since faster-whisper is removed, we don't need subprocess isolation anymore.
             logger.info("[WHISPER] Using DIRECT mode (in-process, faster GPU execution)")
-            result = _run_mlx_direct(normalized_audio, mlx_model_path, progress_callback, initial_prompt)
+            result = _run_mlx_direct(normalized_audio, mlx_model_path, progress_callback, initial_prompt, language)
         except Exception as mlx_error:
             logger.error(f"mlx-whisper failed: {mlx_error}")
             raise mlx_error
         finally:
-            transcribing[0] = False
+            stop_event.set()
             progress_thread.join(timeout=1)
         
         total_time = time_module.time() - start_time
@@ -980,12 +1030,12 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
                 "speaker": None
             })
         text = result.get("text", "")
-        language = result.get("language", "en")
+        detected_language = result.get("language", "en")
         mlx_meta = result.get("meta", {})
         rtf = total_time / audio_duration if audio_duration > 0 else 0
         if mlx_meta.get("mlx_device"):
             logger.info(f"MLX device: {mlx_meta.get('mlx_device')}")
-        logger.info(f"mlx-whisper done: {len(segments)} segments, language={language}, took {total_time:.1f}s, rtf={rtf:.3f}")
+        logger.info(f"mlx-whisper done: {len(segments)} segments, language={detected_language}, took {total_time:.1f}s, rtf={rtf:.3f}")
 
     elif backend == "faster-whisper":
         logger.info(f"Starting faster-whisper transcription...")
@@ -993,20 +1043,27 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
         
         if initial_prompt:
              logger.info(f"[WHISPER] Initial prompt: {initial_prompt[:80]}...")
+        if language:
+            logger.info(f"[WHISPER] Forced language: {language}")
 
         try:
-            segments_gen, info = model.transcribe(
-                normalized_audio,
-                beam_size=WHISPER_BEAM_SIZE,
-                initial_prompt=initial_prompt,
-                word_timestamps=True,
-                condition_on_previous_text=WHISPER_CONDITION_ON_PREVIOUS,
-                vad_filter=True,
-                vad_parameters=dict(min_silence_duration_ms=500),
-                no_speech_threshold=WHISPER_NO_SPEECH_THRESHOLD,
-                compression_ratio_threshold=WHISPER_COMPRESSION_RATIO_THRESHOLD,
-                log_prob_threshold=WHISPER_LOGPROB_THRESHOLD,
-            )
+            transcribe_kwargs = {
+                'beam_size': WHISPER_BEAM_SIZE,
+                'initial_prompt': initial_prompt,
+                'word_timestamps': True,
+                'condition_on_previous_text': WHISPER_CONDITION_ON_PREVIOUS,
+                'vad_filter': True,
+                'vad_parameters': dict(min_silence_duration_ms=500),
+                'no_speech_threshold': WHISPER_NO_SPEECH_THRESHOLD,
+                'compression_ratio_threshold': WHISPER_COMPRESSION_RATIO_THRESHOLD,
+                'log_prob_threshold': WHISPER_LOGPROB_THRESHOLD,
+            }
+            
+            # Add language if specified
+            if language:
+                transcribe_kwargs['language'] = language
+            
+            segments_gen, info = model.transcribe(normalized_audio, **transcribe_kwargs)
 
             for segment in segments_gen:
                 segments.append({
@@ -1018,8 +1075,8 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
                 })
             
             text = " ".join([s["text"] for s in segments])
-            language = info.language
-            logger.info(f"faster-whisper done: {len(segments)} segments, language={language}")
+            detected_language = info.language
+            logger.info(f"faster-whisper done: {len(segments)} segments, language={detected_language}")
             
         except Exception as e:
             logger.error(f"faster-whisper transcription failed: {e}")
@@ -1030,7 +1087,7 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
         try:
             device = next(model.parameters()).device
             device_str = str(device)
-        except:
+        except (StopIteration, RuntimeError):
             device_str = "cpu"
 
         fp16 = device_str == "cuda"
@@ -1070,7 +1127,7 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
                 "speaker": None
             })
         text = result.get("text", "")
-        language = result.get("language", "en")
+        detected_language = result.get("language", "en")
 
     # VAD Filtering - remove hallucinated segments in silence
     # NOTE: faster-whisper already does this with vad_filter=True
@@ -1309,5 +1366,5 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
     return {
         "segments": segments,
         "text": text,
-        "language": language
+        "language": detected_language
     }

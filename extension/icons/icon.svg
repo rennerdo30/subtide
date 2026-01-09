@@ -1,12 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <defs>
+    <!-- Soft cyan gradient - tech but not harsh -->
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#00d9ff"/>
-      <stop offset="100%" stop-color="#10b981"/>
+      <stop offset="0%" stop-color="#4fd1c5"/>
+      <stop offset="100%" stop-color="#2a8f86"/>
     </linearGradient>
   </defs>
   
-  <!-- Rounded Square Background -->
+  <!-- Rounded Square Background - soft cyan gradient -->
   <rect x="8" y="8" width="112" height="112" rx="24" ry="24" fill="url(#bgGrad)"/>
   
   <!-- Video Screen / Monitor shape -->
@@ -19,11 +20,11 @@
   <rect x="32" y="72" width="64" height="8" rx="2" fill="white" opacity="0.9"/>
   
   <!-- "A" character (source language) -->
-  <text x="38" y="106" font-family="Arial, sans-serif" font-size="22" font-weight="bold" fill="white">A</text>
+  <text x="38" y="106" font-family="system-ui, sans-serif" font-size="22" font-weight="bold" fill="white">A</text>
   
   <!-- Arrow -->
   <path d="M58 98 L68 98 M64 94 L68 98 L64 102" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
   
   <!-- "文" character (target language) -->
-  <text x="74" y="106" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="white">文</text>
+  <text x="74" y="106" font-family="system-ui, sans-serif" font-size="20" font-weight="bold" fill="white">文</text>
 </svg>

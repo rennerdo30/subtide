@@ -770,7 +770,7 @@ function parseSSEBuffer(buffer) {
  * Server uses its own API key - user doesn't need one
  * Uses Server-Sent Events for progress updates with robust parsing
  */
-async function processVideoTier3(videoId, targetLanguage, config, onProgress, tabId) {
+async function processVideoTier3(videoId, targetLanguage, config, onProgress, tabId, videoUrl, streamUrl) {
     let { backendUrl, forceGen, backendApiKey } = config;
 
     // Normalize URL: remove trailing slashes
@@ -798,6 +798,8 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
             body = JSON.stringify({
                 input: {
                     video_id: videoId,
+                    video_url: videoUrl,
+                    stream_url: streamUrl,
                     target_lang: targetLanguage,
                     force_whisper: forceGen,
                 }
@@ -807,8 +809,10 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
             url = `${backendUrl}/api/process`;
             body = JSON.stringify({
                 video_id: videoId,
+                video_url: videoUrl,
+                stream_url: streamUrl,
                 target_lang: targetLanguage,
-                force_whisper: forceGen,
+                force_whisper: forceGen || false
             });
         }
 
@@ -1345,7 +1349,7 @@ async function handleTranslation(message, sender, config) {
  * Single backend call: video → translated subtitles
  */
 async function handleTier3Process(message, sender, config) {
-    const { videoId, targetLanguage } = message;
+    const { videoId, targetLanguage, videoUrl, streamUrl } = message;
     const tabId = sender?.tab?.id;
 
     // Check cache first
@@ -1355,7 +1359,7 @@ async function handleTier3Process(message, sender, config) {
     }
 
     // Single backend call does everything (with progress updates via SSE)
-    const translations = await processVideoTier3(videoId, targetLanguage, config, null, tabId);
+    const translations = await processVideoTier3(videoId, targetLanguage, config, null, tabId, videoUrl, streamUrl);
 
     await cacheTranslation(videoId, 'auto', targetLanguage, translations);
     return { translations, cached: false };

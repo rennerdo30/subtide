@@ -59,6 +59,20 @@
         "src/content/styles.css"
       ],
       "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "*://*/*"
+      ],
+      "exclude_matches": [
+        "*://*.youtube.com/*",
+        "*://*.twitch.tv/*"
+      ],
+      "js": [
+        "src/content/generic.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
     }
   ],
   "action": {
@@ -73,5 +87,15 @@
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "src/content/network_interceptor.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
 }
