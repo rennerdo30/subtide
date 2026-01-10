@@ -7,3 +7,4 @@ backend/.env
 .coverage
 .DS_Store
 backend/.env.backup.*
+CODE_REVIEW.md
