@@ -579,13 +579,13 @@ def run_whisper_streaming(
             # Try to parse as segment
             match = segment_pattern.match(line)
             if match:
-                # Parse timestamps
-                start_h, start_m, start_ms = int(match.group(1)), int(match.group(2)), int(match.group(3))
-                end_h, end_m, end_ms = int(match.group(4)), int(match.group(5)), int(match.group(6))
+                # Parse timestamps (format: MM:SS.mmm)
+                start_min, start_s, start_ms = int(match.group(1)), int(match.group(2)), int(match.group(3))
+                end_min, end_s, end_ms = int(match.group(4)), int(match.group(5)), int(match.group(6))
                 text = match.group(7).strip()
-                
-                start_sec = start_h * 60 + start_m + start_ms / 1000.0
-                end_sec = end_h * 60 + end_m + end_ms / 1000.0
+
+                start_sec = start_min * 60 + start_s + start_ms / 1000.0
+                end_sec = end_min * 60 + end_s + end_ms / 1000.0
                 
                 segment = {
                     'start': start_sec,
@@ -601,9 +601,10 @@ def run_whisper_streaming(
                 # Invoke callback for real-time streaming
                 if segment_callback and text:
                     segment_callback(segment)
-                
-                # Update progress based on segments received
-                if progress_callback and segment_count[0] % 5 == 0:
+
+                # Update progress frequently to keep SSE connection alive
+                # Send update every segment to ensure client doesn't timeout
+                if progress_callback:
                     elapsed = time_module.time() - start_time
                     progress_callback('whisper', f"Transcribing... {segment_count[0]} segments ({elapsed:.0f}s)", 30 + min(segment_count[0], 60))
         

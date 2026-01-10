@@ -83,46 +83,100 @@ class TestRunWhisperStreaming:
     @patch('backend.services.whisper_service.subprocess.Popen')
     @patch('backend.services.whisper_service.get_mlx_model_path')
     def test_streaming_progress_callback(self, mock_model_path, mock_popen):
-        """Test that progress_callback is called periodically."""
+        """Test that progress_callback is called for every segment."""
         from backend.services.whisper_service import run_whisper_streaming
-        
+
         mock_model_path.return_value = 'mlx-community/whisper-small-mlx'
-        
-        # Create 10 segments to trigger progress callback (every 5 segments)
+
+        # Create 10 segments - progress should be called for each
         stdout_lines = [
             f'[00:{i:02d}.000 --> 00:{i+1:02d}.000]  Segment {i}'
             for i in range(10)
         ]
-        
+
         mock_process = MagicMock()
         mock_process.stdout = iter(stdout_lines)
         mock_process.stderr = iter([])
         mock_process.wait.return_value = None
         mock_process.returncode = 0
         mock_popen.return_value = mock_process
-        
+
         progress_calls = []
         def progress_callback(stage, message, percent):
             progress_calls.append((stage, message, percent))
-        
+
         with patch('tempfile.NamedTemporaryFile') as mock_temp, \
              patch('os.path.exists', return_value=True), \
              patch('os.unlink'), \
              patch('builtins.open', mock_open(read_data=json.dumps({'segments': [], 'text': ''}))):
-            
+
             mock_temp.return_value.__enter__.return_value.name = '/tmp/test.json'
             mock_temp.return_value.name = '/tmp/test.json'
-            
+
             run_whisper_streaming(
                 '/path/to/audio.mp3',
                 progress_callback=progress_callback
             )
-        
-        # Progress should be called at completion
-        assert len(progress_calls) >= 1
+
+        # Progress should be called for each segment + completion
+        # 10 segments + 1 completion = 11 calls
+        assert len(progress_calls) == 11
         # Last call should be completion
         assert progress_calls[-1][0] == 'whisper'
         assert 'complete' in progress_calls[-1][1].lower()
+
+    @patch('backend.services.whisper_service.subprocess.Popen')
+    @patch('backend.services.whisper_service.get_mlx_model_path')
+    def test_timestamp_parsing_minutes_seconds(self, mock_model_path, mock_popen):
+        """Test that timestamps in MM:SS.mmm format are parsed correctly."""
+        from backend.services.whisper_service import run_whisper_streaming
+
+        mock_model_path.return_value = 'mlx-community/whisper-small-mlx'
+
+        # Test various timestamp formats
+        stdout_lines = [
+            '[00:00.000 --> 00:05.500]  Start',      # 0s to 5.5s
+            '[01:30.000 --> 02:00.000]  Middle',     # 90s to 120s
+            '[59:59.999 --> 60:00.000]  Near hour',  # Just under 1 hour
+        ]
+
+        mock_process = MagicMock()
+        mock_process.stdout = iter(stdout_lines)
+        mock_process.stderr = iter([])
+        mock_process.wait.return_value = None
+        mock_process.returncode = 0
+        mock_popen.return_value = mock_process
+
+        received_segments = []
+        def segment_callback(segment):
+            received_segments.append(segment)
+
+        with patch('tempfile.NamedTemporaryFile') as mock_temp, \
+             patch('os.path.exists', return_value=True), \
+             patch('os.unlink'), \
+             patch('builtins.open', mock_open(read_data=json.dumps({'segments': [], 'text': ''}))):
+
+            mock_temp.return_value.__enter__.return_value.name = '/tmp/test.json'
+            mock_temp.return_value.name = '/tmp/test.json'
+
+            run_whisper_streaming(
+                '/path/to/audio.mp3',
+                segment_callback=segment_callback
+            )
+
+        assert len(received_segments) == 3
+
+        # First segment: 0s to 5.5s
+        assert received_segments[0]['start'] == 0.0
+        assert received_segments[0]['end'] == 5.5
+
+        # Second segment: 90s (1:30) to 120s (2:00)
+        assert received_segments[1]['start'] == 90.0
+        assert received_segments[1]['end'] == 120.0
+
+        # Third segment: 3599.999s to 3600s (just under 1 hour)
+        assert abs(received_segments[2]['start'] - 3599.999) < 0.01
+        assert received_segments[2]['end'] == 3600.0
 
 
 class TestStreamVideoLogic:
@@ -183,9 +237,42 @@ class TestYouTubeService429Retry:
         assert result[0]['text'] == 'Hello'
 
 
+class TestStreamPingMechanism:
+    """Tests for streaming ping/keepalive mechanism."""
+
+    def test_ping_sent_on_queue_timeout(self):
+        """Test that ping is sent when queue times out but worker is alive."""
+        import queue
+        import threading
+        import json
+
+        progress_queue = queue.Queue()
+
+        # Simulate a worker that's still alive but not producing output
+        worker_alive = [True]
+
+        def mock_worker():
+            pass  # Worker does nothing, just exists
+
+        worker = threading.Thread(target=mock_worker)
+        worker.start()
+
+        # Simulate the SSE output loop with short timeout
+        try:
+            msg_type, data = progress_queue.get(timeout=0.1)
+        except queue.Empty:
+            # Worker is alive, should send ping
+            if worker.is_alive():
+                ping_data = json.dumps({'ping': True})
+                assert 'ping' in ping_data
+                assert json.loads(ping_data)['ping'] is True
+
+        worker.join()
+
+
 class TestSendSubtitles:
     """Tests for send_subtitles SSE function."""
-    
+
     def test_send_subtitles_format(self):
         """Test that send_subtitles puts correct data in queue."""
         import queue

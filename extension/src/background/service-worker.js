@@ -1544,8 +1544,9 @@ async function processVideoTier4(videoId, targetLanguage, config, onProgress, on
             const decoder = new TextDecoder();
             let buffer = '';
 
-            // Inactivity timeout - abort if no data received for 60 seconds
-            const INACTIVITY_TIMEOUT_MS = 60 * 1000;
+            // Inactivity timeout - abort if no data received for 3 minutes
+            // Whisper transcription can take several minutes for long videos
+            const INACTIVITY_TIMEOUT_MS = 3 * 60 * 1000;
             let inactivityTimer = null;
 
             const resetInactivityTimer = () => {
