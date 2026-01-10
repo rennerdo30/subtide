@@ -1755,25 +1755,23 @@ async function handleMessage(message, sender) {
             return await handleStopLiveTranslate();
 
         case 'getLiveStatus':
-            return { isLive: isLiveTranslating };
+            return {
+                isLive: isLiveTranslating,
+                activeTabId: liveTranslationState.activeTabId,
+                targetLanguage: liveTranslationState.targetLanguage
+            };
 
         case 'live-transcription-result':
-            // Forward from offscreen to the specific tab if known, or broadcast
-            if (message.tabId) {
-                chrome.tabs.sendMessage(message.tabId, {
+            // Forward from offscreen to the specific tab only
+            // Use message.tabId if provided, otherwise use centralized state
+            const targetTabId = message.tabId || liveTranslationState.activeTabId;
+            if (targetTabId) {
+                chrome.tabs.sendMessage(targetTabId, {
                     action: 'live-subtitles',
                     data: message.data
                 }).catch(() => { });
             } else {
-                // Fallback: Forward from offscreen to all YouTube tabs
-                chrome.tabs.query({ url: "*://*.youtube.com/*" }, (tabs) => {
-                    tabs.forEach(tab => {
-                        chrome.tabs.sendMessage(tab.id, {
-                            action: 'live-subtitles',
-                            data: message.data
-                        }).catch(() => { });
-                    });
-                });
+                vtLog.warn('[LIVE] No target tab ID available, cannot forward subtitles');
             }
             return { success: true };
 
@@ -1991,9 +1989,22 @@ async function handleTier4Stream(message, sender, config) {
 // Livestream Translation (Proposed)
 // ============================================================================
 
-let isLiveTranslating = false;
+// Centralized live translation state
+let liveTranslationState = {
+    isActive: false,
+    activeTabId: null,
+    targetLanguage: null
+};
 
 // Restore state from storage on init
+chrome.storage.local.get(['liveTranslationState'], (result) => {
+    if (result.liveTranslationState) {
+        liveTranslationState = result.liveTranslationState;
+    }
+});
+
+// Legacy compatibility
+let isLiveTranslating = false;
 chrome.storage.local.get(['isLiveTranslating'], (result) => {
     isLiveTranslating = !!result.isLiveTranslating;
 });
@@ -2048,9 +2059,18 @@ async function handleStartLiveTranslate(message, sender, config) {
             }
         });
 
+        // Update centralized state
+        liveTranslationState = {
+            isActive: true,
+            activeTabId: tabId,
+            targetLanguage: targetLanguage
+        };
         isLiveTranslating = true;
-        await chrome.storage.local.set({ isLiveTranslating: true });
-        return { success: true };
+        await chrome.storage.local.set({
+            isLiveTranslating: true,
+            liveTranslationState: liveTranslationState
+        });
+        return { success: true, tabId };
     } catch (error) {
         console.error('[VideoTranslate] Live translate failed:', error);
         if (error.message && error.message.includes("Extension has not been invoked")) {
@@ -2061,30 +2081,45 @@ async function handleStartLiveTranslate(message, sender, config) {
 }
 
 async function handleStopLiveTranslate() {
+    const activeTabId = liveTranslationState.activeTabId;
+
     try {
         await chrome.runtime.sendMessage({
             type: 'stop-recording',
             target: 'offscreen'
         });
 
-        // Notify all YouTube tabs that live translation stopped
-        chrome.tabs.query({ url: "*://*.youtube.com/*" }, (tabs) => {
-            tabs.forEach(tab => {
-                chrome.tabs.sendMessage(tab.id, {
-                    action: 'live-stopped'
-                }).catch(() => { });
-            });
-        });
+        // Notify only the active tab that live translation stopped
+        if (activeTabId) {
+            chrome.tabs.sendMessage(activeTabId, {
+                action: 'live-stopped'
+            }).catch(() => { });
+        }
 
-        // We can keep the offscreen doc alive or close it
-        // await chrome.offscreen.closeDocument();
+        // Reset centralized state
+        liveTranslationState = {
+            isActive: false,
+            activeTabId: null,
+            targetLanguage: null
+        };
         isLiveTranslating = false;
-        await chrome.storage.local.set({ isLiveTranslating: false });
+        await chrome.storage.local.set({
+            isLiveTranslating: false,
+            liveTranslationState: liveTranslationState
+        });
         return { success: true };
     } catch (error) {
         console.error('[VideoTranslate] Stop live failed:', error);
+        liveTranslationState = {
+            isActive: false,
+            activeTabId: null,
+            targetLanguage: null
+        };
         isLiveTranslating = false;
-        await chrome.storage.local.set({ isLiveTranslating: false });
+        await chrome.storage.local.set({
+            isLiveTranslating: false,
+            liveTranslationState: liveTranslationState
+        });
         return { success: false, error: error.message };
     }
 }

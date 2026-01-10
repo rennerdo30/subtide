@@ -567,6 +567,13 @@ async function toggleLiveTranslate() {
 function handleLiveSubtitles(data) {
     const state = getVideoState(currentVideoId);
 
+    // Handle error/status messages
+    if (data.status === 'error' || data.status === 'disconnected') {
+        vtLog.error('[LIVE] Error:', data.error);
+        showLiveStatus(data.error, 'error');
+        return;
+    }
+
     // If we receive data, we are live. Ensure overlay is visible.
     if (!state.isLive) {
         state.isLive = true;
@@ -576,11 +583,21 @@ function handleLiveSubtitles(data) {
     const overlay = document.querySelector('.vt-overlay');
     if (!overlay) return;
 
-    const { text, translatedText, speaker } = data;
+    const { text, translatedText, language, status } = data;
+
+    // Show transcribing status while waiting for translation
+    if (status === 'transcribing' && !translatedText) {
+        showLiveStatus(`Listening... (${language || 'detecting'})`, 'listening');
+    } else {
+        hideLiveStatus();
+    }
 
     // Add to overlay (rolling text)
     // We treat the translated text as the primary display
     const content = translatedText || text;
+
+    // Don't update overlay if we only have status, no content
+    if (!content) return;
 
     // Apply styles dynamically
     const styleValues = getSubtitleStyleValues();
@@ -610,6 +627,65 @@ function handleLiveSubtitles(data) {
     window._liveSubtitleTimeout = setTimeout(() => {
         overlay.innerHTML = '';
     }, 5000);
+}
+
+/**
+ * Show live translation status indicator
+ */
+function showLiveStatus(message, type = 'info') {
+    let statusEl = document.querySelector('.vt-live-status');
+    if (!statusEl) {
+        statusEl = document.createElement('div');
+        statusEl.className = 'vt-live-status';
+        statusEl.style.cssText = `
+            position: fixed;
+            top: 60px;
+            right: 20px;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-size: 13px;
+            z-index: 999999;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        `;
+        document.body.appendChild(statusEl);
+    }
+
+    // Style based on type
+    if (type === 'error') {
+        statusEl.style.background = 'rgba(220, 53, 69, 0.95)';
+        statusEl.style.color = '#fff';
+    } else if (type === 'listening') {
+        statusEl.style.background = 'rgba(0, 150, 136, 0.95)';
+        statusEl.style.color = '#fff';
+    } else {
+        statusEl.style.background = 'rgba(0, 0, 0, 0.8)';
+        statusEl.style.color = '#fff';
+    }
+
+    statusEl.textContent = message;
+    statusEl.style.display = 'block';
+    statusEl.style.opacity = '1';
+
+    // Auto-hide after 10s for errors, or keep showing for listening status
+    if (type === 'error') {
+        setTimeout(() => {
+            statusEl.style.opacity = '0';
+            setTimeout(() => { statusEl.style.display = 'none'; }, 300);
+        }, 10000);
+    }
+}
+
+/**
+ * Hide live translation status indicator
+ */
+function hideLiveStatus() {
+    const statusEl = document.querySelector('.vt-live-status');
+    if (statusEl) {
+        statusEl.style.opacity = '0';
+        setTimeout(() => { statusEl.style.display = 'none'; }, 300);
+    }
 }
 
 // =============================================================================

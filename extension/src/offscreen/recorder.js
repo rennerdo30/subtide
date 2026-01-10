@@ -1,9 +1,9 @@
 let socket = null;
 let stream = null;
 let audioContext = null;
-let scriptProcessor = null;
+let workletNode = null;
 let currentTabId = null;
-let loopbackAudio = null;
+let chunkCount = 0;
 
 // Listen for messages from the service worker
 chrome.runtime.onMessage.addListener(async (message) => {
@@ -21,19 +21,72 @@ chrome.runtime.onMessage.addListener(async (message) => {
 
 async function startRecording({ streamId, tabId, targetLang, apiUrl }) {
     if (audioContext) return;
-    
+
     currentTabId = tabId;
+    chunkCount = 0;
 
     try {
         console.log('[OFFSCREEN] Connecting to:', apiUrl);
         // 1. Connect to WebSocket
         socket = io(`${apiUrl}/live`, {
-            transports: ['websocket']
+            transports: ['websocket'],
+            reconnection: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000
         });
 
         socket.on('connect', () => {
             console.log('[OFFSCREEN] Connected to WebSocket');
             socket.emit('start_stream', { target_lang: targetLang });
+        });
+
+        socket.on('connect_error', (error) => {
+            console.error('[OFFSCREEN] WebSocket connection error:', error.message);
+            chrome.runtime.sendMessage({
+                action: 'live-transcription-result',
+                tabId: currentTabId,
+                data: {
+                    status: 'error',
+                    error: `Connection failed: ${error.message}. Is the backend running?`
+                }
+            });
+        });
+
+        socket.on('disconnect', (reason) => {
+            console.log('[OFFSCREEN] WebSocket disconnected:', reason);
+            if (reason === 'io server disconnect' || reason === 'transport close') {
+                // Server disconnected us or connection lost
+                chrome.runtime.sendMessage({
+                    action: 'live-transcription-result',
+                    tabId: currentTabId,
+                    data: {
+                        status: 'disconnected',
+                        error: `Connection lost: ${reason}`
+                    }
+                });
+            }
+        });
+
+        socket.on('reconnect', (attemptNumber) => {
+            console.log(`[OFFSCREEN] Reconnected after ${attemptNumber} attempts`);
+            socket.emit('start_stream', { target_lang: targetLang });
+        });
+
+        socket.on('reconnect_attempt', (attemptNumber) => {
+            console.log(`[OFFSCREEN] Reconnection attempt ${attemptNumber}`);
+        });
+
+        socket.on('reconnect_failed', () => {
+            console.error('[OFFSCREEN] Reconnection failed after max attempts');
+            chrome.runtime.sendMessage({
+                action: 'live-transcription-result',
+                tabId: currentTabId,
+                data: {
+                    status: 'error',
+                    error: 'Connection lost. Please restart live translation.'
+                }
+            });
         });
 
         socket.on('live_result', (data) => {
@@ -58,54 +111,36 @@ async function startRecording({ streamId, tabId, targetLang, apiUrl }) {
 
         console.log('[OFFSCREEN] Tab capture stream obtained');
 
-        // Play audio locally (Loopback) to unmute the tab for the user
-        loopbackAudio = new Audio();
-        loopbackAudio.srcObject = stream;
-        loopbackAudio.play();
-
-        // 3. Setup AudioContext for PCM capture
-
+        // 3. Setup AudioContext with AudioWorklet for PCM capture
         audioContext = new AudioContext({ sampleRate: 16000 });
         if (audioContext.state === 'suspended') {
             await audioContext.resume();
         }
 
+        // Register AudioWorklet processor
+        const workletUrl = chrome.runtime.getURL('src/offscreen/audio-processor.js');
+        await audioContext.audioWorklet.addModule(workletUrl);
+
         const source = audioContext.createMediaStreamSource(stream);
-        scriptProcessor = audioContext.createScriptProcessor(4096, 1, 1);
+        workletNode = new AudioWorkletNode(audioContext, 'audio-capture-processor');
 
-        source.connect(scriptProcessor);
-        scriptProcessor.connect(audioContext.destination);
-
-        let chunkCount = 0;
-        scriptProcessor.onaudioprocess = (event) => {
+        // Handle audio data from worklet
+        workletNode.port.onmessage = (event) => {
             if (!socket || !socket.connected) return;
 
-            const inputData = event.inputBuffer.getChannelData(0);
-
-            // Calculate volume for debugging
-            let sum = 0;
-            for (let i = 0; i < inputData.length; i++) {
-                sum += inputData[i] * inputData[i];
+            if (event.data.type === 'audio') {
+                chunkCount++;
+                if (chunkCount % 50 === 0) { // Every ~12s at 16kHz
+                    console.log(`[OFFSCREEN] Sent ${chunkCount} audio chunks`);
+                }
+                socket.emit('audio_chunk', { audio: event.data.buffer });
             }
-            const rms = Math.sqrt(sum / inputData.length);
-
-            if (chunkCount % 50 === 0) { // Every ~12s
-                console.log(`[OFFSCREEN] Audio level: ${(rms * 100).toFixed(2)}%`);
-            }
-            chunkCount++;
-
-            // Convert Float32 to Int16 PCM
-            const pcmData = new Int16Array(inputData.length);
-            for (let i = 0; i < inputData.length; i++) {
-                const s = Math.max(-1, Math.min(1, inputData[i]));
-                pcmData[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
-            }
-
-            // Send binary packet
-            socket.emit('audio_chunk', { audio: pcmData.buffer });
         };
 
-        console.log('[OFFSCREEN] PCM Recording started (Binary, 16kHz)');
+        source.connect(workletNode);
+        // Don't connect to destination - we don't want to play the audio back
+
+        console.log('[OFFSCREEN] PCM Recording started (AudioWorklet, 16kHz)');
 
     } catch (error) {
         console.error('[OFFSCREEN] Error starting recording:', error);
@@ -116,9 +151,9 @@ async function startRecording({ streamId, tabId, targetLang, apiUrl }) {
 }
 
 function stopRecording() {
-    if (scriptProcessor) {
-        scriptProcessor.disconnect();
-        scriptProcessor = null;
+    if (workletNode) {
+        workletNode.disconnect();
+        workletNode = null;
     }
     if (audioContext) {
         audioContext.close();
@@ -132,11 +167,7 @@ function stopRecording() {
         socket.disconnect();
         socket = null;
     }
-    if (loopbackAudio) {
-        loopbackAudio.pause();
-        loopbackAudio.srcObject = null;
-        loopbackAudio = null;
-    }
     currentTabId = null;
+    chunkCount = 0;
     console.log('[OFFSCREEN] Recording stopped');
 }

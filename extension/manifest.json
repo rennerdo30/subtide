@@ -99,7 +99,8 @@
     {
       "resources": [
         "src/content/network_interceptor.js",
-        "src/content/shorts-interceptor.js"
+        "src/content/shorts-interceptor.js",
+        "src/offscreen/audio-processor.js"
       ],
       "matches": [
         "<all_urls>"

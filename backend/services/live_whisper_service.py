@@ -18,7 +18,9 @@ class LiveWhisperService:
         self.sid = sid
         self.target_lang = target_lang
         self.socketio = socketio
-        self.audio_queue = queue.Queue()
+        # Limit queue to ~30 seconds of audio at 16kHz (prevents memory leaks)
+        # Each chunk is typically small, but cap at 500 chunks for safety
+        self.audio_queue = queue.Queue(maxsize=500)
         self.running = False
         self.thread = None
         self.sample_rate = 16000
@@ -65,7 +67,16 @@ class LiveWhisperService:
             if rms > 0.01:  # Log audible audio
                 logger.debug(f"[LIVE] Audio chunk: {len(pcm_bytes)} bytes, volume={rms*100:.1f}%, gap={now-last_time:.2f}s")
             
-            self.audio_queue.put(audio_chunk)
+            try:
+                self.audio_queue.put_nowait(audio_chunk)
+            except queue.Full:
+                # Queue is full, drop oldest chunk and add new one
+                try:
+                    self.audio_queue.get_nowait()
+                    self.audio_queue.put_nowait(audio_chunk)
+                    logger.warning("[LIVE] Audio queue full, dropping oldest chunk")
+                except queue.Empty:
+                    pass
         except Exception as e:
             logger.error(f"[LIVE] Error decoding PCM chunk: {e}")
 
@@ -148,18 +159,16 @@ class LiveWhisperService:
                     res = result
                 
                 transcribed_text = res.text.strip()
-                # Get language token or info?
-                # DecodingResult has 'tokens', 'text', 'avg_logprob', 'no_speech_prob', 'temperature', 'compression_ratio'
-                # It does not explicitly store language string if it was auto-detected inside decode?
-                # Actually, MLX decode detects language if not provided.
-                # However, retrieving it from result might be tricky if not stored.
-                # For now assume 'en' or we can add language detection explicitly if needed.
-                # But typically 'res.text' is what we want.
-                language = "en" # Todo: extract language from model or tokens if possible
-                
-                # Try to infer language from tokens if MLX stores it?
-                # Or just assume EN for now unless user selected something?
-                # User did not select source lang in UI usually (auto detect).
+
+                # Extract detected language from DecodingResult
+                # MLX Whisper's decode() auto-detects language and stores it in result
+                if hasattr(res, 'language') and res.language:
+                    language = res.language
+                    logger.debug(f"[LIVE] Detected language: {language}")
+                else:
+                    # Fallback: default to English if detection unavailable
+                    language = "en"
+                    logger.debug("[LIVE] Language detection unavailable, defaulting to 'en'")
             
             transcribe_duration = time.time() - transcribe_start
             
