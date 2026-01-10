@@ -1,33 +1,53 @@
 # Video Translate
+
 <p align="center">
-  <img src="extension/icons/icon.svg" width="128" height="128" alt="Video Translate Logo">
+  <img src="extension/icons/icon128.png" width="128" height="128" alt="Video Translate Logo">
 </p>
 
 <p align="center">
-  <b>AI-powered YouTube subtitle translation using LLMs and Whisper.</b>
+  <b>AI-powered video subtitle translation for YouTube, Twitch, and more.</b>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/python-3.9+-yellow.svg" alt="Python">
-  <img src="https://img.shields.io/badge/chrome-v3-blue.svg" alt="Chrome Extension">
+  <img src="https://img.shields.io/badge/chrome-MV3-blue.svg" alt="Chrome Extension">
 </p>
+
+---
 
 ## Features
 
-- 🎬 **Real-time Translation** — Translate YouTube subtitles on the fly
-- 🤖 **AI Transcription** — Generate subtitles with Whisper when none exist
-- ⚡ **Streaming Mode** — See subtitles within 15 seconds, not minutes (Tier 4)
-- 🌍 **12+ Languages** — Support for major world languages
-- 🔑 **Flexible API** — Works with OpenAI, OpenRouter, or any OpenAI-compatible API
-- 💾 **Smart Caching** — Translations are cached for instant replay
-- 🎨 **Modern UI** — Clean dark theme with soft cyan accents, Outfit typography
-- ⌨️ **Keyboard Shortcuts** — Toggle subtitles (T), switch mode (D), download (S)
-- 📺 **Dual Subtitles** — Show original + translated text simultaneously
-- 📥 **Subtitle Download** — Export as SRT, VTT, or TXT
-- 🎯 **Smart Language Detection** — Skip translation when source = target
-- 🧠 **Context-Aware Translation** — Merges partial sentences for better quality
+### Core Translation
+- **Real-time Translation** — Translate video subtitles on the fly
+- **AI Transcription** — Generate subtitles with Whisper when none exist
+- **Streaming Mode** — See subtitles within seconds, not minutes (Tier 4)
+- **12+ Languages** — Support for major world languages
+- **Context-Aware** — Merges partial sentences for better translation quality
+- **Smart Caching** — Translations cached for instant replay
+
+### Platform Support
+- **YouTube** — Full support including embedded players
+- **YouTube Shorts** — Pre-translation mode for instant subtitles while swiping
+- **Twitch** — Live stream translation support
+- **Generic Sites** — Works on any site with `<video>` elements
+
+### User Experience
+- **Modern UI** — Clean dark theme with teal accents
+- **Draggable Subtitles** — Position subtitles anywhere on screen
+- **Adjustable Size** — Small, Medium, Large, and XL subtitle options
+- **Dual Subtitles** — Show original + translated text simultaneously
+- **Keyboard Shortcuts** — Toggle subtitles (T), switch mode (D), download (S)
+- **Subtitle Export** — Download as SRT, VTT, or TXT
+
+### Technical
+- **Flexible API** — Works with OpenAI, OpenRouter, or any OpenAI-compatible API
+- **Local LLM Support** — Use LM Studio, Ollama, or other local models
+- **Apple Silicon Optimized** — MLX Whisper backend for M1/M2/M3 Macs
+- **GPU Acceleration** — CUDA support for NVIDIA GPUs
+
+---
 
 ## Quick Start
 
@@ -35,7 +55,7 @@
 
 **Option A: Download Binary (Recommended)**
 
-Download the latest backend binary for your OS from the [Releases](https://github.com/rennerdo30/video-translate/releases) page:
+Download the latest backend binary from [Releases](https://github.com/rennerdo30/video-translate/releases):
 - `video-translate-backend-linux`
 - `video-translate-backend-macos`
 - `video-translate-backend-windows.exe`
@@ -43,7 +63,7 @@ Download the latest backend binary for your OS from the [Releases](https://githu
 > **Prerequisite**: [FFmpeg](https://ffmpeg.org/download.html) must be installed.
 
 ```bash
-# Make executable (Linux/macOS only)
+# Make executable (Linux/macOS)
 chmod +x video-translate-backend-macos
 
 # Run
@@ -60,217 +80,286 @@ pip install -r requirements.txt
 ./run.sh
 ```
 
+**Option C: Docker**
+
+```bash
+cd backend
+docker-compose up video-translate-tier2
+```
+
 ### 2. Install the Extension
 
-1. Open Chrome and go to `chrome://extensions`
-2. Enable "Developer mode"
-3. Click "Load unpacked" and select the `extension` folder
-4. The extension icon will appear in your toolbar
+1. Open Chrome → `chrome://extensions`
+2. Enable **Developer mode**
+3. Click **Load unpacked** → select the `extension` folder
+4. Pin the extension to your toolbar
 
 ### 3. Configure
 
 1. Click the extension icon
-2. Select your operation mode:
-   - **Tier 1** — Standard (YouTube captions + your API key)
-   - **Tier 2** — Enhanced (Whisper transcription + your API key)
-   - **Tier 3** — Managed (Server handles API keys)
-   - **Tier 4** — Stream (Progressive translation, subtitles appear instantly)
+2. Select your operation mode (see [Operation Modes](#operation-modes))
 3. Enter your API key and model (for Tier 1 & 2)
-4. Save configuration
+4. Choose your target language
+5. Save configuration
 
 ### 4. Translate!
 
+**YouTube Videos:**
 1. Go to any YouTube video
-2. Click the translate button in the player
-3. Select your target language
-4. Enjoy translated subtitles!
+2. Click the translate button in the player controls
+3. Subtitles appear automatically
+
+**YouTube Shorts:**
+1. Navigate to any Shorts video
+2. Click the floating translate button (bottom-right)
+3. Enable translation — videos are pre-translated as you scroll
+4. Subtitles appear instantly when swiping to the next Short
+
+---
 
 ## Operation Modes
 
-This project is fully open-source with no paid plans. The "Tiers" refer to different technical configurations:
+This project is fully open-source with no paid tiers. The "Tiers" refer to different technical configurations:
 
-| Feature | Tier 1 (Standard) | Tier 2 (Enhanced) | Tier 3 (Managed) | Tier 4 (Stream) |
-|---------|-------------------|-------------------|------------------|-----------------|
+| Feature | Tier 1 | Tier 2 | Tier 3 | Tier 4 |
+|---------|--------|--------|--------|--------|
 | YouTube Captions | ✅ | ✅ | ✅ | ✅ |
 | Whisper Transcription | ❌ | ✅ | ✅ | ✅ |
-| API Key Location | Browser (User's) | Browser (User's) | Server (Env Var) | Server (Env Var) |
+| API Key Location | Browser | Browser | Server | Server |
 | Force AI Generation | ❌ | ✅ | ✅ | ✅ |
 | Progressive Streaming | ❌ | ❌ | ❌ | ✅ |
 
-**Tier 4 (Stream)** provides the fastest experience — subtitles appear within seconds as each batch translates, instead of waiting for the entire video to finish processing.
+- **Tier 1 (Standard)** — Uses existing YouTube captions + your API key
+- **Tier 2 (Enhanced)** — Whisper transcription + your API key
+- **Tier 3 (Managed)** — Server handles API keys (for shared deployments)
+- **Tier 4 (Stream)** — Progressive translation with instant subtitle display
+
+---
+
+## YouTube Shorts Mode
+
+Shorts are consumed rapidly (swipe behavior), so on-demand translation is too slow. Shorts mode uses **pre-translation**:
+
+1. **Detection** — Automatically detects all Shorts in your feed
+2. **Pre-translation** — Translates 4+ videos ahead in the background
+3. **Instant Display** — Cached subtitles appear immediately when you swipe
+
+### Shorts Controls
+- **Toggle Button** — Floating button (bottom-right) to enable/disable
+- **Language Selection** — Quick language picker in dropdown
+- **Size Adjustment** — S / M / L / XL subtitle sizes
+- **Draggable Subtitles** — Drag to reposition, double-click to reset
+- **Queue Status** — Shows translation progress in real-time
+
+---
 
 ## Supported Languages
 
-🇬🇧 English • 🇯🇵 Japanese • 🇰🇷 Korean • 🇨🇳 Chinese • 🇪🇸 Spanish • 🇫🇷 French • 🇩🇪 German • 🇵🇹 Portuguese • 🇷🇺 Russian • 🇸🇦 Arabic • 🇮🇳 Hindi • 🇹🇼 Traditional Chinese
+| Language | Code | Language | Code |
+|----------|------|----------|------|
+| 🇬🇧 English | `en` | 🇯🇵 Japanese | `ja` |
+| 🇪🇸 Spanish | `es` | 🇰🇷 Korean | `ko` |
+| 🇫🇷 French | `fr` | 🇨🇳 Chinese (Simplified) | `zh-CN` |
+| 🇩🇪 German | `de` | 🇹🇼 Chinese (Traditional) | `zh-TW` |
+| 🇵🇹 Portuguese | `pt` | 🇸🇦 Arabic | `ar` |
+| 🇷🇺 Russian | `ru` | 🇮🇳 Hindi | `hi` |
+| 🇮🇹 Italian | `it` | | |
+
+---
 
 ## Docker Deployment
 
 ```bash
 cd backend
 
-# Development
+# Tier 1: Standard (YouTube captions only)
 docker-compose up video-translate-tier1
 
-# With Whisper
+# Tier 2: With Whisper transcription
 docker-compose up video-translate-tier2
 
-# Fully managed (set your API key)
-SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
-
-# Streaming mode (same setup as tier3)
+# Tier 3/4: Managed with server-side API key
 SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
 ```
 
-> **Note**: Tier 4 uses the same backend configuration as Tier 3 but uses the `/api/stream` endpoint for progressive subtitle delivery.
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `PORT` | Server port | `5001` |
+| `GUNICORN_WORKERS` | Number of workers | `2` |
+| `GUNICORN_TIMEOUT` | Request timeout (seconds) | `300` |
+| `CORS_ORIGINS` | Allowed origins (`*` for all) | `*` |
+| `SERVER_API_KEY` | API key for Tier 3/4 | — |
+| `SERVER_API_URL` | LLM API endpoint | — |
+| `SERVER_MODEL` | LLM model name | — |
+| `WHISPER_MODEL` | Whisper model size | `base` |
+| `WHISPER_BACKEND` | `mlx`, `faster`, or `openai` | auto-detected |
+
+---
 
 ## Cloud Deployment (RunPod)
 
 For GPU-accelerated transcription, deploy on [RunPod.io](https://runpod.io):
 
-- **Serverless Queue**: Pay per second, scales to zero
-- **Dedicated Pod**: Flat rate, full streaming support
-
 ```bash
-# Pull the latest image
 docker pull ghcr.io/rennerdo30/video-translate-runpod:latest
 ```
 
-Configure the extension with your RunPod endpoint URL:
+Configure the extension with your RunPod endpoint:
 - **Serverless**: `https://api.runpod.ai/v2/{ENDPOINT_ID}`
 - **Dedicated**: `https://pod-id-5001.proxy.runpod.net`
 
-See [backend/RUNPOD.md](backend/RUNPOD.md) for complete deployment instructions.
+See [backend/RUNPOD.md](backend/RUNPOD.md) for complete instructions.
 
-## Local LLM Setup (LM Studio / Ollama)
+---
 
-You can run translations completely locally using LM Studio or Ollama instead of cloud APIs.
+## Local LLM Setup
+
+Run translations completely locally using LM Studio or Ollama.
 
 ### LM Studio
 
 1. Download [LM Studio](https://lmstudio.ai/)
-2. Download a model (see recommendations below)
+2. Download a model (e.g., Llama 3.1 8B)
 3. Start the local server (default: `http://localhost:1234/v1`)
-4. In the extension, set:
+4. Configure extension:
    - **Provider**: Custom Endpoint
    - **API URL**: `http://localhost:1234/v1`
-   - **API Key**: `lm-studio` (or leave blank)
+   - **API Key**: `lm-studio`
 
 ### Ollama
 
 1. Install [Ollama](https://ollama.ai/)
 2. Pull a model: `ollama pull llama3.1:8b`
-3. Ollama runs on `http://localhost:11434` by default
-4. In the extension, set:
+3. Configure extension:
    - **Provider**: Custom Endpoint
    - **API URL**: `http://localhost:11434/v1`
-   - **API Key**: `ollama` (or leave blank)
+   - **API Key**: `ollama`
 
-### Hardware Requirements
-
-Running translation LLMs alongside Whisper requires planning. Here's what you need:
-
-#### Memory Allocation (Running Both)
-
-| Component | VRAM/RAM Needed |
-|-----------|-----------------|
-| Whisper tiny | ~1 GB |
-| Whisper base | ~1.5 GB |
-| Whisper small | ~2 GB |
-| Whisper medium | ~5 GB |
-| Whisper large-v3 | ~10 GB |
-| **LLM 7-8B (Q4)** | **~4-6 GB** |
-| **LLM 13B (Q4)** | **~8-10 GB** |
-| **LLM 70B (Q4)** | **~40 GB** |
-
-#### Mac Recommendations (Apple Silicon)
-
-| Mac | Unified Memory | Whisper | LLM | Notes |
-|-----|---------------|---------|-----|-------|
-| M1/M2 (8GB) | 8 GB | tiny/base only | ❌ Not recommended | Swap thrashing likely |
-| M1/M2 (16GB) | 16 GB | small | Llama 3.1 8B Q4 | Comfortable for both |
-| M1/M2 Pro (16GB) | 16 GB | medium | Llama 3.1 8B Q4 | Good balance |
-| M1/M2 Pro (32GB) | 32 GB | large-v3 | Llama 3.1 8B Q4 | Full quality |
-| M1/M2 Max (32GB) | 32 GB | large-v3 | Mistral 7B Q8 | High quality LLM |
-| M1/M2 Max (64GB) | 64 GB | large-v3 | Llama 3.1 70B Q4 | Best local quality |
-| M2/M3 Ultra (128GB+) | 128+ GB | large-v3 | Llama 3.1 70B Q8 | Premium setup |
-
-**Recommended MLX Whisper model**: `large-v3-turbo` (optimized for Apple Silicon)
-
-```bash
-# Set in .env
-WHISPER_MODEL=large-v3-turbo
-WHISPER_BACKEND=mlx
-```
-
-#### NVIDIA GPU Recommendations
-
-| GPU | VRAM | Whisper | LLM | Notes |
-|-----|------|---------|-----|-------|
-| RTX 3060 | 12 GB | medium | Llama 3.1 8B Q4 | Entry point for both |
-| RTX 3070/3080 | 8-10 GB | small | Llama 3.1 8B Q4 | Tight but works |
-| RTX 3090/4080 | 16-24 GB | large-v3 | Llama 3.1 8B Q8 | Comfortable |
-| RTX 4090 | 24 GB | large-v3 | Llama 3.1 13B Q4 | Great quality |
-| 2x RTX 4090 | 48 GB | large-v3 | Llama 3.1 70B Q4 | Near-cloud quality |
-| A100/H100 | 40-80 GB | large-v3 | Llama 3.1 70B Q8 | Server-grade |
-
-**Recommended faster-whisper model**: `large-v3` with `WHISPER_BACKEND=faster`
-
-### Recommended Models for Translation
+### Recommended Models
 
 | Model | Size | Quality | Speed | Best For |
 |-------|------|---------|-------|----------|
 | `llama3.1:8b` | 4.7 GB | Good | Fast | Most users |
 | `mistral:7b` | 4.1 GB | Good | Fast | General use |
 | `qwen2.5:7b` | 4.4 GB | Excellent | Fast | Asian languages |
-| `llama3.1:70b-q4` | 40 GB | Excellent | Slow | Best quality |
 | `command-r:35b-q4` | 20 GB | Excellent | Medium | Multilingual |
 
-### Configuration Example
+---
 
-```bash
-# .env for local LLM
-SERVER_API_URL=http://localhost:1234/v1
-SERVER_MODEL=llama3.1:8b
-SERVER_API_KEY=lm-studio
+## Hardware Requirements
 
-# Whisper for your hardware
-WHISPER_MODEL=large-v3-turbo  # Mac
-# WHISPER_MODEL=large-v3       # NVIDIA GPU
-```
+### Apple Silicon (Unified Memory)
 
-## Tech Stack
+| Mac | Memory | Whisper | LLM | Notes |
+|-----|--------|---------|-----|-------|
+| M1/M2 (8GB) | 8 GB | tiny/base | ❌ | Not recommended |
+| M1/M2 (16GB) | 16 GB | small | Llama 3.1 8B | Comfortable |
+| M1/M2 Pro (32GB) | 32 GB | large-v3 | Llama 3.1 8B | Full quality |
+| M1/M2 Max (64GB) | 64 GB | large-v3 | Llama 3.1 70B | Best local |
 
-- **Extension**: Chrome Manifest V3, Vanilla JavaScript
-- **Backend**: Python 3.9+, Flask, Gunicorn
-- **AI**: OpenAI Whisper, GPT-4/Claude/Llama via API
-- **Tools**: yt-dlp, Docker
+**Recommended**: `WHISPER_BACKEND=mlx` with `large-v3-turbo`
 
-## Project Structure
+### NVIDIA GPUs
+
+| GPU | VRAM | Whisper | LLM |
+|-----|------|---------|-----|
+| RTX 3060 | 12 GB | medium | Llama 3.1 8B |
+| RTX 3090/4080 | 16-24 GB | large-v3 | Llama 3.1 8B |
+| RTX 4090 | 24 GB | large-v3 | Llama 3.1 13B |
+
+**Recommended**: `WHISPER_BACKEND=faster` with `large-v3`
+
+---
+
+## Architecture
 
 ```
 video-translate/
-├── backend/
-│   ├── app.py              # Flask entry point
-│   ├── config.py           # Configuration
-│   ├── services/           # Business logic (Whisper, YouTube, Translation)
-│   ├── routes/             # API Endpoints
-│   ├── utils/              # Helper utilities
-│   ├── requirements.txt    # Python dependencies
-│   ├── Dockerfile          # Container configuration
-│   └── docker-compose.yml  # Multi-tier deployment
-├── extension/
-│   ├── manifest.json       # Chrome extension manifest
-│   ├── _locales/           # Internationalization (i18n)
-│   ├── icons/              # Extension icons
-│   └── src/                # Extension source code
-│       ├── background/     # Service worker
-│       ├── content/        # YouTube integration
-│       ├── lib/            # Shared utilities
-│       ├── offscreen/      # Offscreen audio capture
-│       └── popup/          # Extension popup UI
-└── SPECIFICATION.md        # Detailed documentation
+├── backend/                    # Python Flask server
+│   ├── app.py                  # Entry point
+│   ├── config.py               # Configuration
+│   ├── routes/
+│   │   └── translation.py      # API endpoints
+│   ├── services/
+│   │   ├── whisper_service.py  # Speech-to-text
+│   │   ├── translation_service.py  # LLM translation
+│   │   ├── youtube_service.py  # YouTube data extraction
+│   │   └── process_service.py  # Pipeline orchestration
+│   ├── utils/
+│   │   ├── model_utils.py      # Model management
+│   │   ├── partial_cache.py    # Translation caching
+│   │   └── language_detection.py  # Language utilities
+│   ├── Dockerfile
+│   └── docker-compose.yml
+│
+├── extension/                  # Chrome Extension (MV3)
+│   ├── manifest.json
+│   ├── _locales/               # i18n translations
+│   ├── icons/                  # App icons
+│   └── src/
+│       ├── background/
+│       │   └── service-worker.js   # Background tasks, Shorts queue
+│       ├── content/
+│       │   ├── youtube.js          # YouTube integration
+│       │   ├── youtube-shorts.js   # Shorts pre-translation
+│       │   ├── youtube-subtitles.js # Subtitle rendering
+│       │   ├── youtube-ui.js       # UI controls
+│       │   ├── youtube-styles.js   # CSS injection
+│       │   ├── twitch.js           # Twitch integration
+│       │   ├── generic.js          # Generic video support
+│       │   └── shorts-interceptor.js # Shorts feed detection
+│       ├── lib/
+│       │   └── debug.js            # Logging utilities
+│       ├── offscreen/              # Audio capture
+│       └── popup/                  # Extension popup
+│           ├── popup.html
+│           └── popup.js
+│
+├── SPECIFICATION.md            # Detailed technical spec
+├── CONTRIBUTING.md             # Contribution guide
+└── LICENSE                     # MIT License
 ```
+
+---
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `T` | Toggle subtitles on/off |
+| `D` | Toggle dual subtitle mode |
+| `S` | Download subtitles |
+
+---
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/health` | GET | Health check |
+| `/api/translate` | POST | Translate video (batch) |
+| `/api/stream` | POST | Translate video (streaming) |
+| `/api/status/{id}` | GET | Check translation status |
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+
+---
 
 ## License
 
 MIT License - See [LICENSE](LICENSE) for details.
+
+---
+
+## Acknowledgments
+
+- [OpenAI Whisper](https://github.com/openai/whisper) — Speech recognition
+- [MLX Whisper](https://github.com/ml-explore/mlx-examples) — Apple Silicon optimization
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) — Video data extraction
+- [Flask](https://flask.palletsprojects.com/) — Backend framework

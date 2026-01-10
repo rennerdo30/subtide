@@ -1,30 +1,55 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <defs>
-    <!-- Soft cyan gradient - tech but not harsh -->
+    <!-- Modern gradient - deeper teal to cyan -->
     <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#4fd1c5"/>
-      <stop offset="100%" stop-color="#2a8f86"/>
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="50%" stop-color="#0891b2"/>
+      <stop offset="100%" stop-color="#0e7490"/>
     </linearGradient>
+    <!-- Subtle inner shadow -->
+    <filter id="innerGlow">
+      <feGaussianBlur stdDeviation="2" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
   </defs>
-  
-  <!-- Rounded Square Background - soft cyan gradient -->
-  <rect x="8" y="8" width="112" height="112" rx="24" ry="24" fill="url(#bgGrad)"/>
-  
-  <!-- Video Screen / Monitor shape -->
-  <rect x="24" y="32" width="80" height="52" rx="6" ry="6" fill="none" stroke="white" stroke-width="4" opacity="0.95"/>
-  
-  <!-- Play Triangle -->
-  <polygon points="52,46 52,72 72,59" fill="white"/>
-  
-  <!-- Subtitle Bar at bottom of screen -->
-  <rect x="32" y="72" width="64" height="8" rx="2" fill="white" opacity="0.9"/>
-  
-  <!-- "A" character (source language) -->
-  <text x="38" y="106" font-family="system-ui, sans-serif" font-size="22" font-weight="bold" fill="white">A</text>
-  
-  <!-- Arrow -->
-  <path d="M58 98 L68 98 M64 94 L68 98 L64 102" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-  
-  <!-- "文" character (target language) -->
-  <text x="74" y="106" font-family="system-ui, sans-serif" font-size="20" font-weight="bold" fill="white">文</text>
+
+  <!-- Rounded Square Background -->
+  <rect x="4" y="4" width="120" height="120" rx="28" ry="28" fill="url(#bgGrad)"/>
+
+  <!-- Subtle highlight on top-left -->
+  <ellipse cx="40" cy="36" rx="32" ry="24" fill="white" opacity="0.12"/>
+
+  <!-- Speech bubble / caption bubble - main element -->
+  <path d="M24 38
+           C24 30, 30 24, 38 24
+           L90 24
+           C98 24, 104 30, 104 38
+           L104 70
+           C104 78, 98 84, 90 84
+           L52 84
+           L40 96
+           L40 84
+           L38 84
+           C30 84, 24 78, 24 70
+           Z"
+        fill="white"
+        opacity="0.95"/>
+
+  <!-- Translation icon: globe with text lines -->
+  <!-- Globe circle -->
+  <circle cx="48" cy="54" r="16" fill="none" stroke="#0891b2" stroke-width="3"/>
+  <!-- Globe horizontal line -->
+  <ellipse cx="48" cy="54" rx="16" ry="6" fill="none" stroke="#0891b2" stroke-width="2.5"/>
+  <!-- Globe vertical line -->
+  <path d="M48 38 Q42 54, 48 70 M48 38 Q54 54, 48 70" fill="none" stroke="#0891b2" stroke-width="2.5"/>
+
+  <!-- Text lines representing subtitles -->
+  <rect x="70" y="46" width="24" height="4" rx="2" fill="#0891b2"/>
+  <rect x="70" y="54" width="20" height="4" rx="2" fill="#0891b2" opacity="0.7"/>
+  <rect x="70" y="62" width="16" height="4" rx="2" fill="#0891b2" opacity="0.5"/>
+
+  <!-- Play button indicator at bottom -->
+  <polygon points="52,100 52,112 62,106" fill="white" opacity="0.9"/>
+  <rect x="66" y="102" width="18" height="3" rx="1.5" fill="white" opacity="0.7"/>
+  <rect x="66" y="107" width="12" height="3" rx="1.5" fill="white" opacity="0.5"/>
 </svg>
