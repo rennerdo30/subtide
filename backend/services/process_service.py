@@ -4,9 +4,66 @@ import threading
 import queue
 import logging
 import time
+import hashlib
 from typing import Generator, Dict, Any, List, Optional
 
 from backend.config import CACHE_DIR, ENABLE_WHISPER, SERVER_API_KEY
+
+# =============================================================================
+# Request Deduplication (PERF-005)
+# Prevents duplicate API calls when same video/lang is requested simultaneously
+# =============================================================================
+
+_inflight_requests: Dict[str, threading.Event] = {}
+_inflight_results: Dict[str, Any] = {}
+_inflight_lock = threading.Lock()
+
+
+def _get_request_key(video_id: str, target_lang: str) -> str:
+    """Generate a unique key for a request."""
+    return hashlib.sha256(f"{video_id}:{target_lang}".encode()).hexdigest()[:16]
+
+
+def _check_inflight_request(video_id: str, target_lang: str) -> Optional[threading.Event]:
+    """
+    Check if there's an in-flight request for this video/lang combination.
+    Returns the Event to wait on if there is, None otherwise.
+    """
+    key = _get_request_key(video_id, target_lang)
+    with _inflight_lock:
+        if key in _inflight_requests:
+            return _inflight_requests[key]
+        return None
+
+
+def _register_inflight_request(video_id: str, target_lang: str) -> str:
+    """Register a new in-flight request. Returns the request key."""
+    key = _get_request_key(video_id, target_lang)
+    with _inflight_lock:
+        _inflight_requests[key] = threading.Event()
+        _inflight_results[key] = None
+    return key
+
+
+def _complete_inflight_request(key: str, result: Any):
+    """Mark an in-flight request as complete and store the result."""
+    with _inflight_lock:
+        if key in _inflight_requests:
+            _inflight_results[key] = result
+            _inflight_requests[key].set()
+
+
+def _get_inflight_result(key: str) -> Any:
+    """Get the result of a completed in-flight request."""
+    with _inflight_lock:
+        return _inflight_results.get(key)
+
+
+def _cleanup_inflight_request(key: str):
+    """Clean up an in-flight request after all waiters have received it."""
+    with _inflight_lock:
+        _inflight_requests.pop(key, None)
+        _inflight_results.pop(key, None)
 from backend.utils.file_utils import get_cache_path, validate_audio_file
 from backend.utils.logging_utils import LogContext, generate_request_id
 from backend.services.youtube_service import await_download_subtitles, get_video_title
@@ -115,26 +172,50 @@ def await_whisper_transcribe(video_id: str, url: str) -> List[Dict[str, Any]]:
     subtitles = []
     for segment in whisper_result.get('segments', []):
         subtitles.append({
-            'start': int(segment['start'] * 1000),
-            'end': int(segment['end'] * 1000),
+            'start': round(segment['start'] * 1000),
+            'end': round(segment['end'] * 1000),
             'text': segment['text'].strip(),
-            'speaker': segment.get('speaker') 
+            'speaker': segment.get('speaker')
         })
 
     return subtitles
 
 
-def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, use_sse: bool, video_url: Optional[str] = None, stream_url: Optional[str] = None):
+def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, use_sse: bool, video_url: Optional[str] = None, stream_url: Optional[str] = None, force_refresh: bool = False):
     """
     Combined endpoint logic: fetch subtitles + translate.
     Returns generator if use_sse is True, else list of events.
+
+    Args:
+        force_refresh: If True, bypass translation cache and re-translate
     """
-    logger.info(f"Entry process_video_logic: video_id={video_id}, target={target_lang}, force={force_whisper}, sse={use_sse}, url={video_url}, stream_url={stream_url}")
+    logger.info(f"Entry process_video_logic: video_id={video_id}, target={target_lang}, force={force_whisper}, sse={use_sse}, url={video_url}, stream_url={stream_url}, force_refresh={force_refresh}")
 
     if not SERVER_API_KEY:
          # This should be handled by the route, but ensuring here logic-wise
          yield f"data: {json.dumps({'error': 'Tier 3 not configured'})}\n\n"
          return
+
+    # Request deduplication: check if same video/lang is already being processed
+    # Skip deduplication if force_refresh is set (user explicitly wants new translation)
+    if not force_refresh and not force_whisper:
+        inflight_event = _check_inflight_request(video_id, target_lang)
+        if inflight_event:
+            logger.info(f"[PROCESS] Waiting for in-flight request: {video_id} -> {target_lang}")
+            yield f"data: {json.dumps({'stage': 'waiting', 'message': 'Waiting for existing request to complete...'})}\n\n"
+
+            # Wait for the in-flight request to complete (max 10 minutes)
+            if inflight_event.wait(timeout=600):
+                key = _get_request_key(video_id, target_lang)
+                result = _get_inflight_result(key)
+                if result:
+                    logger.info(f"[PROCESS] Using result from in-flight request: {video_id}")
+                    yield f"data: {json.dumps({'stage': 'complete', 'message': 'Using result from parallel request', 'percent': 100})}\n\n"
+                    yield f"data: {json.dumps({'result': result})}\n\n"
+                    return
+            else:
+                logger.warning(f"[PROCESS] In-flight request timeout: {video_id}")
+                # Fall through to process normally
 
     def generate():
         # Queue for progress messages
@@ -175,18 +256,26 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
             # Set context for this thread
             req_id = generate_request_id()
             LogContext.set(request_id=req_id, video_id=video_id)
-            
+
+            # Register this as an in-flight request for deduplication
+            inflight_key = None
+            if not force_refresh and not force_whisper:
+                inflight_key = _register_inflight_request(video_id, target_lang)
+
             work_start_time = time.time()
             logger.info(f"[PROCESS] Worker thread started for video={video_id}, target={target_lang}")
             try:
                 # Check translation cache first (fastest path)
+                # Skip cache if force_refresh or force_whisper is set
                 translation_cache_path = get_cache_path(video_id, f'translated_{target_lang}')
-                if os.path.exists(translation_cache_path) and not force_whisper:
+                if os.path.exists(translation_cache_path) and not force_whisper and not force_refresh:
                     logger.info(f"[PROCESS] Using cached translation for {video_id} -> {target_lang}")
                     send_sse('complete', 'Using cached translation', 100)
                     with open(translation_cache_path, 'r', encoding='utf-8') as f:
                         cached_result = json.load(f)
                     send_result(cached_result)
+                    if inflight_key:
+                        _complete_inflight_request(inflight_key, cached_result)
                     return
 
                 # URL Selection Strategy
@@ -233,8 +322,8 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                     # Convert cached Whisper to subtitle format
                     for seg in whisper_result.get('segments', []):
                         subtitles.append({
-                            'start': int(seg['start'] * 1000),
-                            'end': int(seg['end'] * 1000),
+                            'start': round(seg['start'] * 1000),
+                            'end': round(seg['end'] * 1000),
                             'text': seg['text'].strip(),
                             'speaker': seg.get('speaker')
                         })
@@ -258,8 +347,8 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                     # Generic site or direct stream URL: Skip subtitle check, go straight to Whisper
                     logger.info(f"[PROCESS] Generic site detected, defaulting to Whisper")
                     if not ENABLE_WHISPER:
-                         send_error("Transcription is required for generic sites but is disabled.")
-                         return
+                        send_error("Transcription is required for generic sites but is disabled on this server.")
+                        return
                 
                 # Skip subtitle source selection if we already have subtitles (from cached Whisper)
                 if subtitles:
@@ -338,8 +427,8 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
                     # Convert to subtitle format
                     for seg in whisper_result.get('segments', []):
                         subtitles.append({
-                            'start': int(seg['start'] * 1000),
-                            'end': int(seg['end'] * 1000),
+                            'start': round(seg['start'] * 1000),
+                            'end': round(seg['end'] * 1000),
                             'text': seg['text'].strip(),
                             'speaker': seg.get('speaker')
                         })
@@ -400,11 +489,15 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
 
                 send_sse('complete', 'Subtitles ready!', 100, step=4, total_steps=4)
                 send_result(final_result)
+                if inflight_key:
+                    _complete_inflight_request(inflight_key, final_result)
 
             except Exception as e:
                 logger.exception(f"[PROCESS] Error in worker after {time.time()-work_start_time:.1f}s")
                 send_error(str(e))
             finally:
+                if inflight_key:
+                    _cleanup_inflight_request(inflight_key)
                 logger.info(f"[PROCESS] Worker thread finished in {time.time()-work_start_time:.1f}s")
                 LogContext.clear()
 
@@ -438,14 +531,37 @@ def process_video_logic(video_id: str, target_lang: str, force_whisper: bool, us
     yield from generate()
 
 
-def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool, video_url: Optional[str] = None, stream_url: Optional[str] = None):
+def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool, video_url: Optional[str] = None, stream_url: Optional[str] = None, force_refresh: bool = False):
     """
     Tier 4 streaming endpoint: fetch subtitles + translate with progressive streaming.
     Yields SSE events including subtitle batches as they complete translation.
+
+    Args:
+        force_refresh: If True, bypass translation cache and re-translate
     """
     if not SERVER_API_KEY:
         yield f"data: {json.dumps({'error': 'Tier 4 not configured'})}\n\n"
         return
+
+    # Request deduplication: check if same video/lang is already being processed
+    if not force_refresh and not force_whisper:
+        inflight_event = _check_inflight_request(video_id, target_lang)
+        if inflight_event:
+            logger.info(f"[STREAM] Waiting for in-flight request: {video_id} -> {target_lang}")
+            yield f"data: {json.dumps({'stage': 'waiting', 'message': 'Waiting for existing request to complete...'})}\n\n"
+
+            # Wait for the in-flight request to complete (max 10 minutes)
+            if inflight_event.wait(timeout=600):
+                key = _get_request_key(video_id, target_lang)
+                result = _get_inflight_result(key)
+                if result:
+                    logger.info(f"[STREAM] Using result from in-flight request: {video_id}")
+                    yield f"data: {json.dumps({'stage': 'complete', 'message': 'Using result from parallel request', 'percent': 100})}\n\n"
+                    yield f"data: {json.dumps({'result': result})}\n\n"
+                    return
+            else:
+                logger.warning(f"[STREAM] In-flight request timeout: {video_id}")
+                # Fall through to process normally
 
     def generate():
         progress_queue = queue.Queue()
@@ -480,15 +596,21 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool, vid
             # Set context for this thread
             req_id = generate_request_id()
             LogContext.set(request_id=req_id, video_id=video_id)
-            
+
+            # Register this as an in-flight request for deduplication
+            inflight_key = None
+            if not force_refresh and not force_whisper:
+                inflight_key = _register_inflight_request(video_id, target_lang)
+
             work_start_time = time.time()
             logger.info(f"[STREAM] Worker started for video={video_id}, target={target_lang}")
             all_streamed_subtitles = []
 
             try:
                 # Check translation cache first
+                # Skip cache if force_refresh or force_whisper is set
                 translation_cache_path = get_cache_path(video_id, f'translated_{target_lang}')
-                if os.path.exists(translation_cache_path) and not force_whisper:
+                if os.path.exists(translation_cache_path) and not force_whisper and not force_refresh:
                     logger.info(f"[STREAM] Using cached translation for {video_id} -> {target_lang}")
                     send_sse('complete', 'Using cached translation', 100)
                     with open(translation_cache_path, 'r', encoding='utf-8') as f:
@@ -496,6 +618,8 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool, vid
                     # For cached results, stream all at once
                     send_subtitles(1, 1, cached_result.get('subtitles', []))
                     send_result(cached_result)
+                    if inflight_key:
+                        _complete_inflight_request(inflight_key, cached_result)
                     return
 
                 # URL Selection Strategy
@@ -538,8 +662,8 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool, vid
                     # Convert cached Whisper to subtitle format
                     for seg in whisper_result.get('segments', []):
                         subtitles.append({
-                            'start': int(seg['start'] * 1000),
-                            'end': int(seg['end'] * 1000),
+                            'start': round(seg['start'] * 1000),
+                            'end': round(seg['end'] * 1000),
                             'text': seg['text'].strip(),
                             'speaker': seg.get('speaker')
                         })
@@ -599,8 +723,8 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool, vid
                         
                         for seg in whisper_result.get('segments', []):
                             subtitles.append({
-                                'start': int(seg['start'] * 1000),
-                                'end': int(seg['end'] * 1000),
+                                'start': round(seg['start'] * 1000),
+                                'end': round(seg['end'] * 1000),
                                 'text': seg['text'].strip(),
                                 'speaker': seg.get('speaker')
                             })
@@ -627,8 +751,8 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool, vid
                             """Called for each segment as Whisper produces it."""
                             # Convert to subtitle format
                             sub = {
-                                'start': int(segment['start'] * 1000),
-                                'end': int(segment['end'] * 1000),
+                                'start': round(segment['start'] * 1000),
+                                'end': round(segment['end'] * 1000),
                                 'text': segment['text'].strip(),
                             }
                             segment_buffer.append(sub)
@@ -779,11 +903,15 @@ def stream_video_logic(video_id: str, target_lang: str, force_whisper: bool, vid
 
                 send_sse('complete', 'Subtitles ready!', 100, step=4, total_steps=4)
                 send_result(final_result)
+                if inflight_key:
+                    _complete_inflight_request(inflight_key, final_result)
 
             except Exception as e:
                 logger.exception(f"[STREAM] Error in worker after {time.time()-work_start_time:.1f}s")
                 send_error(str(e))
             finally:
+                if inflight_key:
+                    _cleanup_inflight_request(inflight_key)
                 logger.info(f"[STREAM] Worker finished in {time.time()-work_start_time:.1f}s")
                 LogContext.clear()
 

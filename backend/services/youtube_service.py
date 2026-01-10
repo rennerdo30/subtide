@@ -27,6 +27,10 @@ def validate_video_id(video_id: str) -> bool:
     """
     Validate YouTube video ID format.
 
+    Standard YouTube video IDs are 11 characters using base64url alphabet.
+    This function allows slightly longer IDs for flexibility with test data
+    and other video platforms, but enforces safe characters only.
+
     Args:
         video_id: The video ID to validate
 
@@ -35,6 +39,17 @@ def validate_video_id(video_id: str) -> bool:
     """
     if not video_id or not isinstance(video_id, str):
         return False
+
+    # Check against the pattern (alphanumeric, hyphen, underscore, 1-64 chars)
+    if not VIDEO_ID_PATTERN.match(video_id):
+        logger.warning(f"Invalid video ID format: {video_id[:20]}...")
+        return False
+
+    # Check for reserved Windows filenames
+    if video_id.upper() in RESERVED_NAMES:
+        logger.warning(f"Video ID matches reserved filename: {video_id}")
+        return False
+
     return True
 
 
@@ -112,11 +127,16 @@ def fetch_subtitles(video_id: str, lang: str = 'en') -> Tuple[Any, int]:
                 return None
 
             tracks = find_track(lang)
+            used_fallback = False
+            fallback_lang = None
+
             if not tracks:
                 # Try English fallback
                 tracks = find_track('en')
                 if tracks:
-                    logger.info("Falling back to English subtitles")
+                    used_fallback = True
+                    fallback_lang = 'en'
+                    logger.warning(f"Requested language '{lang}' not available, falling back to English")
                 else:
                     return {
                         'error': f'No subtitles for language: {lang}',
@@ -158,12 +178,32 @@ def fetch_subtitles(video_id: str, lang: str = 'en') -> Tuple[Any, int]:
             if selected.get('ext') == 'json3':
                 try:
                     json_data = res.json()
+                    # Add fallback metadata if applicable
+                    if used_fallback:
+                        json_data['_metadata'] = {
+                            'requested_language': lang,
+                            'actual_language': fallback_lang,
+                            'used_fallback': True,
+                            'warning': f'Requested language "{lang}" was not available, using "{fallback_lang}" instead'
+                        }
                     with open(cache_path, 'w', encoding='utf-8') as f:
                         json.dump(json_data, f, indent=2)
                     return json_data, 200
                 except Exception as e:
                     logger.warning(f"JSON parse error: {e}")
                     pass
+
+            # Return raw content with metadata if fallback was used
+            if used_fallback:
+                return {
+                    'content': res.content.decode('utf-8', errors='replace'),
+                    '_metadata': {
+                        'requested_language': lang,
+                        'actual_language': fallback_lang,
+                        'used_fallback': True,
+                        'warning': f'Requested language "{lang}" was not available, using "{fallback_lang}" instead'
+                    }
+                }, 200
 
             return Response(res.content, mimetype='text/plain'), 200
 
@@ -269,9 +309,15 @@ def await_download_subtitles(video_id: str, lang: str, tracks: List[Dict]) -> Li
             continue
         text = ''.join(s.get('utf8', '') for s in event['segs']).strip()
         if text:
+            start_ms = event.get('tStartMs', 0)
+            duration_ms = event.get('dDurationMs', 0)
+            # Use actual duration if available, otherwise estimate from text length
+            # Average speech is ~150ms per character, with min 1.5s and max 5s
+            if not duration_ms:
+                duration_ms = max(1500, min(5000, len(text) * 150))
             subtitles.append({
-                'start': event.get('tStartMs', 0),
-                'end': event.get('tStartMs', 0) + event.get('dDurationMs', 3000),
+                'start': start_ms,
+                'end': start_ms + duration_ms,
                 'text': text
             })
 

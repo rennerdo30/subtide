@@ -16,6 +16,7 @@ logger = logging.getLogger('video-translate')
 CACHE_DIR = os.getenv('CACHE_DIR', os.path.join(os.path.dirname(__file__), '..', 'cache'))
 PARTIAL_CACHE_DIR = os.path.join(CACHE_DIR, 'partial_translations')
 CACHE_TTL_HOURS = 24  # Expire partial caches after 24 hours
+MAX_CACHE_SIZE_MB = int(os.getenv('MAX_CACHE_SIZE_MB', '500'))  # Default 500MB max
 
 
 def _get_cache_key(video_id: str, target_lang: str) -> str:
@@ -140,3 +141,121 @@ def compute_source_hash(subtitles: List[Dict[str, Any]]) -> str:
     """Compute hash of source subtitles to detect changes."""
     content = json.dumps([s.get('text', '') for s in subtitles], sort_keys=True)
     return hashlib.md5(content.encode()).hexdigest()[:16]
+
+
+def get_directory_size(path: str) -> int:
+    """Get total size of directory in bytes."""
+    total = 0
+    try:
+        for dirpath, dirnames, filenames in os.walk(path):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                try:
+                    total += os.path.getsize(filepath)
+                except (OSError, IOError):
+                    pass
+    except Exception as e:
+        logger.warning(f"[CACHE] Could not calculate directory size: {e}")
+    return total
+
+
+def get_cache_files_by_age(path: str) -> List[tuple]:
+    """
+    Get list of cache files sorted by modification time (oldest first).
+
+    Returns:
+        List of (filepath, mtime, size) tuples sorted by mtime
+    """
+    files = []
+    try:
+        for dirpath, dirnames, filenames in os.walk(path):
+            for filename in filenames:
+                filepath = os.path.join(dirpath, filename)
+                try:
+                    stat = os.stat(filepath)
+                    files.append((filepath, stat.st_mtime, stat.st_size))
+                except (OSError, IOError):
+                    pass
+    except Exception as e:
+        logger.warning(f"[CACHE] Could not list cache files: {e}")
+
+    # Sort by modification time (oldest first)
+    files.sort(key=lambda x: x[1])
+    return files
+
+
+def enforce_cache_size_limit(path: str = None, max_size_mb: int = None) -> int:
+    """
+    Enforce cache size limit by deleting oldest files first.
+
+    Args:
+        path: Cache directory path (default: CACHE_DIR)
+        max_size_mb: Maximum size in MB (default: MAX_CACHE_SIZE_MB)
+
+    Returns:
+        Number of files deleted
+    """
+    if path is None:
+        path = CACHE_DIR
+    if max_size_mb is None:
+        max_size_mb = MAX_CACHE_SIZE_MB
+
+    max_size_bytes = max_size_mb * 1024 * 1024
+    current_size = get_directory_size(path)
+
+    if current_size <= max_size_bytes:
+        return 0
+
+    files = get_cache_files_by_age(path)
+    deleted_count = 0
+    freed_bytes = 0
+    target_freed = current_size - max_size_bytes
+
+    for filepath, mtime, size in files:
+        if freed_bytes >= target_freed:
+            break
+
+        try:
+            os.remove(filepath)
+            freed_bytes += size
+            deleted_count += 1
+            logger.debug(f"[CACHE] Deleted old cache file: {filepath}")
+        except (OSError, IOError) as e:
+            logger.warning(f"[CACHE] Could not delete {filepath}: {e}")
+
+    if deleted_count > 0:
+        logger.info(f"[CACHE] Size limit enforced: deleted {deleted_count} files, freed {freed_bytes / 1024 / 1024:.1f}MB")
+
+    return deleted_count
+
+
+def cleanup_expired_caches() -> int:
+    """
+    Clean up expired cache files and enforce size limit.
+
+    Returns:
+        Total number of files deleted
+    """
+    deleted_count = 0
+    cutoff = datetime.now() - timedelta(hours=CACHE_TTL_HOURS)
+
+    # Clean expired partial caches
+    if os.path.exists(PARTIAL_CACHE_DIR):
+        try:
+            for filename in os.listdir(PARTIAL_CACHE_DIR):
+                filepath = os.path.join(PARTIAL_CACHE_DIR, filename)
+                try:
+                    mtime = datetime.fromtimestamp(os.path.getmtime(filepath))
+                    if mtime < cutoff:
+                        os.remove(filepath)
+                        deleted_count += 1
+                        logger.debug(f"[CACHE] Deleted expired: {filename}")
+                except (OSError, IOError) as e:
+                    logger.warning(f"[CACHE] Could not check/delete {filename}: {e}")
+        except Exception as e:
+            logger.warning(f"[CACHE] Error during cleanup: {e}")
+
+    # Enforce size limit on main cache directory
+    deleted_count += enforce_cache_size_limit()
+
+    return deleted_count

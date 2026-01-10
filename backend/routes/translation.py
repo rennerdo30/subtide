@@ -44,6 +44,10 @@ def translate_subtitles():
 
     - Tier 1/2: User provides API key
     - Tier 3: Server-managed API key
+
+    Note: Tier 1/2 caching is handled client-side (localStorage).
+    The force_refresh parameter is accepted for consistency but
+    server-side caching only applies to Tier 3/4.
     """
     data = request.json or {}
     subtitles = data.get('subtitles', [])
@@ -53,6 +57,10 @@ def translate_subtitles():
     api_key = data.get('api_key')
     api_url = data.get('api_url')
     tier = data.get('tier', 'tier1')
+    force_refresh = data.get('force_refresh', False)
+
+    if force_refresh:
+        logger.info(f"[TRANSLATE] Force refresh requested (Tier 1/2 - client-side cache cleared)")
 
     if not subtitles:
         return jsonify({'error': 'No subtitles provided'}), 400
@@ -99,14 +107,17 @@ def process_video():
     
     data = request.get_json(silent=True)
     if data is None:
-        logger.warning(f"Failed to parse JSON body. Raw data: {request.get_data(as_text=True)[:1000]}")
-        data = {} # Proceed with empty dict to trigger validation error below (or handle explicit body error)
+        # Log truncated raw data for debugging (avoid logging sensitive content)
+        raw_preview = request.get_data(as_text=True)[:200]
+        logger.warning(f"Failed to parse JSON body. Preview: {raw_preview}...")
+        return jsonify({'error': 'Invalid JSON in request body'}), 400
 
     video_id = data.get('video_id')
     video_url = data.get('video_url')
     stream_url = data.get('stream_url')
     target_lang = data.get('target_lang', 'en')
     force_whisper = data.get('force_whisper', False)
+    force_refresh = data.get('force_refresh', False)  # Bypass translation cache
     use_sse = request.headers.get('Accept') == 'text/event-stream'
     
     # Force SSE mode for RunPod to prevent gateway timeouts
@@ -127,7 +138,7 @@ def process_video():
         }), 503
 
     try:
-        generator = process_video_logic(video_id, target_lang, force_whisper, use_sse, video_url=video_url, stream_url=stream_url)
+        generator = process_video_logic(video_id, target_lang, force_whisper, use_sse, video_url=video_url, stream_url=stream_url, force_refresh=force_refresh)
     except Exception as e:
         logger.exception("Failed to start processing")
         return jsonify({'error': str(e)}), 500
@@ -168,6 +179,7 @@ def stream_video():
     stream_url = data.get('stream_url')
     target_lang = data.get('target_lang', 'en')
     force_whisper = data.get('force_whisper', False)
+    force_refresh = data.get('force_refresh', False)  # Bypass translation cache
 
     if not video_id:
         return jsonify({'error': 'video_id is required'}), 400
@@ -180,7 +192,7 @@ def stream_video():
         }), 503
 
     try:
-        generator = stream_video_logic(video_id, target_lang, force_whisper, video_url=video_url, stream_url=stream_url)
+        generator = stream_video_logic(video_id, target_lang, force_whisper, video_url=video_url, stream_url=stream_url, force_refresh=force_refresh)
     except Exception as e:
         logger.exception("Failed to start streaming")
         return jsonify({'error': str(e)}), 500

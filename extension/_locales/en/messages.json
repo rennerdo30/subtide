@@ -476,5 +476,14 @@
     },
     "btnStartLiveTranslate": {
         "message": "Start Live Translate"
+    },
+    "shortsTranslate": {
+        "message": "Translate"
+    },
+    "shortsToggleLabel": {
+        "message": "Toggle Shorts Translation"
+    },
+    "shortsTranslating": {
+        "message": "Translating..."
     }
 }

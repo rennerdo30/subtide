@@ -77,19 +77,25 @@ ENV LOG_LEVEL=INFO
 ENV LOG_JSON=true
 ENV PYTHONUNBUFFERED=1
 
+# Configurable runtime settings
+ENV PORT=5001
+ENV GUNICORN_WORKERS=2
+ENV GUNICORN_TIMEOUT=300
+
 EXPOSE 5001
 
-# Health check
+# Health check (uses PORT env var)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:5001/health || exit 1
+    CMD curl -f http://localhost:${PORT}/health || exit 1
 
 # Run with Gunicorn (gevent for SSE support)
-CMD ["gunicorn", \
-    "--worker-class", "gevent", \
-    "--workers", "2", \
-    "--bind", "0.0.0.0:5001", \
-    "--timeout", "300", \
-    "--keep-alive", "65", \
-    "--access-logfile", "-", \
-    "--error-logfile", "-", \
-    "app:app"]
+# Workers and port are configurable via environment variables
+CMD gunicorn \
+    --worker-class gevent \
+    --workers ${GUNICORN_WORKERS} \
+    --bind 0.0.0.0:${PORT} \
+    --timeout ${GUNICORN_TIMEOUT} \
+    --keep-alive 65 \
+    --access-logfile - \
+    --error-logfile - \
+    app:app

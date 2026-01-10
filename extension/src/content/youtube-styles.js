@@ -408,6 +408,375 @@ function addStyles() {
             padding-left: 12px !important;
             font-family: monospace !important;
         }
+
+        /* ================================ */
+        /* YouTube Shorts Mode Styles       */
+        /* Refined, compact floating UI     */
+        /* ================================ */
+
+        /* Widget Container - fixed to viewport */
+        .vt-shorts-widget {
+            position: fixed !important;
+            bottom: 120px !important;
+            right: 12px !important;
+            z-index: 2147483647 !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+        }
+
+        /* Compact Toggle Button */
+        .vt-shorts-toggle {
+            width: 40px !important;
+            height: 40px !important;
+            border-radius: 50% !important;
+            background: rgba(15, 15, 15, 0.85) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            color: rgba(255, 255, 255, 0.7) !important;
+            cursor: pointer !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transition: all 0.15s ease !important;
+            backdrop-filter: blur(12px) !important;
+            -webkit-backdrop-filter: blur(12px) !important;
+            box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4) !important;
+            position: relative !important;
+            padding: 0 !important;
+        }
+
+        .vt-shorts-toggle:hover {
+            background: rgba(25, 25, 25, 0.95) !important;
+            color: #fff !important;
+            border-color: rgba(255, 255, 255, 0.15) !important;
+            transform: scale(1.05) !important;
+        }
+
+        .vt-shorts-toggle:focus-visible {
+            outline: 2px solid rgba(255, 255, 255, 0.5) !important;
+            outline-offset: 2px !important;
+        }
+
+        .vt-shorts-toggle.active {
+            background: rgba(16, 185, 129, 0.9) !important;
+            border-color: rgba(16, 185, 129, 1) !important;
+            color: #fff !important;
+            box-shadow: 0 2px 16px rgba(16, 185, 129, 0.4) !important;
+        }
+
+        .vt-shorts-toggle.active:hover {
+            background: rgba(16, 185, 129, 1) !important;
+        }
+
+        .vt-shorts-icon {
+            width: 18px !important;
+            height: 18px !important;
+        }
+
+        /* Status Dot - tiny indicator on button */
+        .vt-shorts-status-dot {
+            position: absolute !important;
+            top: 4px !important;
+            right: 4px !important;
+            width: 6px !important;
+            height: 6px !important;
+            border-radius: 50% !important;
+            background: transparent !important;
+            transition: all 0.2s ease !important;
+        }
+
+        .vt-shorts-toggle.active .vt-shorts-status-dot {
+            background: rgba(255, 255, 255, 0.9) !important;
+        }
+
+        .vt-shorts-status-dot.translating {
+            background: #fbbf24 !important;
+            animation: vt-dot-pulse 1s infinite ease-in-out !important;
+        }
+
+        @keyframes vt-dot-pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        /* Dropdown Panel */
+        .vt-shorts-dropdown {
+            position: absolute !important;
+            bottom: calc(100% + 8px) !important;
+            right: 0 !important;
+            width: 220px !important;
+            background: rgba(18, 18, 18, 0.98) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: 12px !important;
+            overflow: hidden !important;
+            opacity: 0 !important;
+            visibility: hidden !important;
+            transform: translateY(8px) scale(0.95) !important;
+            transition: all 0.15s ease !important;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5) !important;
+            backdrop-filter: blur(16px) !important;
+            -webkit-backdrop-filter: blur(16px) !important;
+        }
+
+        .vt-shorts-dropdown.show {
+            opacity: 1 !important;
+            visibility: visible !important;
+            transform: translateY(0) scale(1) !important;
+        }
+
+        /* Dropdown Header */
+        .vt-shorts-dropdown-header {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            padding: 12px 14px !important;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+        }
+
+        .vt-shorts-dropdown-title {
+            font-size: 11px !important;
+            font-weight: 600 !important;
+            text-transform: uppercase !important;
+            letter-spacing: 0.5px !important;
+            color: rgba(255, 255, 255, 0.5) !important;
+        }
+
+        /* Power Toggle Button */
+        .vt-shorts-power {
+            width: 28px !important;
+            height: 28px !important;
+            border-radius: 6px !important;
+            background: rgba(255, 255, 255, 0.06) !important;
+            border: none !important;
+            color: rgba(255, 255, 255, 0.4) !important;
+            cursor: pointer !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transition: all 0.15s ease !important;
+            padding: 0 !important;
+        }
+
+        .vt-shorts-power:hover {
+            background: rgba(255, 255, 255, 0.1) !important;
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+
+        .vt-shorts-power.active {
+            background: rgba(16, 185, 129, 0.2) !important;
+            color: #10b981 !important;
+        }
+
+        .vt-shorts-power svg {
+            width: 16px !important;
+            height: 16px !important;
+        }
+
+        /* Language Grid */
+        .vt-shorts-lang-grid {
+            display: grid !important;
+            grid-template-columns: repeat(3, 1fr) !important;
+            gap: 4px !important;
+            padding: 10px !important;
+        }
+
+        .vt-shorts-lang-btn {
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 2px !important;
+            padding: 8px 4px !important;
+            background: transparent !important;
+            border: 1px solid transparent !important;
+            border-radius: 8px !important;
+            color: rgba(255, 255, 255, 0.7) !important;
+            cursor: pointer !important;
+            transition: all 0.12s ease !important;
+        }
+
+        .vt-shorts-lang-btn:hover {
+            background: rgba(255, 255, 255, 0.06) !important;
+            color: #fff !important;
+        }
+
+        .vt-shorts-lang-btn.selected {
+            background: rgba(16, 185, 129, 0.15) !important;
+            border-color: rgba(16, 185, 129, 0.4) !important;
+            color: #10b981 !important;
+        }
+
+        .vt-shorts-lang-flag {
+            font-size: 10px !important;
+            font-weight: 700 !important;
+            letter-spacing: 0.5px !important;
+            opacity: 0.9 !important;
+        }
+
+        .vt-shorts-lang-name {
+            font-size: 9px !important;
+            opacity: 0.6 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            max-width: 58px !important;
+        }
+
+        /* Settings Row */
+        .vt-shorts-settings-row {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: space-between !important;
+            padding: 10px 14px !important;
+            border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+        }
+
+        .vt-shorts-settings-label {
+            font-size: 11px !important;
+            color: rgba(255, 255, 255, 0.5) !important;
+            font-weight: 500 !important;
+        }
+
+        /* Size Picker */
+        .vt-shorts-size-picker {
+            display: flex !important;
+            gap: 4px !important;
+        }
+
+        .vt-shorts-size-btn {
+            width: 28px !important;
+            height: 24px !important;
+            border-radius: 4px !important;
+            background: rgba(255, 255, 255, 0.06) !important;
+            border: 1px solid transparent !important;
+            color: rgba(255, 255, 255, 0.5) !important;
+            font-size: 10px !important;
+            font-weight: 600 !important;
+            cursor: pointer !important;
+            transition: all 0.12s ease !important;
+            padding: 0 !important;
+        }
+
+        .vt-shorts-size-btn:hover {
+            background: rgba(255, 255, 255, 0.1) !important;
+            color: rgba(255, 255, 255, 0.8) !important;
+        }
+
+        .vt-shorts-size-btn.selected {
+            background: rgba(16, 185, 129, 0.2) !important;
+            border-color: rgba(16, 185, 129, 0.4) !important;
+            color: #10b981 !important;
+        }
+
+        /* Dropdown Footer */
+        .vt-shorts-dropdown-footer {
+            padding: 8px 14px !important;
+            border-top: 1px solid rgba(255, 255, 255, 0.06) !important;
+            background: rgba(0, 0, 0, 0.2) !important;
+        }
+
+        .vt-shorts-queue-status {
+            font-size: 10px !important;
+            color: rgba(255, 255, 255, 0.4) !important;
+            display: block !important;
+        }
+
+        .vt-shorts-queue-status.active {
+            color: #10b981 !important;
+        }
+
+        /* Shorts Subtitle Overlay */
+        .vt-shorts-overlay {
+            position: fixed !important;
+            bottom: 180px !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            max-width: 85% !important;
+            z-index: 2147483646 !important;
+            text-align: center !important;
+            pointer-events: none !important;
+        }
+
+        .vt-shorts-overlay .vt-text {
+            display: inline-block !important;
+            background: rgba(0, 0, 0, 0.85) !important;
+            color: #fff !important;
+            padding: 10px 18px !important;
+            border-radius: 6px !important;
+            font-size: 17px !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            line-height: 1.45 !important;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3) !important;
+            max-width: 100% !important;
+            word-wrap: break-word !important;
+            letter-spacing: -0.01em !important;
+        }
+
+        /* Translating Status - positioned near toggle */
+        .vt-shorts-status {
+            position: fixed !important;
+            bottom: 170px !important;
+            right: 12px !important;
+            padding: 6px 10px !important;
+            background: rgba(18, 18, 18, 0.9) !important;
+            border-radius: 6px !important;
+            color: #10b981 !important;
+            font-size: 11px !important;
+            font-weight: 500 !important;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif !important;
+            z-index: 2147483646 !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 6px !important;
+            backdrop-filter: blur(12px) !important;
+            -webkit-backdrop-filter: blur(12px) !important;
+            border: 1px solid rgba(255, 255, 255, 0.06) !important;
+        }
+
+        .vt-shorts-status::before {
+            content: '' !important;
+            width: 5px !important;
+            height: 5px !important;
+            background: #10b981 !important;
+            border-radius: 50% !important;
+            animation: vt-dot-pulse 1s infinite ease-in-out !important;
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 600px) {
+            .vt-shorts-widget {
+                bottom: 100px !important;
+                right: 8px !important;
+            }
+
+            .vt-shorts-toggle {
+                width: 36px !important;
+                height: 36px !important;
+            }
+
+            .vt-shorts-icon {
+                width: 16px !important;
+                height: 16px !important;
+            }
+
+            .vt-shorts-dropdown {
+                width: 200px !important;
+            }
+
+            .vt-shorts-overlay {
+                bottom: 150px !important;
+                max-width: 92% !important;
+            }
+
+            .vt-shorts-overlay .vt-text {
+                font-size: 15px !important;
+                padding: 8px 14px !important;
+            }
+
+            .vt-shorts-status {
+                bottom: 145px !important;
+                font-size: 10px !important;
+                padding: 5px 8px !important;
+            }
+        }
     `;
     document.head.appendChild(style);
 }

@@ -226,6 +226,10 @@ function createStyleSubmenuHTML() {
 function createMoreOptionsSubmenuHTML() {
     return `
         <div class="vt-submenu vt-more-submenu" data-for="moreOptions" style="display: none;">
+            <div class="vt-menu-option vt-force-translate">
+                <svg viewBox="0 0 24 24" width="24" height="24" style="color: #4CAF50;"><path fill="currentColor" d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                <span class="vt-option-label">${chrome.i18n.getMessage('forceRetranslate') || 'Force Re-translate'}</span>
+            </div>
             <div class="vt-menu-option vt-live-action">
                 <svg viewBox="0 0 24 24" width="24" height="24" style="color: #ff0000;"><circle cx="12" cy="12" r="8" fill="currentColor"/></svg>
                 <span class="vt-option-label">${chrome.i18n.getMessage('liveTranslate')}</span>
@@ -499,6 +503,14 @@ function setupSettingsPanelListeners(settingsPanel) {
         });
     });
 
+    // Add force re-translate action (in more options submenu)
+    settingsPanel.querySelectorAll('.vt-force-translate').forEach(forceBtn => {
+        forceBtn.addEventListener('click', () => {
+            forceRetranslate();
+            settingsPanel.classList.remove('show');
+        });
+    });
+
     // Dual subtitles toggle (in more options submenu)
     settingsPanel.querySelectorAll('.vt-dual-toggle').forEach(dualToggle => {
         dualToggle.addEventListener('click', () => {
@@ -746,30 +758,89 @@ function injectUI(controlsElement) {
     // Add main button
     const mainBtn = document.createElement('button');
     mainBtn.className = 'vt-main-btn ytp-button';
-    mainBtn.title = chrome.i18n.getMessage('btnVideoTranslate');
+    const btnLabel = chrome.i18n.getMessage('btnVideoTranslate') || 'Video Translate';
+    mainBtn.title = btnLabel;
+    mainBtn.setAttribute('aria-label', btnLabel);
+    mainBtn.setAttribute('aria-haspopup', 'true');
+    mainBtn.setAttribute('aria-expanded', 'false');
     mainBtn.innerHTML = `
-        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">
             <path d="M12.87 15.07l-2.54-2.51.03-.03A17.52 17.52 0 0014.07 6H17V4h-7V2H8v2H1v2h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/>
         </svg>
     `;
     container.appendChild(mainBtn);
 
+    // Helper function to close panel and restore focus
+    function closePanel(panel, returnFocus = true) {
+        panel.classList.remove('show');
+        mainBtn.setAttribute('aria-expanded', 'false');
+        if (returnFocus) {
+            mainBtn.focus();
+        }
+    }
+
     mainBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         const panel = document.querySelector('.vt-settings-panel');
         if (panel) {
+            const wasOpen = panel.classList.contains('show');
             panel.classList.toggle('show');
 
             if (panel.classList.contains('show')) {
+                mainBtn.setAttribute('aria-expanded', 'true');
                 const mainMenu = panel.querySelector('.vt-main-menu');
                 const backBtn = panel.querySelector('.vt-settings-back');
 
                 panel.querySelectorAll('.vt-submenu').forEach(s => s.style.display = 'none');
                 if (mainMenu) mainMenu.style.display = 'block';
                 if (backBtn) backBtn.classList.add('header-hidden');
+
+                // Focus management: move focus to first focusable element in panel
+                const firstFocusable = panel.querySelector('button, [tabindex="0"], input, select');
+                if (firstFocusable) {
+                    setTimeout(() => firstFocusable.focus(), 50);
+                }
+            } else if (wasOpen) {
+                mainBtn.setAttribute('aria-expanded', 'false');
+                // Return focus to main button when closing
+                mainBtn.focus();
             }
         }
     });
+
+    // Keyboard navigation for settings panel
+    if (!window._vtKeyboardNavAttached) {
+        document.addEventListener('keydown', (e) => {
+            const panel = document.querySelector('.vt-settings-panel');
+            if (!panel || !panel.classList.contains('show')) return;
+
+            // Escape key closes the panel
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                e.stopPropagation();
+                closePanel(panel, true);
+                return;
+            }
+
+            // Tab key for focus trapping within panel
+            if (e.key === 'Tab') {
+                const focusableElements = panel.querySelectorAll(
+                    'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex="0"]'
+                );
+                const firstFocusable = focusableElements[0];
+                const lastFocusable = focusableElements[focusableElements.length - 1];
+
+                if (e.shiftKey && document.activeElement === firstFocusable) {
+                    e.preventDefault();
+                    lastFocusable?.focus();
+                } else if (!e.shiftKey && document.activeElement === lastFocusable) {
+                    e.preventDefault();
+                    firstFocusable?.focus();
+                }
+            }
+        });
+        window._vtKeyboardNavAttached = true;
+    }
 
     // Close menu on outside click
     if (!window._vtGlobalClickAttached) {
@@ -779,7 +850,7 @@ function injectUI(controlsElement) {
             if (panel && panel.classList.contains('show')) {
                 const isClickInside = container?.contains(e.target) || panel?.contains(e.target);
                 if (!isClickInside) {
-                    panel.classList.remove('show');
+                    closePanel(panel, true);
                 }
             }
         });

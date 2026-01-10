@@ -11,6 +11,9 @@
     "tabCapture",
     "offscreen"
   ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
   "host_permissions": [
     "https://www.youtube.com/*",
     "https://youtube.com/*",
@@ -29,12 +32,14 @@
       ],
       "all_frames": true,
       "js": [
+        "src/lib/debug.js",
         "src/content/youtube-constants.js",
         "src/content/youtube-status.js",
         "src/content/youtube-subtitles.js",
         "src/content/youtube-styles.js",
         "src/content/youtube-export.js",
         "src/content/youtube-ui.js",
+        "src/content/youtube-shorts.js",
         "src/content/youtube.js"
       ],
       "css": [
@@ -48,6 +53,7 @@
         "https://twitch.tv/*"
       ],
       "js": [
+        "src/lib/debug.js",
         "src/content/youtube-constants.js",
         "src/content/youtube-status.js",
         "src/content/youtube-subtitles.js",
@@ -69,6 +75,7 @@
         "*://*.twitch.tv/*"
       ],
       "js": [
+        "src/lib/debug.js",
         "src/content/generic.js"
       ],
       "all_frames": true,
@@ -91,7 +98,8 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "src/content/network_interceptor.js"
+        "src/content/network_interceptor.js",
+        "src/content/shorts-interceptor.js"
       ],
       "matches": [
         "<all_urls>"

@@ -11,19 +11,129 @@
  */
 
 // =============================================================================
-// State Management
+// State Management (Per-Video Map)
 // =============================================================================
 
+/**
+ * Per-video state to prevent cross-tab/cross-video state pollution
+ * Each video ID gets its own isolated state object
+ */
+const videoStates = new Map();
+
+/**
+ * Create initial state for a video
+ * @returns {Object} Fresh state object
+ */
+function createInitialVideoState() {
+    return {
+        sourceSubtitles: null,
+        translatedSubtitles: null,
+        isProcessing: false,
+        isLive: false,
+        isStreaming: false,
+        streamedSubtitles: [],
+    };
+}
+
+/**
+ * Get state for a video, creating if needed
+ * @param {string} videoId - Video ID
+ * @returns {Object} Video state object
+ */
+function getVideoState(videoId) {
+    if (!videoId) return createInitialVideoState();
+    if (!videoStates.has(videoId)) {
+        videoStates.set(videoId, createInitialVideoState());
+    }
+    return videoStates.get(videoId);
+}
+
+/**
+ * Clear state for a video
+ * @param {string} videoId - Video ID
+ */
+function clearVideoState(videoId) {
+    if (videoId) {
+        videoStates.delete(videoId);
+    }
+}
+
+/**
+ * Clean up old video states to prevent memory leaks
+ * Keeps only the current video and max 5 most recent
+ */
+function cleanupOldVideoStates(currentId) {
+    const MAX_CACHED_STATES = 5;
+    if (videoStates.size <= MAX_CACHED_STATES) return;
+
+    // Keep currentId, remove oldest entries
+    const keys = [...videoStates.keys()].filter(k => k !== currentId);
+    const toRemove = keys.slice(0, keys.length - MAX_CACHED_STATES + 1);
+    toRemove.forEach(k => videoStates.delete(k));
+}
+
+// Current video being viewed (single active video per content script)
 let currentVideoId = null;
-let sourceSubtitles = null;
-let translatedSubtitles = null;
+
+// Global config (not per-video)
 let selectedLanguage = null;
-let isProcessing = false;
-let isLive = false;
-let isStreaming = false; // Tier 4: streaming in progress
-let streamedSubtitles = []; // Tier 4: progressively received subtitles
 let userTier = 'tier1';
 let backendUrl = 'http://localhost:5001';
+
+// Track MutationObserver for cleanup
+let navigationObserver = null;
+
+// Track all active timeouts for proper cleanup
+const activeTimeouts = new Set();
+
+// Convenience getters for current video state
+function getCurrentState() {
+    return getVideoState(currentVideoId);
+}
+
+// Legacy compatibility - these read/write to current video state
+Object.defineProperty(window, '_vtSourceSubtitles', {
+    get() { return getCurrentState().sourceSubtitles; },
+    set(v) { getCurrentState().sourceSubtitles = v; }
+});
+Object.defineProperty(window, '_vtTranslatedSubtitles', {
+    get() { return getCurrentState().translatedSubtitles; },
+    set(v) { getCurrentState().translatedSubtitles = v; }
+});
+
+/**
+ * Safe setTimeout that tracks the timeout ID for cleanup
+ * @param {Function} fn - Function to call
+ * @param {number} delay - Delay in milliseconds
+ * @returns {number} Timeout ID
+ */
+function safeSetTimeout(fn, delay) {
+    const id = setTimeout(() => {
+        activeTimeouts.delete(id);
+        fn();
+    }, delay);
+    activeTimeouts.add(id);
+    return id;
+}
+
+/**
+ * Clear a timeout and remove from tracking
+ * @param {number} id - Timeout ID to clear
+ */
+function safeClearTimeout(id) {
+    if (id) {
+        clearTimeout(id);
+        activeTimeouts.delete(id);
+    }
+}
+
+/**
+ * Clear all tracked timeouts
+ */
+function clearAllTimeouts() {
+    activeTimeouts.forEach(id => clearTimeout(id));
+    activeTimeouts.clear();
+}
 
 // Subtitle appearance settings
 let subtitleSettings = {
@@ -56,15 +166,46 @@ function init() {
 function observeNavigation() {
     let lastUrl = location.href;
 
-    const observer = new MutationObserver(() => {
+    // Clean up existing observer if any
+    if (navigationObserver) {
+        navigationObserver.disconnect();
+    }
+
+    navigationObserver = new MutationObserver(() => {
         if (location.href !== lastUrl) {
             lastUrl = location.href;
             onNavigate();
         }
     });
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    navigationObserver.observe(document.body, { childList: true, subtree: true });
     window.addEventListener('popstate', onNavigate);
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', cleanup);
+}
+
+/**
+ * Cleanup resources when leaving the page
+ */
+function cleanup() {
+    // Disconnect MutationObserver
+    if (navigationObserver) {
+        navigationObserver.disconnect();
+        navigationObserver = null;
+    }
+
+    // Clear all tracked timeouts
+    clearAllTimeouts();
+
+    // Stop subtitle sync loop
+    if (typeof stopSync === 'function') {
+        stopSync();
+    }
+
+    // Remove event listeners
+    window.removeEventListener('popstate', onNavigate);
+    window.removeEventListener('beforeunload', cleanup);
 }
 
 /**
@@ -76,7 +217,10 @@ function onNavigate() {
         stopSync();
     }
 
-    // Clear any pending live subtitle timeout
+    // Clear all tracked timeouts (includes any pending live subtitle timeout)
+    clearAllTimeouts();
+
+    // Clear any legacy timeout references
     if (window._liveSubtitleTimeout) {
         clearTimeout(window._liveSubtitleTimeout);
         window._liveSubtitleTimeout = null;
@@ -88,16 +232,22 @@ function onNavigate() {
         window._vtFastRetryInterval = null;
     }
 
-    // Reset state
-    translatedSubtitles = null;
-    sourceSubtitles = null;
-    isProcessing = false;
-    isLive = false; // Reset live state
-    isStreaming = false; // Reset streaming state
-    streamedSubtitles = []; // Clear streamed subtitles
+    // Reset state for current video (use Map-based state)
+    if (currentVideoId) {
+        const state = getVideoState(currentVideoId);
+        state.translatedSubtitles = null;
+        state.sourceSubtitles = null;
+        state.isProcessing = false;
+        state.isLive = false;
+        state.isStreaming = false;
+        state.streamedSubtitles = [];
+    }
+
+    // Clean up old states to prevent memory buildup
+    cleanupOldVideoStates(currentVideoId);
 
     removeUI();
-    setTimeout(checkForVideo, 1000);
+    safeSetTimeout(checkForVideo, 1000);
 }
 
 /**
@@ -224,15 +374,17 @@ async function setupPage(videoId) {
 async function prefetchSubtitles(videoId) {
     updateStatus(chrome.i18n.getMessage('loading'), 'loading', null, { animationKey: 'loading' });
 
+    const state = getVideoState(videoId);
+
     try {
         const data = await sendMessage({ action: 'fetchSubtitles', videoId });
 
         if (data.error) throw new Error(data.error);
 
-        sourceSubtitles = parseSubtitles(data);
+        state.sourceSubtitles = parseSubtitles(data);
 
-        if (sourceSubtitles.length > 0) {
-            updateStatus(chrome.i18n.getMessage('subsCount', [sourceSubtitles.length.toString()]), 'success');
+        if (state.sourceSubtitles.length > 0) {
+            updateStatus(chrome.i18n.getMessage('subsCount', [state.sourceSubtitles.length.toString()]), 'success');
         } else {
             updateStatus(chrome.i18n.getMessage('noSubtitles'), 'error');
         }
@@ -245,74 +397,119 @@ async function prefetchSubtitles(videoId) {
 /**
  * Translate video subtitles
  */
-async function translateVideo(targetLang) {
-    if (isProcessing) {
+/**
+ * Translate video subtitles
+ * @param {string} targetLang - Target language code
+ * @param {Object} options - Optional settings
+ * @param {boolean} options.forceRefresh - Bypass cache and force re-translation
+ */
+async function translateVideo(targetLang, options = {}) {
+    const { forceRefresh = false } = options;
+
+    const state = getVideoState(currentVideoId);
+
+    if (state.isProcessing) {
         updateStatus(chrome.i18n.getMessage('processing'), 'loading', null, { animationKey: 'processing' });
         return;
     }
 
-    isProcessing = true;
-    updateStatus(chrome.i18n.getMessage('translating'), 'loading', null, { animationKey: 'translating' });
+    // If force refresh, clear local state first
+    if (forceRefresh) {
+        console.log('[VideoTranslate] Force refresh requested, clearing cache...');
+        state.translatedSubtitles = null;
+        state.streamedSubtitles = [];
+
+        // Clear localStorage cache for this video
+        try {
+            const cacheKey = `vt-cache-${currentVideoId}-${targetLang}`;
+            localStorage.removeItem(cacheKey);
+        } catch (e) {
+            console.warn('[VideoTranslate] Could not clear local cache:', e);
+        }
+    }
+
+    state.isProcessing = true;
+    const statusMessage = forceRefresh
+        ? (chrome.i18n.getMessage('forceTranslating') || 'Re-translating (bypassing cache)...')
+        : chrome.i18n.getMessage('translating');
+    updateStatus(statusMessage, 'loading', null, { animationKey: 'translating' });
 
     try {
         let result;
 
         if (userTier === 'tier4') {
             // Tier 4: Progressive streaming - subtitles arrive as batches complete
-            isStreaming = true;
-            streamedSubtitles = [];
+            state.isStreaming = true;
+            state.streamedSubtitles = [];
             updateStatus(chrome.i18n.getMessage('translating') || 'Streaming...', 'loading', null, { animationKey: 'streaming' });
 
             result = await sendMessage({
                 action: 'stream-process',
                 videoId: currentVideoId,
-                targetLanguage: targetLang
+                targetLanguage: targetLang,
+                forceRefresh: forceRefresh
             });
 
             // When complete, use either the final result or accumulated streamed subtitles
-            translatedSubtitles = result.translations || streamedSubtitles;
-            isStreaming = false;
+            state.translatedSubtitles = result.translations || state.streamedSubtitles;
+            state.isStreaming = false;
 
         } else if (userTier === 'tier3') {
             // Tier 3: Single combined call
             result = await sendMessage({
                 action: 'process',
                 videoId: currentVideoId,
-                targetLanguage: targetLang
+                targetLanguage: targetLang,
+                forceRefresh: forceRefresh
             });
-            translatedSubtitles = result.translations;
+            state.translatedSubtitles = result.translations;
 
         } else {
-            // Tier 1/2: Subtitles already fetched, translate via direct LLM
-            if (!sourceSubtitles || sourceSubtitles.length === 0) {
+            // Tier 1/2: May need to re-fetch subtitles if forcing
+            if (forceRefresh || !state.sourceSubtitles || state.sourceSubtitles.length === 0) {
+                const fetchResult = await sendMessage({
+                    action: 'fetch-subtitles',
+                    videoId: currentVideoId,
+                    forceRefresh: forceRefresh
+                });
+                if (fetchResult.subtitles) {
+                    state.sourceSubtitles = fetchResult.subtitles;
+                }
+            }
+
+            if (!state.sourceSubtitles || state.sourceSubtitles.length === 0) {
                 throw new Error(chrome.i18n.getMessage('noSubtitles'));
             }
 
             result = await sendMessage({
                 action: 'translate',
                 videoId: currentVideoId,
-                subtitles: sourceSubtitles,
+                subtitles: state.sourceSubtitles,
                 sourceLanguage: 'auto',
-                targetLanguage: targetLang
+                targetLanguage: targetLang,
+                forceRefresh: forceRefresh
             });
-            translatedSubtitles = result.translations;
+            state.translatedSubtitles = result.translations;
         }
 
         if (result.error) throw new Error(result.error);
 
-        console.log('[VideoTranslate] Received translations:', translatedSubtitles?.length, 'items');
+        console.log('[VideoTranslate] Received translations:', state.translatedSubtitles?.length, 'items');
 
-        if (!translatedSubtitles || translatedSubtitles.length === 0) {
+        if (!state.translatedSubtitles || state.translatedSubtitles.length === 0) {
             throw new Error(chrome.i18n.getMessage('noTranslations'));
         }
 
         // Analyze subtitle density for adaptive tolerances
-        analyzeSubtitleDensity(translatedSubtitles);
+        analyzeSubtitleDensity(state.translatedSubtitles);
 
         // Initialize windowed access for very long videos
-        initSubtitleWindow(translatedSubtitles);
+        initSubtitleWindow(state.translatedSubtitles);
 
-        updateStatus(result.cached ? chrome.i18n.getMessage('cachedSuccess') : chrome.i18n.getMessage('doneSuccess'), 'success');
+        const successMessage = forceRefresh
+            ? (chrome.i18n.getMessage('retranslateSuccess') || 'Re-translation complete!')
+            : (result.cached ? chrome.i18n.getMessage('cachedSuccess') : chrome.i18n.getMessage('doneSuccess'));
+        updateStatus(successMessage, 'success');
 
         // Hide status panel after success
         setTimeout(() => {
@@ -322,7 +519,7 @@ async function translateVideo(targetLang) {
 
         // Only show overlay and setup sync if not already streaming
         // (streaming mode shows overlay on first batch)
-        if (!isStreaming) {
+        if (!state.isStreaming) {
             showOverlay();
             setupSync();
         }
@@ -330,10 +527,28 @@ async function translateVideo(targetLang) {
     } catch (error) {
         console.error('[VideoTranslate] Translation failed:', error);
         updateStatus(chrome.i18n.getMessage('failed'), 'error');
-        isStreaming = false;
+        state.isStreaming = false;
     } finally {
-        isProcessing = false;
+        state.isProcessing = false;
     }
+}
+
+/**
+ * Force re-translate the current video (clears cache)
+ * This bypasses the cache and forces a fresh translation
+ * Shows confirmation dialog before proceeding
+ */
+function forceRetranslate() {
+    // Show confirmation dialog - re-translation uses API quota and takes time
+    const confirmMessage = chrome.i18n.getMessage('confirmRetranslate') ||
+        'Re-translate this video?\n\nThis will:\n• Clear the cached translation\n• Use your API quota\n• Take some time to complete\n\nContinue?';
+
+    if (!confirm(confirmMessage)) {
+        console.log('[VideoTranslate] Force re-translate cancelled by user');
+        return Promise.resolve();
+    }
+
+    return translateVideo(selectedLanguage, { forceRefresh: true });
 }
 
 /**
@@ -350,9 +565,11 @@ async function toggleLiveTranslate() {
  * Handle incoming live subtitles
  */
 function handleLiveSubtitles(data) {
+    const state = getVideoState(currentVideoId);
+
     // If we receive data, we are live. Ensure overlay is visible.
-    if (!isLive) {
-        isLive = true;
+    if (!state.isLive) {
+        state.isLive = true;
         showOverlay();
     }
 
@@ -456,7 +673,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ received: true });
 
     } else if (message.action === 'live-stopped') {
-        isLive = false;
+        const state = getVideoState(currentVideoId);
+        state.isLive = false;
         const overlay = document.querySelector('.vt-overlay');
         if (overlay) overlay.textContent = '';
         sendResponse({ received: true });
@@ -471,16 +689,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 function handleStreamingSubtitles(newSubtitles, batchIndex, totalBatches) {
     console.log(`[VideoTranslate] Streaming batch ${batchIndex}/${totalBatches}: ${newSubtitles.length} subtitles`);
 
+    const state = getVideoState(currentVideoId);
+
     // Merge new subtitles with existing
-    streamedSubtitles = streamedSubtitles.concat(newSubtitles);
+    state.streamedSubtitles = state.streamedSubtitles.concat(newSubtitles);
 
     // Sort by start time (batches may arrive out of order due to parallel processing)
-    streamedSubtitles.sort((a, b) => a.start - b.start);
+    state.streamedSubtitles.sort((a, b) => a.start - b.start);
 
     // Update status with streaming progress
     const percent = Math.round((batchIndex / totalBatches) * 100);
     updateStatus(
-        `Streaming: ${batchIndex}/${totalBatches} batches (${streamedSubtitles.length} subs)`,
+        `Streaming: ${batchIndex}/${totalBatches} batches (${state.streamedSubtitles.length} subs)`,
         'loading',
         percent,
         {
@@ -491,15 +711,15 @@ function handleStreamingSubtitles(newSubtitles, batchIndex, totalBatches) {
 
     // On first batch, show overlay and start sync
     if (batchIndex === 1) {
-        translatedSubtitles = streamedSubtitles;
-        analyzeSubtitleDensity(translatedSubtitles);
-        initSubtitleWindow(translatedSubtitles);
+        state.translatedSubtitles = state.streamedSubtitles;
+        analyzeSubtitleDensity(state.translatedSubtitles);
+        initSubtitleWindow(state.translatedSubtitles);
         showOverlay();
         setupSync();
     } else {
         // Update the active subtitles array for sync
-        translatedSubtitles = streamedSubtitles;
-        updateActiveSubtitles(translatedSubtitles);
+        state.translatedSubtitles = state.streamedSubtitles;
+        updateActiveSubtitles(state.translatedSubtitles);
     }
 }
 
@@ -508,24 +728,26 @@ function handleStreamingSubtitles(newSubtitles, batchIndex, totalBatches) {
  * Called when all subtitle batches have been received
  */
 function handleStreamingComplete(finalSubtitles, cached) {
-    console.log(`[VideoTranslate] Streaming complete: ${finalSubtitles?.length || streamedSubtitles.length} total subtitles`);
+    const state = getVideoState(currentVideoId);
 
-    isStreaming = false;
+    console.log(`[VideoTranslate] Streaming complete: ${finalSubtitles?.length || state.streamedSubtitles.length} total subtitles`);
+
+    state.isStreaming = false;
 
     // Use final subtitles if provided, otherwise use accumulated
     if (finalSubtitles && finalSubtitles.length > 0) {
-        translatedSubtitles = finalSubtitles;
+        state.translatedSubtitles = finalSubtitles;
     } else {
-        translatedSubtitles = streamedSubtitles;
+        state.translatedSubtitles = state.streamedSubtitles;
     }
 
     // Sort to ensure correct order
-    translatedSubtitles.sort((a, b) => a.start - b.start);
+    state.translatedSubtitles.sort((a, b) => a.start - b.start);
 
     // Update analysis and window
-    analyzeSubtitleDensity(translatedSubtitles);
-    initSubtitleWindow(translatedSubtitles);
-    updateActiveSubtitles(translatedSubtitles);
+    analyzeSubtitleDensity(state.translatedSubtitles);
+    initSubtitleWindow(state.translatedSubtitles);
+    updateActiveSubtitles(state.translatedSubtitles);
 
     updateStatus(cached ? chrome.i18n.getMessage('cachedSuccess') : chrome.i18n.getMessage('doneSuccess'), 'success');
 
@@ -562,7 +784,8 @@ function handleKeyboardShortcut(e) {
             break;
         case 't': // Alt+T: Translate video
             e.preventDefault();
-            if (currentVideoId && !isProcessing) {
+            const state = getVideoState(currentVideoId);
+            if (currentVideoId && !state.isProcessing) {
                 translateVideo(selectedLanguage);
             }
             break;

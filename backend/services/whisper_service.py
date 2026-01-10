@@ -404,9 +404,13 @@ def filter_hallucinations(segments: list) -> list:
 # def _run_mlx_child(...): ...
 
 
+# Lock for MLX operations to prevent Metal GPU race conditions
+_mlx_lock = threading.Lock()
+
+
 def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None, initial_prompt: str = None, language: str = None) -> dict:
     """Run mlx-whisper directly in-process (faster, uses GPU properly).
-    
+
     Args:
         audio_path: Path to audio file
         model_path: HuggingFace model path
@@ -417,7 +421,7 @@ def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None, in
     import mlx_whisper
     import mlx.core as mx
 
-    # Log device info
+    # Log device info (before lock to avoid holding lock during logging)
     device = mx.default_device()
     logger.info(f"[MLX] Running on device: {device}")
     logger.info(f"[MLX] Model: {model_path}")
@@ -427,8 +431,6 @@ def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None, in
         logger.info(f"[MLX] Forced language: {language}")
     if initial_prompt:
         logger.info(f"[MLX] Initial prompt: {initial_prompt[:80]}...")
-
-    start_time = time.time()
 
     # Build transcription kwargs
     transcribe_kwargs = {
@@ -440,17 +442,33 @@ def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None, in
         'logprob_threshold': WHISPER_LOGPROB_THRESHOLD,
         'condition_on_previous_text': WHISPER_CONDITION_ON_PREVIOUS,
     }
-    
+
     # Add language if specified (forces detection, fixes Japanese issues)
     if language:
         transcribe_kwargs['language'] = language
-    
+
     # Add initial_prompt if provided (helps with proper nouns, technical terms)
     if initial_prompt:
         transcribe_kwargs['initial_prompt'] = initial_prompt
 
-    # Run transcription directly with configurable thresholds
-    result = mlx_whisper.transcribe(audio_path, **transcribe_kwargs)
+    start_time = time.time()
+
+    # Acquire lock to prevent concurrent MLX operations (Metal command buffer race condition)
+    # The lock covers cache clearing, synchronization, and the entire transcription
+    with _mlx_lock:
+        try:
+            # Clear GPU caches and synchronize before starting
+            try:
+                mx.metal.clear_cache()  # Clear Metal memory cache
+            except AttributeError:
+                pass  # Older MLX versions may not have this
+            mx.synchronize()
+
+            # Run transcription
+            result = mlx_whisper.transcribe(audio_path, **transcribe_kwargs)
+        finally:
+            # Synchronize GPU after transcription to ensure all operations complete
+            mx.synchronize()
 
     elapsed = time.time() - start_time
     result["meta"] = {

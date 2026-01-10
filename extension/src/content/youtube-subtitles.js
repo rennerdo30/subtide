@@ -60,9 +60,31 @@ function mergeSegments(subs, maxGap = 500, maxDur = 8000) {
         const gap = next.start - curr.end;
         const newDur = next.end - curr.start;
 
-        if (gap <= maxGap && newDur <= maxDur && curr.speaker === next.speaker) {
+        // Calculate timing drift - how much the midpoint would shift
+        const currMidpoint = (curr.start + curr.end) / 2;
+        const mergedMidpoint = (curr.start + next.end) / 2;
+        const timingDrift = Math.abs(mergedMidpoint - currMidpoint);
+
+        // Only merge if:
+        // 1. Gap is small (segments are close together)
+        // 2. Total duration stays reasonable
+        // 3. Same speaker (if speaker info exists)
+        // 4. Timing drift is acceptable (<2 seconds)
+        if (gap <= maxGap && newDur <= maxDur &&
+            curr.speaker === next.speaker &&
+            timingDrift < 2000) {
+
             curr.end = next.end;
             curr.text += ' ' + next.text;
+
+            // Properly merge translatedText - handle all cases
+            // If either segment has a translation, preserve both
+            if (curr.translatedText !== undefined || next.translatedText !== undefined) {
+                // Use translatedText if available, otherwise use original text as fallback
+                const currTrans = curr.translatedText ?? '';
+                const nextTrans = next.translatedText ?? '';
+                curr.translatedText = (currTrans + ' ' + nextTrans).trim();
+            }
         } else {
             merged.push(curr);
             curr = { ...next };
@@ -95,6 +117,102 @@ let subtitleDensity = {
 let syncOffset = 0;
 
 /**
+ * Get current video ID for storage key
+ * @returns {string} Video ID or 'unknown'
+ */
+function getVideoId() {
+    try {
+        const url = new URL(window.location.href);
+        return url.searchParams.get('v') || 'unknown';
+    } catch (e) {
+        return 'unknown';
+    }
+}
+
+/**
+ * Load sync offset for current video from localStorage
+ * IMPORTANT: Always resets syncOffset first to prevent carryover from previous videos
+ */
+function loadSyncOffset() {
+    // Reset to zero first - critical for preventing offset carryover between videos
+    syncOffset = 0;
+
+    try {
+        const videoId = getVideoId();
+        if (videoId === 'unknown') {
+            updateSyncOffsetDisplay();
+            return;
+        }
+
+        const stored = localStorage.getItem(`vt-sync-${videoId}`);
+        if (stored) {
+            syncOffset = parseInt(stored, 10) || 0;
+            console.log('[VideoTranslate] Loaded sync offset:', syncOffset, 'ms for', videoId);
+        } else {
+            console.log('[VideoTranslate] No saved sync offset for', videoId, '- using 0');
+        }
+        updateSyncOffsetDisplay();
+    } catch (e) {
+        console.warn('[VideoTranslate] Could not load sync offset:', e);
+        updateSyncOffsetDisplay();
+    }
+}
+
+/**
+ * Save sync offset for current video to localStorage
+ */
+function saveSyncOffset() {
+    try {
+        const videoId = getVideoId();
+        if (videoId === 'unknown') return;
+
+        localStorage.setItem(`vt-sync-${videoId}`, syncOffset.toString());
+        console.log('[VideoTranslate] Saved sync offset:', syncOffset, 'ms for', videoId);
+
+        // Periodically clean up old entries (1 in 10 saves)
+        if (Math.random() < 0.1) {
+            cleanupOldSyncOffsets();
+        }
+    } catch (e) {
+        console.warn('[VideoTranslate] Could not save sync offset:', e);
+    }
+}
+
+/**
+ * Clean up old sync offsets from localStorage to prevent bloat
+ * Keeps only the most recent MAX_SYNC_ENTRIES entries
+ */
+function cleanupOldSyncOffsets() {
+    const MAX_SYNC_ENTRIES = 100;
+    const SYNC_PREFIX = 'vt-sync-';
+
+    try {
+        // Find all sync offset keys
+        const syncKeys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith(SYNC_PREFIX)) {
+                syncKeys.push(key);
+            }
+        }
+
+        // If we're over the limit, remove oldest entries
+        // Since we can't track access time, just remove random excess entries
+        if (syncKeys.length > MAX_SYNC_ENTRIES) {
+            const toRemove = syncKeys.length - MAX_SYNC_ENTRIES;
+            console.log(`[VideoTranslate] Cleaning up ${toRemove} old sync offsets`);
+
+            // Remove the first N entries (oldest by insertion order approximation)
+            for (let i = 0; i < toRemove; i++) {
+                localStorage.removeItem(syncKeys[i]);
+            }
+        }
+    } catch (e) {
+        console.warn('[VideoTranslate] Could not cleanup sync offsets:', e);
+    }
+}
+
+/**
  * Adjust sync offset by given amount
  * @param {number} deltaMs - Amount to adjust in ms (positive or negative)
  */
@@ -102,6 +220,7 @@ function adjustSyncOffset(deltaMs) {
     syncOffset += deltaMs;
     console.log('[VideoTranslate] Sync offset:', syncOffset, 'ms');
     updateSyncOffsetDisplay();
+    saveSyncOffset();  // Persist to localStorage
 }
 
 /**
@@ -111,6 +230,7 @@ function resetSyncOffset() {
     syncOffset = 0;
     console.log('[VideoTranslate] Sync offset reset');
     updateSyncOffsetDisplay();
+    saveSyncOffset();  // Persist reset
 }
 
 /**
@@ -280,10 +400,20 @@ function updateSubtitleWindow(currentIndex) {
 
 /**
  * Get active subtitle list (windowed for long videos)
+ * Uses getVideoState from youtube.js if available for per-video state
  * @returns {Array} Active subtitle list
  */
 function getActiveSubtitles() {
-    return subtitleWindow.activeList || translatedSubtitles;
+    // Use windowed list if available
+    if (subtitleWindow.activeList) {
+        return subtitleWindow.activeList;
+    }
+    // Fall back to per-video state if available (MED-005 fix)
+    if (typeof getVideoState === 'function' && typeof currentVideoId !== 'undefined' && currentVideoId) {
+        return getVideoState(currentVideoId).translatedSubtitles;
+    }
+    // Legacy fallback
+    return typeof translatedSubtitles !== 'undefined' ? translatedSubtitles : null;
 }
 
 /**
@@ -385,6 +515,9 @@ function setupSync() {
         playbackRate: video.playbackRate || 1,
     };
 
+    // Load saved sync offset for this video
+    loadSyncOffset();
+
     // Remove existing event listeners
     if (video._vtSyncHandler) {
         video.removeEventListener('seeked', video._vtSyncHandler);
@@ -397,8 +530,15 @@ function setupSync() {
      * Main sync loop using requestAnimationFrame
      * This provides ~60fps updates vs ~4fps with timeupdate
      */
+    // Cache DOM element reference for performance (avoid querySelector every frame)
+    let cachedTextEl = null;
+    let lastTextElCheck = 0;
+    const TEXT_EL_CACHE_TTL = 1000; // Re-check for element every 1 second
+
     const syncLoop = () => {
-        if (!translatedSubtitles?.length) {
+        // Get subtitles from per-video state (MED-005 fix)
+        const subs = getActiveSubtitles();
+        if (!subs?.length) {
             syncState.animationFrameId = requestAnimationFrame(syncLoop);
             return;
         }
@@ -440,7 +580,12 @@ function setupSync() {
         // Use optimized subtitle lookup with adaptive tolerance
         const sub = findSubtitleAtTimeWithTolerance(activeSubs, time, localIndex);
 
-        const textEl = document.querySelector('.vt-text');
+        // Use cached DOM element, re-query periodically or if null
+        if (!cachedTextEl || now - lastTextElCheck > TEXT_EL_CACHE_TTL) {
+            cachedTextEl = document.querySelector('.vt-text');
+            lastTextElCheck = now;
+        }
+        const textEl = cachedTextEl;
         if (textEl && sub) {
             // Track current subtitle index for optimized lookups
             const foundLocalIndex = activeSubs.indexOf(sub);
@@ -747,3 +892,64 @@ function getSubtitleStyleValues() {
         useSpeakerColor: subtitleSettings.color === 'speaker',
     };
 }
+
+// ============================================================================
+// Exports for YouTube Shorts Mode
+// ============================================================================
+
+/**
+ * Start subtitle synchronization with provided subtitles
+ * Used by youtube-shorts.js for Shorts mode
+ * @param {Array} subtitles - Subtitles to display
+ * @param {HTMLElement} [overlayElement] - Optional custom overlay element
+ */
+window.startSubtitleSync = function(subtitles, overlayElement) {
+    if (!subtitles || subtitles.length === 0) {
+        console.warn('[VideoTranslate] No subtitles provided to startSubtitleSync');
+        return;
+    }
+
+    // Analyze subtitle density for adaptive tolerances
+    analyzeSubtitleDensity(subtitles);
+
+    // Initialize windowed access for long videos
+    initSubtitleWindow(subtitles);
+
+    // Create or use provided overlay
+    if (overlayElement) {
+        // Ensure the overlay has a text element
+        if (!overlayElement.querySelector('.vt-text')) {
+            const textSpan = document.createElement('span');
+            textSpan.className = 'vt-text';
+            overlayElement.appendChild(textSpan);
+        }
+    } else {
+        showOverlay();
+    }
+
+    // Start the sync loop
+    setupSync();
+
+    console.log('[VideoTranslate] Subtitle sync started with', subtitles.length, 'subtitles');
+};
+
+/**
+ * Stop subtitle synchronization
+ * Used by youtube-shorts.js for Shorts mode
+ */
+window.stopSubtitleSync = function() {
+    stopSync();
+
+    // Clear subtitle window state
+    subtitleWindow = {
+        isEnabled: false,
+        windowSize: 200,
+        windowStart: 0,
+        windowEnd: 0,
+        fullList: null,
+        activeList: null,
+        lastAccessTime: 0,
+    };
+
+    console.log('[VideoTranslate] Subtitle sync stopped');
+};

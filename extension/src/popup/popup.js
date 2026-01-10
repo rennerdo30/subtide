@@ -49,23 +49,36 @@ const TIER_HINTS_KEYS = {
 /**
  * Wake up the service worker and wait for it to respond
  * Chrome MV3 service workers can be inactive and need time to start
+ * Uses singleton pattern to prevent race conditions from concurrent calls
  */
+let wakeUpPromise = null;
 async function wakeUpServiceWorker(maxRetries = 3) {
-    for (let i = 0; i < maxRetries; i++) {
-        try {
-            const response = await sendMessage({ action: 'ping' }, 3000);
-            if (response?.pong) {
-                console.log('[VideoTranslate] Service worker is ready');
-                return true;
+    // Singleton pattern: if already waking up, return existing promise
+    if (wakeUpPromise) return wakeUpPromise;
+
+    wakeUpPromise = (async () => {
+        for (let i = 0; i < maxRetries; i++) {
+            try {
+                const response = await sendMessage({ action: 'ping' }, 3000);
+                if (response?.pong) {
+                    console.log('[VideoTranslate] Service worker is ready');
+                    return true;
+                }
+            } catch (e) {
+                console.log(`[VideoTranslate] Wake-up attempt ${i + 1}/${maxRetries} failed:`, e.message);
+                // Wait a bit before retrying
+                await new Promise(resolve => setTimeout(resolve, 500));
             }
-        } catch (e) {
-            console.log(`[VideoTranslate] Wake-up attempt ${i + 1}/${maxRetries} failed:`, e.message);
-            // Wait a bit before retrying
-            await new Promise(resolve => setTimeout(resolve, 500));
         }
+        console.warn('[VideoTranslate] Service worker may not be fully ready');
+        return false;
+    })();
+
+    try {
+        return await wakeUpPromise;
+    } finally {
+        wakeUpPromise = null;
     }
-    console.warn('[VideoTranslate] Service worker may not be fully ready');
-    return false;
 }
 
 /**
@@ -109,11 +122,8 @@ function localizePage() {
         const key = element.getAttribute('data-i18n');
         const message = chrome.i18n.getMessage(key);
         if (message) {
-            // Special handling for elements that need HTML (like the backend instruction)
-            if (key === 'backendInstructionHelp') {
-                element.innerHTML = message;
-                return;
-            }
+            // Use textContent for all i18n to prevent XSS
+            // HTML structure should be in the DOM, not in locale files
             element.textContent = message;
         }
     });
@@ -134,6 +144,21 @@ async function checkBackendStatus() {
     let backendUrl = elements.backendUrl?.value?.trim() || 'http://localhost:5001';
     // Remove trailing slash for consistency
     backendUrl = backendUrl.replace(/\/+$/, '');
+
+    // Validate URL to prevent javascript: or other unsafe protocols
+    try {
+        const urlObj = new URL(backendUrl);
+        if (!['http:', 'https:'].includes(urlObj.protocol)) {
+            throw new Error('Invalid protocol');
+        }
+    } catch (urlError) {
+        console.warn('[VideoTranslate] Invalid backend URL:', backendUrl);
+        statusText.textContent = chrome.i18n.getMessage('statusOffline');
+        statusDot.style.background = 'var(--error)';
+        statusDot.style.boxShadow = '0 0 8px var(--error)';
+        elements.backendWarning.style.display = 'flex';
+        return;
+    }
 
     const apiKey = elements.backendApiKey?.value?.trim();
 
@@ -354,30 +379,47 @@ async function loadQueue() {
         elements.queueProcessing.textContent = `${processing} processing`;
         elements.queueCompleted.textContent = `${completed} done`;
 
-        // Render list
-        if (queue.length === 0) {
-            elements.queueList.innerHTML = '<div class="queue-empty">No videos in queue</div>';
-        } else {
-            elements.queueList.innerHTML = queue.map(item => `
-                <div class="queue-item" data-id="${item.id}">
-                    <div class="queue-item-status ${item.status}"></div>
-                    <div class="queue-item-title" title="${item.title}">${item.title}</div>
-                    <button class="queue-item-remove" data-id="${item.id}" title="Remove">
-                        <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M18 6L6 18M6 6l12 12"/>
-                        </svg>
-                    </button>
-                </div>
-            `).join('');
+        // Render list using safe DOM APIs to prevent XSS
+        elements.queueList.textContent = ''; // Clear existing content
 
-            // Add remove listeners
-            elements.queueList.querySelectorAll('.queue-item-remove').forEach(btn => {
-                btn.addEventListener('click', async (e) => {
+        if (queue.length === 0) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'queue-empty';
+            emptyDiv.textContent = 'No videos in queue';
+            elements.queueList.appendChild(emptyDiv);
+        } else {
+            queue.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'queue-item';
+                itemDiv.dataset.id = item.id;
+
+                const statusDiv = document.createElement('div');
+                // Validate status to prevent class injection
+                const safeStatus = ['pending', 'processing', 'completed', 'failed'].includes(item.status)
+                    ? item.status : 'pending';
+                statusDiv.className = `queue-item-status ${safeStatus}`;
+
+                const titleDiv = document.createElement('div');
+                titleDiv.className = 'queue-item-title';
+                titleDiv.title = item.title || '';
+                titleDiv.textContent = item.title || '';
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'queue-item-remove';
+                removeBtn.dataset.id = item.id;
+                removeBtn.title = 'Remove';
+                removeBtn.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>';
+
+                removeBtn.addEventListener('click', async (e) => {
                     e.stopPropagation();
-                    const itemId = btn.dataset.id;
-                    await sendMessage({ action: 'removeFromQueue', itemId });
+                    await sendMessage({ action: 'removeFromQueue', itemId: item.id });
                     loadQueue();
                 });
+
+                itemDiv.appendChild(statusDiv);
+                itemDiv.appendChild(titleDiv);
+                itemDiv.appendChild(removeBtn);
+                elements.queueList.appendChild(itemDiv);
             });
         }
     } catch (error) {

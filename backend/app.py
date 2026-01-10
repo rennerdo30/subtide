@@ -37,18 +37,39 @@ logger = setup_logging(
 )
 
 app = Flask(__name__)
-CORS(app)
+
+# CORS Configuration
+# In production, restrict to known origins. For development, allow localhost.
+# Chrome extensions use "chrome-extension://" scheme, which CORS handles separately.
+CORS_ORIGINS = os.environ.get('CORS_ORIGINS', '*')
+if CORS_ORIGINS != '*':
+    # Parse comma-separated origins
+    CORS_ORIGINS = [o.strip() for o in CORS_ORIGINS.split(',') if o.strip()]
+
+CORS(app, origins=CORS_ORIGINS)
+
 # Use threading mode for MLX compatibility (gevent causes performance issues with Apple Silicon/MLX)
-socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
+socketio = SocketIO(app, cors_allowed_origins=CORS_ORIGINS, async_mode='threading')
 
 # Rate limiting configuration
-# Limits: 30 requests/minute for general endpoints, 5/minute for heavy processing
+# Default: 60/min for general endpoints
+# Heavy endpoints use custom decorators for stricter limits
 limiter = Limiter(
     key_func=get_remote_address,
     app=app,
     default_limits=["60 per minute"],
     storage_uri="memory://",
 )
+
+# Export rate limit decorators for use in route blueprints
+# Usage: @limiter.limit("5 per minute") on expensive endpoints
+RATE_LIMITS = {
+    'default': "60 per minute",
+    'translate': "10 per minute",   # Translation API calls
+    'process': "5 per minute",      # Full video processing
+    'stream': "5 per minute",       # Streaming processing
+    'transcribe': "3 per minute",   # Whisper transcription
+}
 
 # Request size limit (10MB max for POST requests)
 MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
@@ -143,7 +164,8 @@ def print_banner():
         print(" - Speaker Diarization: DISABLED")
         
     print("="*60 + "\n")
-    logger.info(f"Server Configuration: ENABLE_WHISPER={ENABLE_WHISPER}, Tier3Enabled={bool(SERVER_API_KEY)}, Cookies={'Yes' if COOKIES_FILE else 'No'}")
+    # Log configuration status without revealing sensitive details
+    logger.info(f"Server ready: whisper={'enabled' if ENABLE_WHISPER else 'disabled'}, tier3={'configured' if SERVER_API_KEY else 'unconfigured'}, cookies={'present' if COOKIES_FILE else 'none'}")
 
 from backend.preload_models import preload_models
 from backend.services.cache_service import start_cache_scheduler

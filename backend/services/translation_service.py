@@ -13,6 +13,8 @@ from backend.utils.logging_utils import log_with_context, LogContext
 from backend.utils.partial_cache import (
     save_partial_progress, load_partial_progress, clear_partial_progress, compute_source_hash
 )
+from backend.utils.language_detection import validate_batch_language, detect_source_language_leakage
+from backend.utils.model_utils import supports_json_mode
 
 logger = logging.getLogger('video-translate')
 
@@ -69,11 +71,15 @@ def estimate_translation_time(subtitle_count: int) -> float:
     batch_size = 25
     max_workers = 3
     avg_batch_time = get_historical_batch_time()
-    
+
+    # Handle edge case of zero or very few subtitles
+    if subtitle_count <= 0:
+        return avg_batch_time  # Return minimum estimate
+
     total_batches = (subtitle_count + batch_size - 1) // batch_size
-    # Effective batches (parallelized)
-    effective_batches = (total_batches + max_workers - 1) // max_workers
-    
+    # Effective batches (parallelized) - ensure at least 1
+    effective_batches = max(1, (total_batches + max_workers - 1) // max_workers)
+
     return effective_batches * avg_batch_time
 
 def parse_vtt_to_json3(vtt_content: str) -> Dict[str, Any]:
@@ -216,14 +222,17 @@ def await_translate_subtitles(
 
         numbered_subs = "\n".join([f"{i+1}. {s['text']}" for i, s in enumerate(batch)])
         
-        # Context window: include up to 3 previous segments for better context
+        # Context window: use TRANSLATED text from previous segments for continuity
+        # This prevents the LLM from getting confused by source language in context
         context_str = ""
         if batch_idx > 0:
             context_start = max(0, batch_idx - 3)
             context_subs = subtitles[context_start:batch_idx]
             if context_subs:
-                prev_texts = [s.get('text', '') for s in context_subs]
-                context_str = f"\n\n(Previous context for reference - DO NOT translate these, they are for context only:)\n" + "\n".join([f"[prev] {t}" for t in prev_texts])
+                # Use translated text if available (from previous batches)
+                prev_texts = [s.get('translatedText', '') for s in context_subs if s.get('translatedText')]
+                if prev_texts:
+                    context_str = f"\n\n(Previous translations for context continuity - maintain consistent style:)\n" + "\n".join([f"[prev] {t}" for t in prev_texts])
 
         # Build terminology string if provided
         terminology_str = ""
@@ -231,73 +240,163 @@ def await_translate_subtitles(
             terms_list = ", ".join(terminology[:15])  # Limit to prevent prompt bloat
             terminology_str = f" Keep these proper nouns/terms consistent: {terms_list}."
 
-        system_prompt = f"You are a professional subtitle translator. You ONLY output {t_name}. Never output Chinese unless the target language is Chinese.{terminology_str}"
-        user_prompt = f"""Translate these {len(batch)} subtitles to {t_name}.
+        # Check if model supports JSON structured output
+        model = get_model_for_language(target_lang)
+        use_json_mode = supports_json_mode(model)
 
-TARGET LANGUAGE: {t_name} (code: {target_lang})
-CRITICAL: Your output MUST be in {t_name}. Do NOT output Chinese, Japanese, or any other language except {t_name}.
+        if use_json_mode:
+            # JSON mode: more reliable parsing, guaranteed valid JSON
+            system_prompt = f"""You are a subtitle translator. Output ONLY {t_name}.{terminology_str}
+Return a JSON object with a "translations" array containing exactly {len(batch)} translated strings."""
 
-Return exactly {len(batch)} numbered translations, one per line.
-Format: "1. [translation in {t_name}]"
+            user_prompt = f"""Translate to {t_name} ({target_lang}).
 
 Rules:
-- Output ONLY in {t_name} language
-- Return numbered translations 1 to {len(batch)}
+- Output {t_name} only (never English unless that IS the target)
+- Never copy source text untranslated
 - Keep concise for subtitles
-- No explanations or notes
 
-Subtitles to translate:
+Source subtitles:
 {numbered_subs}{context_str}
 
-Remember: Output MUST be in {t_name} only."""
+Return JSON: {{"translations": ["translation1", "translation2", ...]}}"""
+        else:
+            # Numbered lines mode: fallback for models without JSON support
+            system_prompt = f"""You are a subtitle translator. Output ONLY {t_name}.{terminology_str}"""
+
+            user_prompt = f"""Translate to {t_name} ({target_lang}). Return {len(batch)} numbered lines.
+
+Rules:
+- Output {t_name} only (never English unless that IS the target)
+- Never copy source text untranslated
+- Keep concise for subtitles
+- Format: "1. [translation]"
+
+{numbered_subs}{context_str}"""
 
         translations = []
+        last_failure_reason = None  # Track why previous attempt failed
+
         # Local Max Retries for this thread
         for attempt in range(MAX_RETRIES + 1):
             try:
-                # Use language-specific model if configured
-                model = get_model_for_language(target_lang)
-                response = client.chat.completions.create(
-                    model=model,
-                    messages=[
+                # Build retry context if this is a retry
+                retry_context = ""
+                if attempt > 0 and last_failure_reason:
+                    retry_context = f"\n\n**RETRY ATTEMPT {attempt}**: Previous translation was REJECTED because: {last_failure_reason}. You MUST output ALL translations in {t_name} this time."
+
+                # Adjust temperature slightly on retries to get different output
+                temperature = 0.3 + (attempt * 0.1)  # 0.3 -> 0.4 -> 0.5
+
+                # Build API call parameters
+                api_params = {
+                    'model': model,
+                    'messages': [
                         {"role": "system", "content": system_prompt},
-                        {"role": "user", "content": user_prompt}
+                        {"role": "user", "content": user_prompt + retry_context}
                     ],
-                    temperature=0.3,
-                    max_tokens=4096
-                )
+                    'temperature': min(temperature, 0.7),  # Cap at 0.7
+                    'max_tokens': 4096
+                }
+
+                # Add JSON mode if supported
+                if use_json_mode:
+                    api_params['response_format'] = {"type": "json_object"}
+
+                response = client.chat.completions.create(**api_params)
+
+                # Track token usage for cost estimation
+                usage = None
+                if hasattr(response, 'usage') and response.usage:
+                    usage = {
+                        'prompt_tokens': response.usage.prompt_tokens or 0,
+                        'completion_tokens': response.usage.completion_tokens or 0,
+                        'total_tokens': response.usage.total_tokens or 0
+                    }
 
                 content = response.choices[0].message.content
 
-                # Parse translations
-                lines = content.strip().split('\n')
+                # Parse translations based on mode
                 translations = []
-                for line in lines:
-                    cleaned = line.strip()
-                    if not cleaned: continue
-                    if cleaned[0].isdigit():
-                        match = re.match(r'^\d+[\.\)\:\-]\s*(.*)', cleaned)
-                        if match:
-                            cleaned = match.group(1).strip()
-                    if cleaned:
-                        translations.append(cleaned)
+                if use_json_mode:
+                    # JSON mode: parse JSON response
+                    try:
+                        parsed = json.loads(content)
+                        if isinstance(parsed, dict) and 'translations' in parsed:
+                            translations = parsed['translations']
+                        elif isinstance(parsed, list):
+                            translations = parsed
+                        else:
+                            # Try to extract any array from the response
+                            for key, value in parsed.items():
+                                if isinstance(value, list) and len(value) > 0:
+                                    translations = value
+                                    break
+                    except json.JSONDecodeError as e:
+                        log_with_context(logger, 'WARNING', f"[TRANSLATE] JSON parse failed, falling back to line parsing: {e}")
+                        # Fall back to line parsing
+                        use_json_mode = False
 
-                # Verify count - if we have most of them, accept it
+                if not translations:
+                    # Numbered lines mode or JSON fallback
+                    lines = content.strip().split('\n')
+                    for line in lines:
+                        cleaned = line.strip()
+                        if not cleaned:
+                            continue
+                        if cleaned[0].isdigit():
+                            match = re.match(r'^\d+[\.\)\:\-]\s*(.*)', cleaned)
+                            if match:
+                                cleaned = match.group(1).strip()
+                        if cleaned:
+                            translations.append(cleaned)
+
+                # Verify count - if we have most of them, validate language
                 if len(translations) >= len(batch) * 0.8:
                     batch_duration = time.time() - batch_start
-                    
-                    # Quality verification - log issues but don't block
+
+                    # Language validation - verify output is in target language
+                    is_valid_lang, invalid_indices, lang_reason = validate_batch_language(translations, target_lang)
+
+                    if not is_valid_lang:
+                        log_with_context(logger, 'WARNING',
+                            f"[TRANSLATE] Batch {batch_num} wrong language: {lang_reason} ({len(invalid_indices)} invalid)")
+                        if attempt < MAX_RETRIES:
+                            last_failure_reason = f"Output contained wrong language ({lang_reason}). Expected {t_name} but got English or other language."
+                            time.sleep(1)
+                            continue  # Retry with context about failure
+
+                    # Check for source language leakage (untranslated text)
+                    source_texts = [s.get('text', '') for s in batch[:len(translations)]]
+                    has_leakage, leakage_indices = detect_source_language_leakage(source_texts, translations)
+
+                    if has_leakage:
+                        log_with_context(logger, 'WARNING',
+                            f"[TRANSLATE] Batch {batch_num} has source leakage ({len(leakage_indices)} untranslated)")
+                        if attempt < MAX_RETRIES:
+                            last_failure_reason = f"Source text was copied without translation ({len(leakage_indices)} lines untranslated). You MUST translate every line."
+                            time.sleep(1)
+                            continue  # Retry with context about failure
+
+                    # Quality verification - now blocks on high failure rate
                     try:
                         from backend.utils.translation_quality import verify_batch
-                        source_texts = [s.get('text', '') for s in batch[:len(translations)]]
                         valid, invalid, issues = verify_batch(source_texts, translations, target_lang)
-                        if invalid > 0:
-                            log_with_context(logger, 'WARNING', f"[TRANSLATE] Batch {batch_num} has {invalid} quality issues")
+                        if invalid > len(batch) * 0.3:  # >30% invalid = retry
+                            log_with_context(logger, 'WARNING',
+                                f"[TRANSLATE] Batch {batch_num} quality issues ({invalid}/{len(batch)})")
+                            if attempt < MAX_RETRIES:
+                                last_failure_reason = f"Quality check failed ({invalid}/{len(batch)} translations had issues). Ensure accurate, natural translations."
+                                time.sleep(1)
+                                continue  # Retry with context
+                        elif invalid > 0:
+                            log_with_context(logger, 'WARNING',
+                                f"[TRANSLATE] Batch {batch_num} has {invalid} minor quality issues (accepted)")
                     except ImportError:
                         pass  # Quality module not available
-                    
+
                     log_with_context(logger, 'INFO', f"[TRANSLATE] Batch {batch_num}/{total_batches} OK ({len(translations)}/{len(batch)}) in {batch_duration:.1f}s")
-                    return batch_idx, translations, True, batch_duration
+                    return batch_idx, translations, True, batch_duration, usage
                 else:
                     logger.warning(f"[TRANSLATE] Batch {batch_num} incomplete: {len(translations)}/{len(batch)}")
 
@@ -322,20 +421,27 @@ Remember: Output MUST be in {t_name} only."""
                     time.sleep(1)
 
         batch_duration = time.time() - batch_start
-        return batch_idx, translations if translations else [], False, batch_duration
+        return batch_idx, translations if translations else [], False, batch_duration, None
 
     def process_batches(batch_list, round_num=1):
         results = {}
         failed_batches = []
+        total_usage = {'prompt_tokens': 0, 'completion_tokens': 0, 'total_tokens': 0}
 
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             futures = {executor.submit(translate_batch, batch, round_num > 1): batch for batch in batch_list}
 
             for future in as_completed(futures):
-                batch_idx, translations, success, duration = future.result()
+                batch_idx, translations, success, duration, usage = future.result()
                 results[batch_idx] = translations
                 completed_batches[0] += 1
                 batch_times.append(duration)
+
+                # Accumulate token usage for cost tracking
+                if usage:
+                    total_usage['prompt_tokens'] += usage.get('prompt_tokens', 0)
+                    total_usage['completion_tokens'] += usage.get('completion_tokens', 0)
+                    total_usage['total_tokens'] += usage.get('total_tokens', 0)
 
                 batch_data = batches[batch_idx // BATCH_SIZE][1]
 
@@ -378,10 +484,10 @@ Remember: Output MUST be in {t_name} only."""
                     pct = int((completed_batches[0] / total_batches) * 100)
                     progress_callback(completed_batches[0], total_batches, min(pct, 99), eta_str)
 
-        return results, failed_batches
+        return results, failed_batches, total_usage
 
     # Initial pass
-    results, failed_batches = process_batches(batches)
+    results, failed_batches, usage_totals = process_batches(batches)
 
     # Retry failed batches
     for retry_round in range(RETRY_ROUNDS):
@@ -389,8 +495,12 @@ Remember: Output MUST be in {t_name} only."""
             break
         logger.info(f"[TRANSLATE] Retry round {retry_round + 1}: {len(failed_batches)} failed batches")
         time.sleep(3)  # Reduced from 5s to 3s for faster retries
-        retry_results, failed_batches = process_batches(failed_batches, retry_round + 2)
+        retry_results, failed_batches, retry_usage = process_batches(failed_batches, retry_round + 2)
         results.update(retry_results)
+        # Accumulate retry usage
+        usage_totals['prompt_tokens'] += retry_usage.get('prompt_tokens', 0)
+        usage_totals['completion_tokens'] += retry_usage.get('completion_tokens', 0)
+        usage_totals['total_tokens'] += retry_usage.get('total_tokens', 0)
 
     # Apply translations for batches that weren't streamed
     # (retried batches or when batch_result_callback is not provided)
@@ -420,6 +530,19 @@ Remember: Output MUST be in {t_name} only."""
         if video_id:
             clear_partial_progress(video_id, target_lang)
 
+    # Log token usage for cost tracking (Tier 3)
+    if usage_totals and usage_totals.get('total_tokens', 0) > 0:
+        prompt_tokens = usage_totals['prompt_tokens']
+        completion_tokens = usage_totals['completion_tokens']
+        total_tokens = usage_totals['total_tokens']
+        # Estimate cost (approximate pricing for common models)
+        # GPT-4: ~$0.03/1K prompt, $0.06/1K completion
+        # GPT-3.5-turbo: ~$0.0005/1K prompt, $0.0015/1K completion
+        # Claude: ~$0.008/1K prompt, $0.024/1K completion
+        estimated_cost = (prompt_tokens * 0.01 + completion_tokens * 0.03) / 1000  # Conservative average
+        log_with_context(logger, 'INFO',
+            f"[COST] Tokens: {total_tokens:,} (prompt: {prompt_tokens:,}, completion: {completion_tokens:,}) | Est. cost: ${estimated_cost:.4f}")
+
     return subtitles
 
 def translate_subtitles_simple(
@@ -448,8 +571,30 @@ def translate_subtitles_simple(
     t_name = LANG_NAMES.get(target_lang, target_lang)
     numbered_subs = "\n".join([f"{i+1}. {s.get('text', '')}" for i, s in enumerate(subtitles)])
 
-    system_prompt = f"You are a professional subtitle translator. You ONLY output {t_name}. Never output Chinese unless translating TO Chinese."
-    user_prompt = f"""Translate the following subtitles from {s_name} to {t_name}.
+    # Check if model supports JSON structured output
+    use_json_mode = supports_json_mode(model_id)
+
+    if use_json_mode:
+        # JSON mode: more reliable parsing
+        system_prompt = f"""You are a professional subtitle translator. You ONLY output {t_name}.
+Return a JSON object with a "translations" array containing exactly {len(subtitles)} translated strings."""
+
+        user_prompt = f"""Translate these subtitles from {s_name} to {t_name}.
+
+Rules:
+- Maintain original meaning, tone, and emotion
+- Keep translations concise for subtitle display
+- Preserve speaker indicators and sound effects in brackets
+- Output MUST be in {t_name}
+
+Subtitles:
+{numbered_subs}
+
+Return JSON: {{"translations": ["translation1", "translation2", ...]}}"""
+    else:
+        # Numbered lines mode: fallback
+        system_prompt = f"You are a professional subtitle translator. You ONLY output {t_name}. Never output Chinese unless translating TO Chinese."
+        user_prompt = f"""Translate the following subtitles from {s_name} to {t_name}.
 
 TARGET LANGUAGE: {t_name} (code: {target_lang})
 CRITICAL: Your output MUST be in {t_name}. Do NOT output Chinese or any other language except {t_name}.
@@ -481,40 +626,74 @@ Remember: All output must be in {t_name}."""
 
     try:
         client = OpenAI(**client_args)
-        
-        start_time = time.time()
-        logger.info("Sending request to LLM...")
 
-        response = client.chat.completions.create(
-            model=model_id,
-            messages=[
+        start_time = time.time()
+        logger.info(f"Sending request to LLM... (JSON mode: {use_json_mode})")
+
+        # Build API call parameters
+        api_params = {
+            'model': model_id,
+            'messages': [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=0.3,
-            max_tokens=8192
-        )
+            'temperature': 0.3,
+            'max_tokens': 8192
+        }
+
+        # Add JSON mode if supported
+        if use_json_mode:
+            api_params['response_format'] = {"type": "json_object"}
+
+        response = client.chat.completions.create(**api_params)
+
+        # Track token usage for cost estimation
+        usage = None
+        if hasattr(response, 'usage') and response.usage:
+            usage = {
+                'prompt_tokens': response.usage.prompt_tokens or 0,
+                'completion_tokens': response.usage.completion_tokens or 0,
+                'total_tokens': response.usage.total_tokens or 0
+            }
 
         elapsed = time.time() - start_time
         logger.info(f"Response received in {elapsed:.2f}s")
 
         content = response.choices[0].message.content
 
-        # Parse response
-        lines = content.strip().split('\n')
+        # Parse response based on mode
         translations = []
-        for line in lines:
-            cleaned = line.strip()
-            if cleaned and cleaned[0].isdigit():
-                match = re.match(r'^\d+[\.\)]\s*(.*)', cleaned)
-                if match:
-                    cleaned = match.group(1).strip()
-            
-            if cleaned:
-                translations.append(cleaned)
+        if use_json_mode:
+            try:
+                parsed = json.loads(content)
+                if isinstance(parsed, dict) and 'translations' in parsed:
+                    translations = parsed['translations']
+                elif isinstance(parsed, list):
+                    translations = parsed
+                else:
+                    # Try to extract any array from the response
+                    for key, value in parsed.items():
+                        if isinstance(value, list) and len(value) > 0:
+                            translations = value
+                            break
+            except json.JSONDecodeError as e:
+                logger.warning(f"JSON parse failed, falling back to line parsing: {e}")
+
+        if not translations:
+            # Numbered lines mode or JSON fallback
+            lines = content.strip().split('\n')
+            for line in lines:
+                cleaned = line.strip()
+                if cleaned and cleaned[0].isdigit():
+                    match = re.match(r'^\d+[\.\)]\s*(.*)', cleaned)
+                    if match:
+                        cleaned = match.group(1).strip()
+
+                if cleaned:
+                    translations.append(cleaned)
 
         logger.info(f"Received {len(translations)} translations (Expected {len(subtitles)})")
-        
+
         # Ensure correct count
         expected = len(subtitles)
         if len(translations) != expected:
@@ -525,7 +704,11 @@ Remember: All output must be in {t_name}."""
             else:
                 translations = translations[:expected]
 
-        return {'translations': translations}
+        # Log token usage for cost tracking (Tier 1/2)
+        if usage and usage.get('total_tokens', 0) > 0:
+            logger.info(f"[COST] Tokens: {usage['total_tokens']:,} (prompt: {usage['prompt_tokens']:,}, completion: {usage['completion_tokens']:,})")
+
+        return {'translations': translations, 'usage': usage}
 
     except Exception as e:
         logger.exception("Translation error")

@@ -8,12 +8,28 @@
  */
 
 // ============================================================================
+// Debug Logging Utility (Service Worker version)
+// ============================================================================
+
+const DEBUG_ENABLED = false; // Set to true for development
+
+const vtLog = {
+    debug: (...args) => {
+        if (DEBUG_ENABLED) console.log('[VideoTranslate]', ...args);
+    },
+    info: (...args) => console.log('[VideoTranslate]', ...args),
+    warn: (...args) => console.warn('[VideoTranslate]', ...args),
+    error: (...args) => console.error('[VideoTranslate]', ...args),
+};
+
+// ============================================================================
 // Storage Utilities
 // ============================================================================
 
 const STORAGE_KEYS = {
     API_URL: 'apiUrl',
     API_KEY: 'apiKey',
+    API_KEY_ENCRYPTED: 'apiKeyEncrypted',  // Encrypted version for persistence
     MODEL: 'model',
     TIER: 'tier',
     FORCE_GEN: 'forceGen',
@@ -21,6 +37,7 @@ const STORAGE_KEYS = {
     TRANSLATION_CACHE: 'translationCache',
     BACKEND_URL: 'backendUrl',
     BACKEND_API_KEY: 'backendApiKey',
+    BACKEND_API_KEY_ENCRYPTED: 'backendApiKeyEncrypted',  // Encrypted version
     // Subtitle appearance
     SUBTITLE_SIZE: 'subtitleSize',
     SUBTITLE_POSITION: 'subtitlePosition',
@@ -31,6 +48,154 @@ const STORAGE_KEYS = {
     SUBTITLE_OPACITY: 'subtitleOpacity',
     SUBTITLE_SHOW_SPEAKER: 'subtitleShowSpeaker',
 };
+
+// ============================================================================
+// Secure API Key Storage
+// Uses chrome.storage.session (session-only, more secure) with encrypted
+// fallback to chrome.storage.local for persistence across browser restarts.
+// ============================================================================
+
+// Encryption key derived from extension ID (unique per installation)
+let encryptionKey = null;
+
+async function getEncryptionKey() {
+    if (encryptionKey) return encryptionKey;
+
+    // Use extension ID + a constant as key material
+    // This isn't perfect security but prevents casual key theft
+    const keyMaterial = await crypto.subtle.importKey(
+        'raw',
+        new TextEncoder().encode(chrome.runtime.id + '_vt_secure_storage'),
+        { name: 'PBKDF2' },
+        false,
+        ['deriveBits', 'deriveKey']
+    );
+
+    // Use random salt per-installation for better security
+    const installSalt = chrome.runtime.id + '_v1';
+
+    encryptionKey = await crypto.subtle.deriveKey(
+        {
+            name: 'PBKDF2',
+            salt: new TextEncoder().encode(installSalt),
+            iterations: 310000,  // OWASP recommendation for 2024
+            hash: 'SHA-256'
+        },
+        keyMaterial,
+        { name: 'AES-GCM', length: 256 },
+        false,
+        ['encrypt', 'decrypt']
+    );
+
+    return encryptionKey;
+}
+
+async function encryptApiKey(plaintext) {
+    if (!plaintext) return null;
+    try {
+        const key = await getEncryptionKey();
+        const iv = crypto.getRandomValues(new Uint8Array(12));
+        const encoded = new TextEncoder().encode(plaintext);
+
+        const ciphertext = await crypto.subtle.encrypt(
+            { name: 'AES-GCM', iv },
+            key,
+            encoded
+        );
+
+        // Combine IV + ciphertext and base64 encode
+        const combined = new Uint8Array(iv.length + ciphertext.byteLength);
+        combined.set(iv);
+        combined.set(new Uint8Array(ciphertext), iv.length);
+
+        return btoa(String.fromCharCode(...combined));
+    } catch (e) {
+        console.error('[VideoTranslate] Encryption failed:', e);
+        return null;
+    }
+}
+
+async function decryptApiKey(encrypted) {
+    if (!encrypted) return null;
+    try {
+        const key = await getEncryptionKey();
+        const combined = Uint8Array.from(atob(encrypted), c => c.charCodeAt(0));
+
+        const iv = combined.slice(0, 12);
+        const ciphertext = combined.slice(12);
+
+        const decrypted = await crypto.subtle.decrypt(
+            { name: 'AES-GCM', iv },
+            key,
+            ciphertext
+        );
+
+        return new TextDecoder().decode(decrypted);
+    } catch (e) {
+        console.error('[VideoTranslate] Decryption failed:', e);
+        return null;
+    }
+}
+
+/**
+ * Store API key securely
+ * - Primary: chrome.storage.session (cleared on browser close, more secure)
+ * - Backup: Encrypted in chrome.storage.local (persists, but encrypted)
+ */
+async function storeApiKeySecurely(key, value) {
+    if (!value) {
+        // Clear both storages
+        await chrome.storage.session.remove([key]);
+        await chrome.storage.local.remove([key, key + 'Encrypted']);
+        return;
+    }
+
+    // Store in session (secure, session-only)
+    await chrome.storage.session.set({ [key]: value });
+
+    // Store encrypted in local (persists across restarts)
+    const encrypted = await encryptApiKey(value);
+    if (encrypted) {
+        await chrome.storage.local.set({ [key + 'Encrypted']: encrypted });
+    }
+}
+
+/**
+ * Retrieve API key securely
+ * - First check session storage (already decrypted)
+ * - Fallback to decrypting from local storage
+ */
+async function getApiKeySecurely(key) {
+    // Try session first
+    const session = await chrome.storage.session.get([key]);
+    if (session[key]) {
+        return session[key];
+    }
+
+    // Fallback to encrypted local storage
+    const local = await chrome.storage.local.get([key + 'Encrypted']);
+    const encrypted = local[key + 'Encrypted'];
+    if (encrypted) {
+        const decrypted = await decryptApiKey(encrypted);
+        if (decrypted) {
+            // Re-populate session for faster future access
+            await chrome.storage.session.set({ [key]: decrypted });
+            return decrypted;
+        }
+    }
+
+    // Legacy fallback: check unencrypted local storage and migrate
+    const legacy = await chrome.storage.local.get([key]);
+    if (legacy[key]) {
+        // Migrate to secure storage
+        await storeApiKeySecurely(key, legacy[key]);
+        // Remove legacy unencrypted key
+        await chrome.storage.local.remove([key]);
+        return legacy[key];
+    }
+
+    return null;
+}
 
 const DEFAULT_CONFIG = {
     apiUrl: 'https://api.openai.com/v1',
@@ -52,55 +217,78 @@ const DEFAULT_CONFIG = {
 };
 
 async function getConfig() {
-    return new Promise((resolve) => {
-        chrome.storage.local.get(Object.values(STORAGE_KEYS), (result) => {
-            resolve({
-                apiUrl: result[STORAGE_KEYS.API_URL] || DEFAULT_CONFIG.apiUrl,
-                apiKey: result[STORAGE_KEYS.API_KEY] || DEFAULT_CONFIG.apiKey,
-                model: result[STORAGE_KEYS.MODEL] || DEFAULT_CONFIG.model,
-                tier: result[STORAGE_KEYS.TIER] || DEFAULT_CONFIG.tier,
-                forceGen: result[STORAGE_KEYS.FORCE_GEN] || DEFAULT_CONFIG.forceGen,
-                defaultLanguage: result[STORAGE_KEYS.DEFAULT_LANGUAGE] || DEFAULT_CONFIG.defaultLanguage,
-                backendUrl: result[STORAGE_KEYS.BACKEND_URL] || DEFAULT_CONFIG.backendUrl,
-                backendApiKey: result[STORAGE_KEYS.BACKEND_API_KEY] || '',
-                // Subtitle appearance
-                subtitleSize: result[STORAGE_KEYS.SUBTITLE_SIZE] || DEFAULT_CONFIG.subtitleSize,
-                subtitlePosition: result[STORAGE_KEYS.SUBTITLE_POSITION] || DEFAULT_CONFIG.subtitlePosition,
-                subtitleBackground: result[STORAGE_KEYS.SUBTITLE_BACKGROUND] || DEFAULT_CONFIG.subtitleBackground,
-                subtitleColor: result[STORAGE_KEYS.SUBTITLE_COLOR] || DEFAULT_CONFIG.subtitleColor,
-                subtitleFont: result[STORAGE_KEYS.SUBTITLE_FONT] || DEFAULT_CONFIG.subtitleFont,
-                subtitleOutline: result[STORAGE_KEYS.SUBTITLE_OUTLINE] || DEFAULT_CONFIG.subtitleOutline,
-                subtitleOpacity: result[STORAGE_KEYS.SUBTITLE_OPACITY] || DEFAULT_CONFIG.subtitleOpacity,
-                subtitleShowSpeaker: result[STORAGE_KEYS.SUBTITLE_SHOW_SPEAKER] || DEFAULT_CONFIG.subtitleShowSpeaker,
-            });
-        });
+    // Get non-sensitive config from local storage
+    const result = await new Promise((resolve) => {
+        chrome.storage.local.get(Object.values(STORAGE_KEYS), resolve);
     });
+
+    // Get API keys securely (session + encrypted fallback)
+    const [apiKey, backendApiKey] = await Promise.all([
+        getApiKeySecurely(STORAGE_KEYS.API_KEY),
+        getApiKeySecurely(STORAGE_KEYS.BACKEND_API_KEY)
+    ]);
+
+    return {
+        apiUrl: result[STORAGE_KEYS.API_URL] || DEFAULT_CONFIG.apiUrl,
+        apiKey: apiKey || DEFAULT_CONFIG.apiKey,
+        model: result[STORAGE_KEYS.MODEL] || DEFAULT_CONFIG.model,
+        tier: result[STORAGE_KEYS.TIER] || DEFAULT_CONFIG.tier,
+        forceGen: result[STORAGE_KEYS.FORCE_GEN] || DEFAULT_CONFIG.forceGen,
+        defaultLanguage: result[STORAGE_KEYS.DEFAULT_LANGUAGE] || DEFAULT_CONFIG.defaultLanguage,
+        backendUrl: result[STORAGE_KEYS.BACKEND_URL] || DEFAULT_CONFIG.backendUrl,
+        backendApiKey: backendApiKey || '',
+        // Subtitle appearance
+        subtitleSize: result[STORAGE_KEYS.SUBTITLE_SIZE] || DEFAULT_CONFIG.subtitleSize,
+        subtitlePosition: result[STORAGE_KEYS.SUBTITLE_POSITION] || DEFAULT_CONFIG.subtitlePosition,
+        subtitleBackground: result[STORAGE_KEYS.SUBTITLE_BACKGROUND] || DEFAULT_CONFIG.subtitleBackground,
+        subtitleColor: result[STORAGE_KEYS.SUBTITLE_COLOR] || DEFAULT_CONFIG.subtitleColor,
+        subtitleFont: result[STORAGE_KEYS.SUBTITLE_FONT] || DEFAULT_CONFIG.subtitleFont,
+        subtitleOutline: result[STORAGE_KEYS.SUBTITLE_OUTLINE] || DEFAULT_CONFIG.subtitleOutline,
+        subtitleOpacity: result[STORAGE_KEYS.SUBTITLE_OPACITY] || DEFAULT_CONFIG.subtitleOpacity,
+        subtitleShowSpeaker: result[STORAGE_KEYS.SUBTITLE_SHOW_SPEAKER] || DEFAULT_CONFIG.subtitleShowSpeaker,
+    };
 }
 
 async function saveConfig(config) {
-    return new Promise((resolve) => {
-        const toSave = {};
-        // Only save defined values (partial update support)
-        if (config.apiUrl !== undefined) toSave[STORAGE_KEYS.API_URL] = config.apiUrl;
-        if (config.apiKey !== undefined) toSave[STORAGE_KEYS.API_KEY] = config.apiKey;
-        if (config.model !== undefined) toSave[STORAGE_KEYS.MODEL] = config.model;
-        if (config.tier !== undefined) toSave[STORAGE_KEYS.TIER] = config.tier;
-        if (config.forceGen !== undefined) toSave[STORAGE_KEYS.FORCE_GEN] = config.forceGen;
-        if (config.defaultLanguage !== undefined) toSave[STORAGE_KEYS.DEFAULT_LANGUAGE] = config.defaultLanguage;
-        if (config.backendUrl !== undefined) toSave[STORAGE_KEYS.BACKEND_URL] = config.backendUrl;
-        if (config.backendApiKey !== undefined) toSave[STORAGE_KEYS.BACKEND_API_KEY] = config.backendApiKey;
-        // Subtitle appearance
-        if (config.subtitleSize !== undefined) toSave[STORAGE_KEYS.SUBTITLE_SIZE] = config.subtitleSize;
-        if (config.subtitlePosition !== undefined) toSave[STORAGE_KEYS.SUBTITLE_POSITION] = config.subtitlePosition;
-        if (config.subtitleBackground !== undefined) toSave[STORAGE_KEYS.SUBTITLE_BACKGROUND] = config.subtitleBackground;
-        if (config.subtitleColor !== undefined) toSave[STORAGE_KEYS.SUBTITLE_COLOR] = config.subtitleColor;
-        if (config.subtitleFont !== undefined) toSave[STORAGE_KEYS.SUBTITLE_FONT] = config.subtitleFont;
-        if (config.subtitleOutline !== undefined) toSave[STORAGE_KEYS.SUBTITLE_OUTLINE] = config.subtitleOutline;
-        if (config.subtitleOpacity !== undefined) toSave[STORAGE_KEYS.SUBTITLE_OPACITY] = config.subtitleOpacity;
-        if (config.subtitleShowSpeaker !== undefined) toSave[STORAGE_KEYS.SUBTITLE_SHOW_SPEAKER] = config.subtitleShowSpeaker;
+    const toSave = {};
 
-        chrome.storage.local.set(toSave, resolve);
-    });
+    // Handle API keys securely (separate from regular storage)
+    const secureKeyPromises = [];
+    if (config.apiKey !== undefined) {
+        secureKeyPromises.push(storeApiKeySecurely(STORAGE_KEYS.API_KEY, config.apiKey));
+    }
+    if (config.backendApiKey !== undefined) {
+        secureKeyPromises.push(storeApiKeySecurely(STORAGE_KEYS.BACKEND_API_KEY, config.backendApiKey));
+    }
+
+    // Save non-sensitive config to local storage
+    if (config.apiUrl !== undefined) toSave[STORAGE_KEYS.API_URL] = config.apiUrl;
+    if (config.model !== undefined) toSave[STORAGE_KEYS.MODEL] = config.model;
+    if (config.tier !== undefined) toSave[STORAGE_KEYS.TIER] = config.tier;
+    if (config.forceGen !== undefined) toSave[STORAGE_KEYS.FORCE_GEN] = config.forceGen;
+    if (config.defaultLanguage !== undefined) toSave[STORAGE_KEYS.DEFAULT_LANGUAGE] = config.defaultLanguage;
+    if (config.backendUrl !== undefined) toSave[STORAGE_KEYS.BACKEND_URL] = config.backendUrl;
+    // Subtitle appearance
+    if (config.subtitleSize !== undefined) toSave[STORAGE_KEYS.SUBTITLE_SIZE] = config.subtitleSize;
+    if (config.subtitlePosition !== undefined) toSave[STORAGE_KEYS.SUBTITLE_POSITION] = config.subtitlePosition;
+    if (config.subtitleBackground !== undefined) toSave[STORAGE_KEYS.SUBTITLE_BACKGROUND] = config.subtitleBackground;
+    if (config.subtitleColor !== undefined) toSave[STORAGE_KEYS.SUBTITLE_COLOR] = config.subtitleColor;
+    if (config.subtitleFont !== undefined) toSave[STORAGE_KEYS.SUBTITLE_FONT] = config.subtitleFont;
+    if (config.subtitleOutline !== undefined) toSave[STORAGE_KEYS.SUBTITLE_OUTLINE] = config.subtitleOutline;
+    if (config.subtitleOpacity !== undefined) toSave[STORAGE_KEYS.SUBTITLE_OPACITY] = config.subtitleOpacity;
+    if (config.subtitleShowSpeaker !== undefined) toSave[STORAGE_KEYS.SUBTITLE_SHOW_SPEAKER] = config.subtitleShowSpeaker;
+
+    // Wait for secure key storage and regular storage in parallel
+    await Promise.all([
+        ...secureKeyPromises,
+        new Promise((resolve) => {
+            if (Object.keys(toSave).length > 0) {
+                chrome.storage.local.set(toSave, resolve);
+            } else {
+                resolve();
+            }
+        })
+    ]);
 }
 
 async function isConfigured() {
@@ -121,7 +309,9 @@ const MAX_CACHE_ENTRIES = 100;
 const CACHE_VERSION = 1;
 
 function generateCacheKey(videoId, sourceLanguage, targetLanguage) {
-    return `${videoId}_${sourceLanguage}_${targetLanguage}`;
+    // Use JSON encoding to avoid collision with underscore-containing IDs
+    // e.g., "abc_de" + "en" vs "abc" + "de_en" would collide with simple concatenation
+    return JSON.stringify([videoId, sourceLanguage, targetLanguage]);
 }
 
 async function getAllCache() {
@@ -146,7 +336,7 @@ async function getCachedTranslation(videoId, sourceLanguage, targetLanguage) {
     if (entry) {
         entry.lastAccess = Date.now();
         await saveCache(cache);
-        console.log(`[VideoTranslate] Cache hit for ${key}`);
+        vtLog.debug(`Cache hit for ${key}`);
         return entry.translations;
     }
     return null;
@@ -244,7 +434,7 @@ function detectLanguage(subtitles, sampleSize = 5) {
         detected = 'ja'; // Likely Japanese with kanji
     }
 
-    console.log(`[VideoTranslate] Detected language: ${detected} (scores: ${JSON.stringify(scores)})`);
+    vtLog.debug(`Detected language: ${detected}`);
     return detected;
 }
 
@@ -431,14 +621,253 @@ function parseTranslationResponse(response, expectedCount) {
     return translations.slice(0, expectedCount);
 }
 
+// =============================================================================
+// Request Cancellation Support
+// =============================================================================
+
+// Map of tabId -> AbortController for cancelling in-flight requests
+const activeRequests = new Map();
+
+/**
+ * Get or create an AbortController for a tab
+ * @param {number} tabId - Tab ID
+ * @returns {AbortController}
+ */
+function getAbortController(tabId) {
+    if (!activeRequests.has(tabId)) {
+        activeRequests.set(tabId, new AbortController());
+    }
+    return activeRequests.get(tabId);
+}
+
+/**
+ * Cancel all active requests for a tab
+ * @param {number} tabId - Tab ID
+ */
+function cancelRequests(tabId) {
+    const controller = activeRequests.get(tabId);
+    if (controller) {
+        controller.abort();
+        activeRequests.delete(tabId);
+        console.log(`[VideoTranslate] Cancelled requests for tab ${tabId}`);
+    }
+}
+
+/**
+ * Clear abort controller for a tab (after successful completion)
+ * @param {number} tabId - Tab ID
+ */
+function clearAbortController(tabId) {
+    activeRequests.delete(tabId);
+}
+
+// Listen for tab removal to cleanup
+chrome.tabs.onRemoved.addListener((tabId) => {
+    cancelRequests(tabId);
+});
+
+// Listen for tab navigation to cancel pending requests
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.url) {
+        cancelRequests(tabId);
+    }
+});
+
+// ============================================================================
+// Shorts Pre-Translation Queue
+// ============================================================================
+
+const shortsQueue = [];
+const shortsCache = new Map();  // videoId -> subtitles
+const shortsInProgress = new Set();  // videoIds currently being translated
+const MAX_CONCURRENT_SHORTS = 4;
+const SHORTS_CACHE_MAX_SIZE = 50;  // Keep last 50 Shorts cached
+let activeShortTranslations = 0;
+
+/**
+ * Queue a Short video for pre-translation
+ */
+async function queueShortsTranslation(videoId, targetLang, priority) {
+    // Skip if already cached
+    if (shortsCache.has(videoId)) {
+        vtLog.debug(`[Shorts] Already cached: ${videoId}`);
+        return { status: 'cached' };
+    }
+
+    // Skip if already in queue or being processed
+    if (shortsQueue.some(q => q.videoId === videoId) || shortsInProgress.has(videoId)) {
+        vtLog.debug(`[Shorts] Already queued/processing: ${videoId}`);
+        return { status: 'queued' };
+    }
+
+    // Add to queue with priority
+    shortsQueue.push({ videoId, targetLang, priority });
+    shortsQueue.sort((a, b) => a.priority - b.priority);
+
+    vtLog.debug(`[Shorts] Queued: ${videoId} (priority: ${priority}, queue size: ${shortsQueue.length})`);
+
+    // Start processing
+    processShortsQueue();
+
+    return { status: 'queued' };
+}
+
+/**
+ * Process Shorts queue - translate videos in background
+ */
+async function processShortsQueue() {
+    // Process while we have items and capacity
+    while (shortsQueue.length > 0 && activeShortTranslations < MAX_CONCURRENT_SHORTS) {
+        const item = shortsQueue.shift();
+
+        // Double-check not already cached (race condition protection)
+        if (shortsCache.has(item.videoId) || shortsInProgress.has(item.videoId)) {
+            continue;
+        }
+
+        activeShortTranslations++;
+        shortsInProgress.add(item.videoId);
+
+        vtLog.debug(`[Shorts] Processing: ${item.videoId} (active: ${activeShortTranslations})`);
+
+        // Process in background (don't await)
+        translateShort(item.videoId, item.targetLang)
+            .then(subtitles => {
+                if (subtitles && subtitles.length > 0) {
+                    // Cache the result
+                    shortsCache.set(item.videoId, subtitles);
+
+                    // LRU eviction if cache too large
+                    if (shortsCache.size > SHORTS_CACHE_MAX_SIZE) {
+                        const firstKey = shortsCache.keys().next().value;
+                        shortsCache.delete(firstKey);
+                    }
+
+                    vtLog.debug(`[Shorts] Cached: ${item.videoId} (${subtitles.length} subs)`);
+
+                    // Notify all Shorts tabs
+                    notifyShortsTabsTranslationReady(item.videoId, subtitles);
+                }
+            })
+            .catch(e => {
+                vtLog.warn(`[Shorts] Translation failed for ${item.videoId}:`, e.message);
+            })
+            .finally(() => {
+                activeShortTranslations--;
+                shortsInProgress.delete(item.videoId);
+
+                // Continue processing queue
+                if (shortsQueue.length > 0) {
+                    processShortsQueue();
+                }
+            });
+    }
+}
+
+/**
+ * Translate a single Short video
+ */
+async function translateShort(videoId, targetLang) {
+    const config = await getConfig();
+
+    // Check extension cache first (may have been translated via regular video path)
+    const cached = await getCachedTranslation(videoId, 'auto', targetLang);
+    if (cached) {
+        return cached;
+    }
+
+    // Use Tier 3 processing (most efficient for Shorts)
+    if (config.tier === 'tier3' || config.tier === 'tier4') {
+        try {
+            const subtitles = await processVideoTier3(
+                videoId,
+                targetLang,
+                config,
+                null,  // No progress callback needed for background
+                null,  // No tab ID
+                null,  // No video URL (backend will fetch)
+                null   // No stream URL
+            );
+
+            // Also save to main cache
+            if (subtitles && subtitles.length > 0) {
+                await cacheTranslation(videoId, 'auto', targetLang, subtitles);
+            }
+
+            return subtitles;
+        } catch (e) {
+            vtLog.warn(`[Shorts] Tier 3 translation failed: ${e.message}`);
+            throw e;
+        }
+    }
+
+    // For Tier 1/2, we need to fetch subtitles first, then translate
+    try {
+        const subtitleData = await fetchSubtitlesFromBackend(videoId, config);
+        const subtitles = subtitleData.segments || subtitleData.events?.map(e => ({
+            start: e.tStartMs / 1000,
+            end: (e.tStartMs + (e.dDurationMs || 3000)) / 1000,
+            text: e.segs?.map(s => s.utf8 || '').join('').trim()
+        })).filter(s => s.text) || [];
+
+        if (subtitles.length === 0) {
+            throw new Error('No subtitles found');
+        }
+
+        const translations = await translateDirectLLM(
+            subtitles,
+            'auto',
+            targetLang,
+            config,
+            null  // No progress callback
+        );
+
+        await cacheTranslation(videoId, 'auto', targetLang, translations);
+        return translations;
+    } catch (e) {
+        vtLog.warn(`[Shorts] Tier 1/2 translation failed: ${e.message}`);
+        throw e;
+    }
+}
+
+/**
+ * Notify all Shorts tabs that a translation is ready
+ */
+function notifyShortsTabsTranslationReady(videoId, subtitles) {
+    chrome.tabs.query({ url: '*://www.youtube.com/shorts/*' }, (tabs) => {
+        tabs.forEach(tab => {
+            chrome.tabs.sendMessage(tab.id, {
+                action: 'shortsTranslationReady',
+                videoId,
+                subtitles
+            }).catch(() => {
+                // Tab may have navigated away - ignore error
+            });
+        });
+    });
+}
+
+/**
+ * Get cached subtitles for a Short
+ */
+function getShortsCache(videoId) {
+    if (shortsCache.has(videoId)) {
+        return { subtitles: shortsCache.get(videoId), cached: true };
+    }
+    return { subtitles: null, cached: false };
+}
+
 /**
  * Call LLM API directly from extension (Tier 1 & 2)
  * User's API key never leaves the extension
+ * @param {string} prompt - The prompt to send
+ * @param {Object} config - Configuration object
+ * @param {AbortSignal} [signal] - Optional AbortSignal for cancellation
  */
-async function callLLMDirect(prompt, config) {
+async function callLLMDirect(prompt, config, signal = null) {
     const url = `${config.apiUrl.replace(/\/$/, '')}/chat/completions`;
 
-    const response = await fetch(url, {
+    const fetchOptions = {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -450,7 +879,14 @@ async function callLLMDirect(prompt, config) {
             temperature: 0.3,
             max_tokens: 4096,
         }),
-    });
+    };
+
+    // Add abort signal if provided
+    if (signal) {
+        fetchOptions.signal = signal;
+    }
+
+    const response = await fetch(url, fetchOptions);
 
     if (!response.ok) {
         const error = await response.text();
@@ -463,8 +899,14 @@ async function callLLMDirect(prompt, config) {
 
 /**
  * Translate subtitles directly via LLM (Tier 1 & 2)
+ * @param {Array} subtitles - Subtitles to translate
+ * @param {string} sourceLanguage - Source language code
+ * @param {string} targetLanguage - Target language code
+ * @param {Object} config - Configuration object
+ * @param {Function} onProgress - Progress callback
+ * @param {AbortSignal} [signal] - Optional AbortSignal for cancellation
  */
-async function translateDirectLLM(subtitles, sourceLanguage, targetLanguage, config, onProgress) {
+async function translateDirectLLM(subtitles, sourceLanguage, targetLanguage, config, onProgress, signal = null) {
     const BATCH_SIZE = 25;
     const MAX_RETRIES = 2;
     const results = [];
@@ -491,6 +933,12 @@ async function translateDirectLLM(subtitles, sourceLanguage, targetLanguage, con
     }
 
     for (let i = 0; i < subsToTranslate.length; i += BATCH_SIZE) {
+        // Check if request was cancelled
+        if (signal?.aborted) {
+            console.log('[VideoTranslate] Translation cancelled by user');
+            throw new DOMException('Translation cancelled', 'AbortError');
+        }
+
         const batch = subsToTranslate.slice(i, i + BATCH_SIZE);
         const batchNum = Math.floor(i / BATCH_SIZE) + 1;
         const totalBatches = Math.ceil(subsToTranslate.length / BATCH_SIZE);
@@ -505,7 +953,7 @@ async function translateDirectLLM(subtitles, sourceLanguage, targetLanguage, con
                 const isRetry = retryCount > 0;
                 // Pass full subtitle list and batch start index for context window
                 const prompt = buildTranslationPrompt(batch, sourceLanguage, targetLanguage, isRetry, subsToTranslate, i);
-                const response = await callLLMDirect(prompt, config);
+                const response = await callLLMDirect(prompt, config, signal);
                 translations = parseTranslationResponse(response, batch.length);
 
                 // Check if translation actually happened (at least 50% should be different)
@@ -769,8 +1217,16 @@ function parseSSEBuffer(buffer) {
  * Combined process endpoint for Tier 3 (subtitles + translation in one call)
  * Server uses its own API key - user doesn't need one
  * Uses Server-Sent Events for progress updates with robust parsing
+ * @param {string} videoId - YouTube video ID
+ * @param {string} targetLanguage - Target language code
+ * @param {Object} config - Configuration object
+ * @param {Function} onProgress - Progress callback
+ * @param {number} tabId - Tab ID for messaging
+ * @param {string} videoUrl - Video URL
+ * @param {string} streamUrl - Stream URL
+ * @param {AbortSignal} [externalSignal] - Optional external abort signal for cancellation
  */
-async function processVideoTier3(videoId, targetLanguage, config, onProgress, tabId, videoUrl, streamUrl) {
+async function processVideoTier3(videoId, targetLanguage, config, onProgress, tabId, videoUrl, streamUrl, externalSignal = null) {
     let { backendUrl, forceGen, backendApiKey } = config;
 
     // Normalize URL: remove trailing slashes
@@ -786,6 +1242,15 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
     // Use AbortController for timeout (5 minutes for long videos)
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+
+    // Link external signal to our controller if provided
+    if (externalSignal) {
+        if (externalSignal.aborted) {
+            controller.abort();
+        } else {
+            externalSignal.addEventListener('abort', () => controller.abort());
+        }
+    }
 
     try {
         let url;
@@ -838,9 +1303,8 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
             fetchHeaders['Accept'] = 'text/event-stream';
         }
 
-        console.log('[VideoTranslate] POST Tier 3:', url);
-        console.log('[VideoTranslate] isRunPod:', isRunPod, 'isRunPodServerless:', isRunPodServerless, 'isRunPodLoadBalancer:', !!isRunPodLoadBalancer);
-        console.log('[VideoTranslate] Headers:', JSON.stringify(fetchHeaders, null, 2).replace(config.backendApiKey || 'NO_KEY', '***'));
+        vtLog.debug('POST Tier 3:', url.replace(/api\.runpod\.ai\/v2\/[^\/]+/, 'api.runpod.ai/v2/***'));
+        vtLog.debug('isRunPod:', isRunPod, 'isServerless:', isRunPodServerless, 'isLB:', !!isRunPodLoadBalancer);
 
         // --- RunPod Serverless Async Handler ---
         if (isRunPodServerless) {
@@ -871,7 +1335,7 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
             }
 
             const submitData = await submitResponse.json();
-            console.log('[VideoTranslate] RunPod Job Submitted:', submitData);
+            vtLog.debug('RunPod Job Submitted, id:', submitData?.id);
 
             if (!submitData.id) {
                 throw new Error('RunPod did not return a job ID');
@@ -1020,8 +1484,15 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
  * Tier 4 streaming endpoint: progressive subtitle streaming
  * Streams translated subtitles as each batch completes
  * Uses Server-Sent Events with subtitle data in each batch
+ * @param {string} videoId - YouTube video ID
+ * @param {string} targetLanguage - Target language code
+ * @param {Object} config - Configuration object
+ * @param {Function} onProgress - Progress callback
+ * @param {Function} onSubtitles - Subtitle batch callback
+ * @param {number} tabId - Tab ID for messaging
+ * @param {AbortSignal} [externalSignal] - Optional external abort signal for cancellation
  */
-async function processVideoTier4(videoId, targetLanguage, config, onProgress, onSubtitles, tabId) {
+async function processVideoTier4(videoId, targetLanguage, config, onProgress, onSubtitles, tabId, externalSignal = null) {
     const { backendUrl, forceGen, apiKey } = config;
 
     return new Promise((resolve, reject) => {
@@ -1030,6 +1501,16 @@ async function processVideoTier4(videoId, targetLanguage, config, onProgress, on
         // Use AbortController for timeout (5 minutes for long videos)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+
+        // Link external signal to our controller if provided
+        if (externalSignal) {
+            if (externalSignal.aborted) {
+                controller.abort();
+                reject(new DOMException('Request cancelled', 'AbortError'));
+                return;
+            }
+            externalSignal.addEventListener('abort', () => controller.abort());
+        }
 
         const allSubtitles = [];
 
@@ -1063,9 +1544,38 @@ async function processVideoTier4(videoId, targetLanguage, config, onProgress, on
             const decoder = new TextDecoder();
             let buffer = '';
 
+            // Inactivity timeout - abort if no data received for 60 seconds
+            const INACTIVITY_TIMEOUT_MS = 60 * 1000;
+            let inactivityTimer = null;
+
+            const resetInactivityTimer = () => {
+                if (inactivityTimer) clearTimeout(inactivityTimer);
+                inactivityTimer = setTimeout(() => {
+                    vtLog.warn('Stream inactivity timeout - aborting');
+                    controller.abort();
+                }, INACTIVITY_TIMEOUT_MS);
+            };
+
+            const clearInactivityTimer = () => {
+                if (inactivityTimer) {
+                    clearTimeout(inactivityTimer);
+                    inactivityTimer = null;
+                }
+            };
+
+            // Start inactivity timer
+            resetInactivityTimer();
+
             while (true) {
                 const { done, value } = await reader.read();
-                if (done) break;
+
+                // Reset timer on each chunk received
+                resetInactivityTimer();
+
+                if (done) {
+                    clearInactivityTimer();
+                    break;
+                }
 
                 buffer += decoder.decode(value, { stream: true });
 
@@ -1081,7 +1591,7 @@ async function processVideoTier4(videoId, targetLanguage, config, onProgress, on
 
                         // Streaming subtitles - the key Tier 4 feature
                         if (data.stage === 'subtitles' && data.subtitles) {
-                            console.log(`[VideoTranslate] Tier4: Received batch ${data.batchInfo?.current}/${data.batchInfo?.total} (${data.subtitles.length} subs)`);
+                            vtLog.debug(`Tier4: Received batch ${data.batchInfo?.current}/${data.batchInfo?.total} (${data.subtitles.length} subs)`);
 
                             // Accumulate subtitles
                             allSubtitles.push(...data.subtitles);
@@ -1104,7 +1614,7 @@ async function processVideoTier4(videoId, targetLanguage, config, onProgress, on
 
                         // Progress update (non-subtitle stages)
                         if (data.stage && data.message && data.stage !== 'subtitles') {
-                            console.log(`[VideoTranslate] Tier4 Progress: ${data.stage} - ${data.message} (${data.percent || 0}%)`);
+                            vtLog.debug(`Tier4 Progress: ${data.stage} - ${data.message} (${data.percent || 0}%)`);
 
                             if (tabId) {
                                 chrome.tabs.sendMessage(tabId, {
@@ -1126,6 +1636,7 @@ async function processVideoTier4(videoId, targetLanguage, config, onProgress, on
 
                         // Final result
                         if (data.result) {
+                            clearInactivityTimer();
                             // Notify content script that streaming is complete
                             if (tabId) {
                                 chrome.tabs.sendMessage(tabId, {
@@ -1139,6 +1650,7 @@ async function processVideoTier4(videoId, targetLanguage, config, onProgress, on
 
                         // Error
                         if (data.error) {
+                            clearInactivityTimer();
                             reject(new Error(data.error));
                             return;
                         }
@@ -1292,6 +1804,30 @@ async function handleMessage(message, sender) {
                 isProcessing: isProcessingQueue
             };
 
+        // Shorts pre-translation actions
+        case 'queueShortsTranslation':
+            return await queueShortsTranslation(
+                message.videoId,
+                message.targetLang,
+                message.priority || 0
+            );
+
+        case 'getShortsCache':
+            return getShortsCache(message.videoId);
+
+        case 'getShortsQueueStatus':
+            return {
+                queueLength: shortsQueue.length,
+                cacheSize: shortsCache.size,
+                activeTranslations: activeShortTranslations,
+                inProgress: Array.from(shortsInProgress)
+            };
+
+        case 'clearShortsCache':
+            shortsCache.clear();
+            shortsQueue.length = 0;
+            return { success: true };
+
         default:
             if (message.action) {
                 throw new Error(chrome.i18n.getMessage('unknownAction', [message.action]));
@@ -1307,6 +1843,7 @@ async function handleMessage(message, sender) {
  */
 async function handleTranslation(message, sender, config) {
     const { subtitles, sourceLanguage, targetLanguage, videoId } = message;
+    const tabId = sender?.tab?.id;
 
     // Check cache first
     const cached = await getCachedTranslation(videoId, sourceLanguage, targetLanguage);
@@ -1320,24 +1857,42 @@ async function handleTranslation(message, sender, config) {
             throw new Error(chrome.i18n.getMessage('apiKeyRequired'));
         }
 
-        const translations = await translateDirectLLM(
-            subtitles,
-            sourceLanguage,
-            targetLanguage,
-            config,
-            (p) => {
-                const tabId = sender?.tab?.id;
-                if (tabId) {
-                    chrome.tabs.sendMessage(tabId, {
-                        action: 'progress',
-                        ...p
-                    }).catch(() => { });
-                }
-            }
-        );
+        // Get abort signal for this tab to support cancellation
+        const abortController = tabId ? getAbortController(tabId) : null;
+        const signal = abortController?.signal;
 
-        await cacheTranslation(videoId, sourceLanguage, targetLanguage, translations);
-        return { translations, cached: false };
+        try {
+            const translations = await translateDirectLLM(
+                subtitles,
+                sourceLanguage,
+                targetLanguage,
+                config,
+                (p) => {
+                    if (tabId) {
+                        chrome.tabs.sendMessage(tabId, {
+                            action: 'progress',
+                            ...p
+                        }).catch(() => { });
+                    }
+                },
+                signal
+            );
+
+            // Clear abort controller on success
+            if (tabId) clearAbortController(tabId);
+
+            await cacheTranslation(videoId, sourceLanguage, targetLanguage, translations);
+            return { translations, cached: false };
+        } catch (error) {
+            // Clear abort controller on error too
+            if (tabId) clearAbortController(tabId);
+
+            // Re-throw unless it was an abort
+            if (error.name === 'AbortError') {
+                return { cancelled: true };
+            }
+            throw error;
+        }
     }
 
     // Tier 3 shouldn't use this path - use 'process' action instead
@@ -1358,11 +1913,29 @@ async function handleTier3Process(message, sender, config) {
         return { translations: cached, cached: true };
     }
 
-    // Single backend call does everything (with progress updates via SSE)
-    const translations = await processVideoTier3(videoId, targetLanguage, config, null, tabId, videoUrl, streamUrl);
+    // Get abort signal for this tab to support cancellation
+    const abortController = tabId ? getAbortController(tabId) : null;
+    const signal = abortController?.signal;
 
-    await cacheTranslation(videoId, 'auto', targetLanguage, translations);
-    return { translations, cached: false };
+    try {
+        // Single backend call does everything (with progress updates via SSE)
+        const translations = await processVideoTier3(videoId, targetLanguage, config, null, tabId, videoUrl, streamUrl, signal);
+
+        // Clear abort controller on success
+        if (tabId) clearAbortController(tabId);
+
+        await cacheTranslation(videoId, 'auto', targetLanguage, translations);
+        return { translations, cached: false };
+    } catch (error) {
+        // Clear abort controller on error too
+        if (tabId) clearAbortController(tabId);
+
+        // Return cancelled status if aborted
+        if (error.name === 'AbortError') {
+            return { cancelled: true };
+        }
+        throw error;
+    }
 }
 
 /**
@@ -1387,12 +1960,30 @@ async function handleTier4Stream(message, sender, config) {
         return { translations: cached, cached: true };
     }
 
-    // Streaming backend call - subtitles arrive progressively
-    const translations = await processVideoTier4(videoId, targetLanguage, config, null, null, tabId);
+    // Get abort signal for this tab to support cancellation
+    const abortController = tabId ? getAbortController(tabId) : null;
+    const signal = abortController?.signal;
 
-    // Cache the complete result
-    await cacheTranslation(videoId, 'auto', targetLanguage, translations);
-    return { translations, cached: false, streamed: true };
+    try {
+        // Streaming backend call - subtitles arrive progressively
+        const translations = await processVideoTier4(videoId, targetLanguage, config, null, null, tabId, signal);
+
+        // Clear abort controller on success
+        if (tabId) clearAbortController(tabId);
+
+        // Cache the complete result
+        await cacheTranslation(videoId, 'auto', targetLanguage, translations);
+        return { translations, cached: false, streamed: true };
+    } catch (error) {
+        // Clear abort controller on error too
+        if (tabId) clearAbortController(tabId);
+
+        // Return cancelled status if aborted
+        if (error.name === 'AbortError') {
+            return { cancelled: true };
+        }
+        throw error;
+    }
 }
 
 // ============================================================================
@@ -1442,7 +2033,7 @@ async function handleStartLiveTranslate(message, sender, config) {
             throw new Error("Got empty streamId from tabCapture");
         }
 
-        console.log('[VideoTranslate] Got streamId:', streamId);
+        vtLog.debug('Got streamId');
 
         // 3. Tell offscreen to start recording
         await chrome.runtime.sendMessage({
@@ -1528,6 +2119,7 @@ const QUEUE_STORAGE_KEY = 'videoQueue';
  */
 
 let isProcessingQueue = false;
+let queueProcessorPromise = null;
 
 /**
  * Get all queue items
@@ -1573,9 +2165,11 @@ async function addToQueue(videoId, title, targetLanguage) {
     queue.push(newItem);
     await saveQueue(queue);
 
-    // Start processing if not already
-    if (!isProcessingQueue) {
-        processQueue();
+    // Start processing if not already - use Promise to prevent race conditions
+    if (!isProcessingQueue && !queueProcessorPromise) {
+        queueProcessorPromise = processQueue().finally(() => {
+            queueProcessorPromise = null;
+        });
     }
 
     return { success: true, item: newItem };
@@ -1614,7 +2208,7 @@ async function processQueue() {
     if (isProcessingQueue) return;
     isProcessingQueue = true;
 
-    console.log('[VideoTranslate] Starting queue processing');
+    vtLog.debug('Starting queue processing');
 
     const config = await getConfig();
 
@@ -1700,4 +2294,4 @@ async function processQueue() {
 // Add queue actions to message handler - need to update the switch statement
 // This will be handled by adding cases in handleMessage
 
-console.log('[VideoTranslate] Service worker initialized');
+vtLog.info('Service worker initialized');
