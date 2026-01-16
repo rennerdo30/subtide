@@ -55,27 +55,31 @@ def test_whisper_performance(test_audio):
 def test_translation_performance():
     """Benchmark LLM translation performance."""
     logger.info("Starting Translation performance benchmark...")
-    
+
     segments = [
         {"start": float(i), "end": float(i+1), "text": f"This is segment number {i} for performance testing."}
         for i in range(20)
     ]
-    
+
     with patch('backend.services.translation_service.OpenAI') as mock_openai:
         mock_client = mock_openai.return_value
-        
+
         # The translation service expects one line per segment in the response
         mock_translation_content = "\n".join([f"Translation {i}" for i in range(20)])
-        mock_client.chat.completions.create.return_value.choices = [
-            MagicMock(message=MagicMock(content=mock_translation_content))
-        ]
-        
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock(message=MagicMock(content=mock_translation_content))]
+        # Add usage mock to avoid MagicMock comparison issues
+        mock_response.usage.prompt_tokens = 500
+        mock_response.usage.completion_tokens = 200
+        mock_response.usage.total_tokens = 700
+        mock_client.chat.completions.create.return_value = mock_response
+
         start_time = time.time()
         result = await_translate_subtitles(segments, "Spanish")
         elapsed = time.time() - start_time
-        
+
         logger.info(f"Translation Performance (Mocked LLM): {elapsed:.4f}s for 20 segments")
-        assert elapsed < 10.0 
+        assert elapsed < 10.0
         assert len(result) == 20
 
 def test_memory_usage_baseline():
