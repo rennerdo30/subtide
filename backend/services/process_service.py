@@ -66,7 +66,7 @@ def _cleanup_inflight_request(key: str):
         _inflight_results.pop(key, None)
 from backend.utils.file_utils import get_cache_path, validate_audio_file
 from backend.utils.logging_utils import LogContext, generate_request_id
-from backend.services.youtube_service import await_download_subtitles, get_video_title
+from backend.services.youtube_service import await_download_subtitles, get_video_title, ensure_audio_downloaded
 from backend.services.video_loader import is_supported_site, download_audio, get_video_info
 from backend.services.whisper_service import run_whisper_process, run_whisper_streaming
 from backend.services.translation_service import (

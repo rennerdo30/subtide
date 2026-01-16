@@ -3,10 +3,20 @@ from unittest.mock import MagicMock, patch, ANY
 import json
 import time
 from backend.services.translation_service import (
-    save_batch_time_history, 
+    save_batch_time_history,
     get_historical_batch_time,
     await_translate_subtitles
 )
+
+
+def create_mock_response(content):
+    """Create a properly mocked OpenAI response with usage stats."""
+    resp = MagicMock()
+    resp.choices[0].message.content = content
+    resp.usage.prompt_tokens = 100
+    resp.usage.completion_tokens = 50
+    resp.usage.total_tokens = 150
+    return resp
 
 def test_save_batch_time_history_fail(mock_cache_dir):
     # Mock open to raise exception
@@ -36,13 +46,12 @@ def test_await_translate_subtitles_rate_limit(mock_openai):
     # 1st call: Raise exception with "Rate limited ... 429 ... retry in 1"
     # Actually code checks str(e) for '429' or 'rate'
     error_msg = "Rate limit exceeded. Retry in 1 seconds. (429)"
-    
+
     # 2nd call: Success
-    success_resp = MagicMock()
-    success_resp.choices[0].message.content = "\n".join([f"{i+1}. Hola" for i in range(25)])
-    
+    success_resp = create_mock_response("\n".join([f"{i+1}. Hola" for i in range(25)]))
+
     mock_client.chat.completions.create.side_effect = [
-        Exception(error_msg), 
+        Exception(error_msg),
         success_resp
     ]
     
@@ -65,12 +74,10 @@ def test_await_translate_subtitles_incomplete_and_retry(mock_openai):
     subs = [{'text': 'Hello'} for _ in range(25)]
     
     # 1st call: Return only 5 translations (incomplete < 80%)
-    incomplete_resp = MagicMock()
-    incomplete_resp.choices[0].message.content = "\n".join([f"{i+1}. Hola" for i in range(5)])
-    
+    incomplete_resp = create_mock_response("\n".join([f"{i+1}. Hola" for i in range(5)]))
+
     # Retry call: Return full
-    success_resp = MagicMock()
-    success_resp.choices[0].message.content = "\n".join([f"{i+1}. Hola" for i in range(25)])
+    success_resp = create_mock_response("\n".join([f"{i+1}. Hola" for i in range(25)]))
     
     # Logic tries MAX_RETRIES (3) locally inside translate_batch?
     # No, translate_batch checks length. If < 80%, it returns what it has and success=False.
@@ -120,10 +127,8 @@ def test_await_translate_subtitles_threading(mock_openai):
             ret = "\n".join([f"{i+1}. Hola" for i in range(25)])
         else:
             ret = "\n".join([f"{i+1}. Hola" for i in range(5)])
-        
-        resp = MagicMock()
-        resp.choices[0].message.content = ret
-        return resp
+
+        return create_mock_response(ret)
         
     mock_client.chat.completions.create.side_effect = side_effect
     

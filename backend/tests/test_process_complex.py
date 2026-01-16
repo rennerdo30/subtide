@@ -12,10 +12,12 @@ def mock_dependencies():
          patch('backend.services.process_service.await_download_subtitles') as dl_subs, \
          patch('backend.services.process_service.run_whisper_process') as whisper, \
          patch('backend.services.process_service.await_translate_subtitles') as translate, \
-         patch('backend.services.process_service.ensure_audio_downloaded') as audio:
+         patch('backend.services.process_service.ensure_audio_downloaded') as audio, \
+         patch('backend.services.process_service.download_audio') as download_audio:
         yield {
             'ytdl': ytdl, 'cache': cache, 'dl_subs': dl_subs,
-            'whisper': whisper, 'translate': translate, 'audio': audio
+            'whisper': whisper, 'translate': translate, 'audio': audio,
+            'download_audio': download_audio
         }
 
 @patch('backend.services.process_service.SERVER_API_KEY', 'fake-key')

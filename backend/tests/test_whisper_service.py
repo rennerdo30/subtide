@@ -210,12 +210,11 @@ def test_run_whisper_process_mlx_backend(mock_vad):
     with patch('backend.services.whisper_service.get_whisper_backend', return_value='mlx-whisper'), \
          patch('backend.services.whisper_service.ENABLE_WHISPER', True), \
          patch('backend.services.whisper_service.get_diarization_pipeline', return_value=None), \
-         patch('backend.services.whisper_service.normalize_audio', side_effect=lambda x, **kw: x), \
-         patch('backend.services.whisper_service.should_normalize', return_value=False), \
+         patch('backend.utils.audio_normalization.normalize_audio', side_effect=lambda x, **kw: x), \
+         patch('backend.utils.audio_normalization.should_normalize', return_value=False), \
          patch('backend.services.whisper_service._run_mlx_direct') as mock_mlx_direct, \
-         patch('backend.services.whisper_service.estimate_transcription_time', return_value=10.0), \
          patch('backend.services.whisper_service.threading.Thread') as mock_thread, \
-         patch('backend.services.whisper_service.os.path.exists', return_value=True), \
+         patch('os.path.exists', return_value=True), \
          patch('backend.services.whisper_service.WHISPER_MODEL_SIZE', 'base'):
 
         # Mock the MLX direct result
@@ -245,7 +244,9 @@ def test_get_whisper_device_all_backends():
         assert get_whisper_device() == "metal"
 
     with patch('backend.services.whisper_service.get_whisper_backend', return_value='openai-whisper'):
-        with patch('backend.services.whisper_service.torch') as mock_torch:
+        # Mock _ensure_torch to return a mock torch module
+        mock_torch = MagicMock()
+        with patch('backend.services.whisper_service._ensure_torch', return_value=mock_torch):
             mock_torch.cuda.is_available.return_value = True
             assert get_whisper_device() == "cuda"
 

@@ -5,15 +5,17 @@ from backend.services.process_service import process_video_logic
 
 @pytest.fixture
 def mock_dependencies():
-    with patch('backend.services.process_service.ensure_audio_downloaded') as mock_audio, \
+    with patch('backend.services.process_service.ensure_audio_downloaded') as mock_ensure_audio, \
+         patch('backend.services.process_service.download_audio') as mock_download_audio, \
          patch('backend.services.process_service.await_download_subtitles') as mock_dl_subs, \
          patch('backend.services.process_service.run_whisper_process') as mock_whisper, \
          patch('backend.services.process_service.await_translate_subtitles') as mock_translate, \
          patch('backend.services.process_service.yt_dlp.YoutubeDL') as mock_ytdl, \
          patch('backend.services.process_service.get_cache_path') as mock_cache:
-        
+
         yield {
-            'audio': mock_audio,
+            'audio': mock_ensure_audio,
+            'download_audio': mock_download_audio,
             'dl_subs': mock_dl_subs,
             'whisper': mock_whisper,
             'translate': mock_translate,
@@ -76,10 +78,11 @@ def test_process_video_logic_whisper_fallback(mock_dependencies):
             'duration': 100
         }
         
-        # Mock Whisper flow
+        # Mock Whisper flow - both audio download methods
         mock_dependencies['audio'].return_value = '/tmp/audio.mp3'
-        
-        # Ensure cache path returns a string, though with open mocked it matters less, 
+        mock_dependencies['download_audio'].return_value = '/tmp/audio.mp3'
+
+        # Ensure cache path returns a string, though with open mocked it matters less,
         # but good practice.
         mock_dependencies['cache'].return_value = '/tmp/cache_file.json'
 
