@@ -246,31 +246,34 @@ def await_translate_subtitles(
 
         if use_json_mode:
             # JSON mode: more reliable parsing, guaranteed valid JSON
-            system_prompt = f"""You are a subtitle translator. Output ONLY {t_name}.{terminology_str}
+            system_prompt = f"""You are a subtitle translator. You MUST output ONLY {t_name} ({target_lang}).{terminology_str}
+CRITICAL: Every translation MUST be in {t_name}. Never output English or any other language.
 Return a JSON object with a "translations" array containing exactly {len(batch)} translated strings."""
 
-            user_prompt = f"""Translate to {t_name} ({target_lang}).
+            user_prompt = f"""Translate these subtitles to {t_name} ({target_lang}).
 
-Rules:
-- Output {t_name} only (never English unless that IS the target)
-- Never copy source text untranslated
-- Keep concise for subtitles
+STRICT RULES:
+1. OUTPUT LANGUAGE: {t_name} ONLY - this is mandatory
+2. Never output English (unless {t_name} IS English)
+3. Never copy the source text - always translate
+4. Keep translations concise for subtitle display
 
-Source subtitles:
+Source subtitles to translate:
 {numbered_subs}{context_str}
 
-Return JSON: {{"translations": ["translation1", "translation2", ...]}}"""
+Return JSON with {len(batch)} translations in {t_name}: {{"translations": ["...", "..."]}}"""
         else:
             # Numbered lines mode: fallback for models without JSON support
-            system_prompt = f"""You are a subtitle translator. Output ONLY {t_name}.{terminology_str}"""
+            system_prompt = f"""You are a subtitle translator. You MUST output ONLY {t_name} ({target_lang}).{terminology_str}
+CRITICAL: Every line MUST be in {t_name}. Never output English or any other language."""
 
             user_prompt = f"""Translate to {t_name} ({target_lang}). Return {len(batch)} numbered lines.
 
-Rules:
-- Output {t_name} only (never English unless that IS the target)
-- Never copy source text untranslated
-- Keep concise for subtitles
-- Format: "1. [translation]"
+STRICT RULES:
+1. OUTPUT LANGUAGE: {t_name} ONLY - this is mandatory
+2. Never output English (unless {t_name} IS English)
+3. Never copy source text - always translate
+4. Format: "1. [translation in {t_name}]"
 
 {numbered_subs}{context_str}"""
 
@@ -576,41 +579,41 @@ def translate_subtitles_simple(
 
     if use_json_mode:
         # JSON mode: more reliable parsing
-        system_prompt = f"""You are a professional subtitle translator. You ONLY output {t_name}.
+        system_prompt = f"""You are a professional subtitle translator. You MUST output ONLY {t_name} ({target_lang}).
+CRITICAL: Every translation MUST be in {t_name}. Never output English or any other language unless that IS the target.
 Return a JSON object with a "translations" array containing exactly {len(subtitles)} translated strings."""
 
-        user_prompt = f"""Translate these subtitles from {s_name} to {t_name}.
+        user_prompt = f"""Translate these subtitles from {s_name} to {t_name} ({target_lang}).
 
-Rules:
-- Maintain original meaning, tone, and emotion
-- Keep translations concise for subtitle display
-- Preserve speaker indicators and sound effects in brackets
-- Output MUST be in {t_name}
+STRICT RULES:
+1. OUTPUT LANGUAGE: {t_name} ONLY - this is mandatory
+2. Never output English or source language (unless {t_name} IS that language)
+3. Never copy source text - always translate
+4. Keep translations concise for subtitle display
+5. Preserve speaker indicators [brackets] and sound effects
 
-Subtitles:
+Subtitles to translate:
 {numbered_subs}
 
-Return JSON: {{"translations": ["translation1", "translation2", ...]}}"""
+Return JSON with {len(subtitles)} translations in {t_name}: {{"translations": ["...", "..."]}}"""
     else:
         # Numbered lines mode: fallback
-        system_prompt = f"You are a professional subtitle translator. You ONLY output {t_name}. Never output Chinese unless translating TO Chinese."
-        user_prompt = f"""Translate the following subtitles from {s_name} to {t_name}.
+        system_prompt = f"""You are a professional subtitle translator. You MUST output ONLY {t_name} ({target_lang}).
+CRITICAL: Every line MUST be in {t_name}. Never output English or any other language unless that IS the target."""
 
-TARGET LANGUAGE: {t_name} (code: {target_lang})
-CRITICAL: Your output MUST be in {t_name}. Do NOT output Chinese or any other language except {t_name}.
+        user_prompt = f"""Translate from {s_name} to {t_name} ({target_lang}).
 
-Rules:
-- Maintain original meaning, tone, and emotion
-- Keep translations concise for subtitle display
-- Preserve speaker indicators and sound effects in brackets
-- Return ONLY numbered translations, one per line
-- No explanations or notes
-- Output MUST be in {t_name}
+STRICT RULES:
+1. OUTPUT LANGUAGE: {t_name} ONLY - this is mandatory
+2. Never output English or source language (unless {t_name} IS that language)
+3. Never copy source text - always translate
+4. Format: "1. [translation in {t_name}]"
+5. No explanations, only numbered translations
 
 Subtitles:
 {numbered_subs}
 
-Remember: All output must be in {t_name}."""
+All {len(subtitles)} outputs MUST be in {t_name}."""
 
     client_args = {'api_key': api_key}
     extra_headers = {}

@@ -21,8 +21,9 @@ MAX_LATIN_RATIO_FOR_NONLATIN = 0.80 # Max Latin ratio when expecting non-Latin
 MIN_LATIN_RATIO_FOR_ROMANIZED = 0.70  # Threshold to detect romanized text
 SOURCE_LEAKAGE_OVERLAP_THRESHOLD = 0.70  # Word overlap threshold for leakage
 MIN_TEXT_LENGTH_FOR_VALIDATION = 5  # Minimum chars to validate
-MIN_TEXT_LENGTH_FOR_LATIN_CHECK = 50  # Minimum chars for Latin language check
+MIN_TEXT_LENGTH_FOR_LATIN_CHECK = 30  # Reduced: catch shorter wrong outputs
 MIN_ENGLISH_MARKERS = 2             # Minimum English word markers to detect English
+MIN_LANG_SPECIFIC_MARKERS = 1       # Minimum language-specific markers needed
 
 # Character ranges for language detection
 LANGUAGE_CHAR_PATTERNS = {
@@ -58,6 +59,19 @@ LATIN_LANG_SPECIFIC_CHARS = {
 
 # Languages that use Latin script (harder to validate against English)
 LATIN_SCRIPT_LANGUAGES = {'en', 'de', 'fr', 'es', 'pt', 'it', 'nl', 'pl', 'tr', 'id', 'vi'}
+
+# Common function words unique to each Latin-based language (for better detection)
+# These words are rarely used in English and indicate the target language
+LATIN_LANG_WORD_MARKERS = {
+    'de': [' ist ', ' und ', ' der ', ' die ', ' das ', ' nicht ', ' mit ', ' ich ', ' sie ', ' wir ', ' ein ', ' eine ', ' auf ', ' auch ', ' aber ', ' wenn ', ' hier ', ' kann ', ' haben ', ' werden '],
+    'fr': [' est ', ' sont ', ' les ', ' une ', ' des ', ' que ', ' qui ', ' dans ', ' pour ', ' avec ', ' pas ', ' sur ', ' mais ', ' tout ', ' cette ', ' aussi ', ' faire ', ' peut ', ' nous ', ' vous '],
+    'es': [' es ', ' son ', ' los ', ' las ', ' una ', ' que ', ' del ', ' por ', ' para ', ' con ', ' pero ', ' como ', ' muy ', ' esto ', ' esta ', ' puede ', ' hace ', ' todo ', ' solo ', ' ahora '],
+    'pt': [' que ', ' uma ', ' para ', ' com ', ' como ', ' mais ', ' isso ', ' esta ', ' esse ', ' pelo ', ' pela ', ' muito ', ' pode ', ' fazer ', ' onde ', ' quando ', ' todos ', ' tambem ', ' ainda ', ' agora '],
+    'it': [' che ', ' una ', ' per ', ' con ', ' sono ', ' questo ', ' questa ', ' della ', ' nella ', ' anche ', ' come ', ' molto ', ' tutto ', ' fare ', ' dove ', ' quando ', ' sempre ', ' ancora ', ' solo ', ' dopo '],
+    'nl': [' het ', ' een ', ' van ', ' dat ', ' zijn ', ' niet ', ' met ', ' voor ', ' maar ', ' ook ', ' naar ', ' hier ', ' toen ', ' kunnen ', ' worden ', ' hebben ', ' deze ', ' waar ', ' hoe ', ' dan '],
+    'pl': [' jest ', ' nie ', ' jak ', ' ale ', ' tak ', ' czy ', ' tylko ', ' bardzo ', ' jeszcze ', ' tutaj ', ' teraz ', ' gdzie ', ' kiedy ', ' dlaczego ', ' moze ', ' trzeba ', ' juz ', ' byc ', ' miec ', ' co '],
+    'tr': [' bir ', ' ve ', ' bu ', ' ile ', ' ama ', ' var ', ' yok ', ' gibi ', ' daha ', ' cok ', ' her ', ' zaman ', ' simdi ', ' nasil ', ' neden ', ' nerede ', ' icin ', ' kadar ', ' sonra ', ' olan '],
+}
 
 LATIN_PATTERN = r'[a-zA-Z]'
 
@@ -144,6 +158,65 @@ def is_likely_english(text: str) -> bool:
     return marker_count >= MIN_ENGLISH_MARKERS
 
 
+def count_language_markers(text: str, target_lang: str) -> int:
+    """
+    Count language-specific word markers in text.
+    Returns the count of markers found.
+    """
+    if not text or target_lang not in LATIN_LANG_WORD_MARKERS:
+        return 0
+
+    text_lower = f' {text.lower()} '
+    markers = LATIN_LANG_WORD_MARKERS.get(target_lang, [])
+    return sum(1 for marker in markers if marker in text_lower)
+
+
+def is_likely_target_latin_language(text: str, target_lang: str) -> Tuple[bool, str]:
+    """
+    Check if text appears to be in the target Latin-based language (not English).
+    Returns (is_valid, reason).
+    """
+    if not text or len(text.strip()) < 10:
+        return True, "too_short"
+
+    # Count English markers
+    english_count = sum(1 for marker in [
+        ' the ', ' a ', ' an ', ' is ', ' are ', ' was ', ' were ',
+        ' have ', ' has ', ' had ', ' will ', ' would ', ' could ',
+        ' and ', ' or ', ' but ', ' not ', ' this ', ' that ',
+        ' i ', ' you ', ' he ', ' she ', ' it ', ' we ', ' they ',
+    ] if marker in f' {text.lower()} ')
+
+    # Count target language markers
+    target_count = count_language_markers(text, target_lang)
+
+    # Check for language-specific characters (diacritics)
+    specific_pattern = _get_compiled_latin_specific(target_lang)
+    has_specific_chars = bool(specific_pattern.search(text)) if specific_pattern else False
+
+    # Strong English signal without target language markers = wrong language
+    if english_count >= 3 and target_count == 0 and not has_specific_chars:
+        return False, f"english_markers({english_count})_no_{target_lang}_markers"
+
+    # Very strong English signal = wrong language regardless
+    if english_count >= 5 and target_count < 2:
+        return False, f"strong_english({english_count})_weak_{target_lang}({target_count})"
+
+    # If we have target language markers or specific chars, it's probably correct
+    if target_count >= MIN_LANG_SPECIFIC_MARKERS or has_specific_chars:
+        return True, "ok"
+
+    # Short text without clear markers - give benefit of doubt
+    if len(text) < MIN_TEXT_LENGTH_FOR_LATIN_CHECK:
+        return True, "short_text_accepted"
+
+    # Longer text with only English markers = suspicious
+    if english_count >= 2 and target_count == 0:
+        return False, f"only_english_markers_no_{target_lang}"
+
+    return True, "ok"
+
+
 def is_likely_target_language(text: str, target_lang: str) -> Tuple[bool, str]:
     """
     Check if text appears to be in the target language.
@@ -177,19 +250,9 @@ def is_likely_target_language(text: str, target_lang: str) -> Tuple[bool, str]:
                 return False, f"insufficient_{target_lang}_characters"
 
     # For Latin-based target languages (de, fr, es, etc.)
-    # Check if the output looks like English when it shouldn't
+    # Use improved detection with word markers
     elif target_lang in LATIN_SCRIPT_LANGUAGES and target_lang != 'en':
-        # If translating TO a Latin language (not English),
-        # and the output looks very English, flag it
-        if is_likely_english(text):
-            # Check for language-specific characters that should be present
-            specific_pattern = _get_compiled_latin_specific(target_lang)
-
-            if specific_pattern:
-                has_specific = bool(specific_pattern.search(text))
-                # If no language-specific chars and looks English, might be wrong
-                if not has_specific and len(text) > MIN_TEXT_LENGTH_FOR_LATIN_CHECK:
-                    return False, f"looks_like_english_not_{target_lang}"
+        return is_likely_target_latin_language(text, target_lang)
 
     return True, "ok"
 
