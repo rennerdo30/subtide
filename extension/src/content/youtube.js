@@ -843,6 +843,10 @@ function handleStreamingComplete(finalSubtitles, cached) {
  * Alt+S: Toggle subtitle visibility
  * Alt+T: Translate current video
  * Alt+D: Toggle dual subtitle mode
+ * Alt+[: Fine sync -100ms
+ * Alt+]: Fine sync +100ms
+ * Alt+,: Coarse sync -500ms
+ * Alt+.: Coarse sync +500ms
  */
 function handleKeyboardShortcut(e) {
     // Only handle Alt+key combinations
@@ -868,6 +872,22 @@ function handleKeyboardShortcut(e) {
         case 'd': // Alt+D: Toggle dual mode
             e.preventDefault();
             toggleDualMode();
+            break;
+        case '[': // Alt+[: Fine sync earlier (-100ms)
+            e.preventDefault();
+            adjustSyncOffset(-100);
+            break;
+        case ']': // Alt+]: Fine sync later (+100ms)
+            e.preventDefault();
+            adjustSyncOffset(100);
+            break;
+        case ',': // Alt+,: Coarse sync earlier (-500ms)
+            e.preventDefault();
+            adjustSyncOffset(-500);
+            break;
+        case '.': // Alt+.: Coarse sync later (+500ms)
+            e.preventDefault();
+            adjustSyncOffset(500);
             break;
     }
 }
@@ -918,6 +938,233 @@ function updateOverlayForDualMode() {
         overlay.innerHTML = '<span class="vt-text"></span>';
         overlay.classList.remove('vt-dual-mode');
     }
+}
+
+// =============================================================================
+// Sync Calibration
+// =============================================================================
+
+let calibrationState = {
+    isActive: false,
+    overlay: null,
+    subtitleShowTime: null,
+    keyHandler: null,
+    samples: [],
+    maxSamples: 3,
+};
+
+/**
+ * Start sync calibration mode
+ * User presses Enter when they hear speech, system calculates offset
+ */
+function startSyncCalibration() {
+    if (calibrationState.isActive) {
+        cancelCalibration();
+        return;
+    }
+
+    const video = document.querySelector('video');
+    const subs = typeof getActiveSubtitles === 'function' ? getActiveSubtitles() : null;
+
+    if (!video || !subs?.length) {
+        console.warn('[VideoTranslate] Cannot calibrate: no video or subtitles');
+        return;
+    }
+
+    // Reset calibration state
+    calibrationState.isActive = true;
+    calibrationState.samples = [];
+    calibrationState.subtitleShowTime = null;
+
+    // Create calibration overlay
+    const player = document.querySelector('.html5-video-player');
+    if (!player) return;
+
+    const overlay = document.createElement('div');
+    overlay.className = 'vt-calibration-overlay';
+    overlay.innerHTML = `
+        <div class="vt-calibration-content">
+            <div class="vt-calibration-title">Sync Calibration</div>
+            <div class="vt-calibration-instructions">
+                Press <kbd>Enter</kbd> when you <strong>hear</strong> speech<br>
+                <small>(${calibrationState.maxSamples - calibrationState.samples.length} samples remaining)</small>
+            </div>
+            <div class="vt-calibration-status">Waiting for subtitle...</div>
+            <button class="vt-calibration-cancel">Cancel (Esc)</button>
+        </div>
+    `;
+    player.appendChild(overlay);
+    calibrationState.overlay = overlay;
+
+    // Cancel button handler
+    overlay.querySelector('.vt-calibration-cancel').addEventListener('click', cancelCalibration);
+
+    // Key handler for Enter (record sample) and Escape (cancel)
+    calibrationState.keyHandler = (e) => {
+        if (e.key === 'Escape') {
+            cancelCalibration();
+            return;
+        }
+
+        if (e.key === 'Enter' && calibrationState.subtitleShowTime) {
+            e.preventDefault();
+            recordCalibrationSample();
+        }
+    };
+    document.addEventListener('keydown', calibrationState.keyHandler);
+
+    // Start monitoring subtitle changes
+    monitorSubtitlesForCalibration();
+
+    console.log('[VideoTranslate] Calibration started');
+}
+
+/**
+ * Monitor subtitle changes during calibration
+ */
+function monitorSubtitlesForCalibration() {
+    if (!calibrationState.isActive) return;
+
+    const textEl = document.querySelector('.vt-text');
+    if (!textEl) {
+        setTimeout(monitorSubtitlesForCalibration, 100);
+        return;
+    }
+
+    let lastText = '';
+
+    const checkLoop = () => {
+        if (!calibrationState.isActive) return;
+
+        const currentText = textEl.textContent?.trim() || '';
+
+        // Detect new subtitle appearing
+        if (currentText && currentText !== lastText) {
+            calibrationState.subtitleShowTime = performance.now();
+            updateCalibrationStatus('Press Enter when you hear this!');
+        } else if (!currentText && lastText) {
+            calibrationState.subtitleShowTime = null;
+            updateCalibrationStatus('Waiting for subtitle...');
+        }
+
+        lastText = currentText;
+        requestAnimationFrame(checkLoop);
+    };
+
+    checkLoop();
+}
+
+/**
+ * Record a calibration sample (user pressed Enter)
+ */
+function recordCalibrationSample() {
+    if (!calibrationState.subtitleShowTime) return;
+
+    const now = performance.now();
+    const delay = now - calibrationState.subtitleShowTime;
+
+    // Sanity check: delay should be reasonable (0-3 seconds)
+    if (delay < 0 || delay > 3000) {
+        updateCalibrationStatus('Invalid timing, try again');
+        calibrationState.subtitleShowTime = null;
+        return;
+    }
+
+    calibrationState.samples.push(delay);
+    calibrationState.subtitleShowTime = null;
+
+    const remaining = calibrationState.maxSamples - calibrationState.samples.length;
+
+    if (remaining > 0) {
+        updateCalibrationStatus(`Sample recorded! (${remaining} more needed)`);
+        updateCalibrationInstructions(remaining);
+    } else {
+        finishCalibration();
+    }
+}
+
+/**
+ * Update calibration overlay status text
+ */
+function updateCalibrationStatus(text) {
+    const status = calibrationState.overlay?.querySelector('.vt-calibration-status');
+    if (status) status.textContent = text;
+}
+
+/**
+ * Update calibration instructions with remaining count
+ */
+function updateCalibrationInstructions(remaining) {
+    const instructions = calibrationState.overlay?.querySelector('.vt-calibration-instructions small');
+    if (instructions) instructions.textContent = `(${remaining} samples remaining)`;
+}
+
+/**
+ * Finish calibration and apply calculated offset
+ */
+function finishCalibration() {
+    if (calibrationState.samples.length === 0) {
+        cancelCalibration();
+        return;
+    }
+
+    // Calculate median delay (more robust than mean)
+    const sorted = [...calibrationState.samples].sort((a, b) => a - b);
+    const median = sorted[Math.floor(sorted.length / 2)];
+
+    // The delay represents how late the subtitle appeared relative to speech
+    // If user had to wait 200ms to hear speech after subtitle appeared,
+    // we need to delay subtitles by 200ms (positive offset)
+    const calculatedOffset = Math.round(median);
+
+    console.log('[VideoTranslate] Calibration samples:', calibrationState.samples);
+    console.log('[VideoTranslate] Calculated offset:', calculatedOffset, 'ms');
+
+    // Apply the offset
+    if (typeof adjustSyncOffset === 'function') {
+        // First reset, then set to calculated value
+        if (typeof resetSyncOffset === 'function') {
+            resetSyncOffset();
+        }
+        adjustSyncOffset(calculatedOffset);
+    }
+
+    updateCalibrationStatus(`Offset set to +${(calculatedOffset / 1000).toFixed(2)}s`);
+
+    // Close overlay after brief delay
+    setTimeout(() => {
+        cleanupCalibration();
+    }, 1500);
+}
+
+/**
+ * Cancel calibration without applying changes
+ */
+function cancelCalibration() {
+    console.log('[VideoTranslate] Calibration cancelled');
+    cleanupCalibration();
+}
+
+/**
+ * Clean up calibration state and UI
+ */
+function cleanupCalibration() {
+    if (calibrationState.keyHandler) {
+        document.removeEventListener('keydown', calibrationState.keyHandler);
+    }
+
+    if (calibrationState.overlay) {
+        calibrationState.overlay.remove();
+    }
+
+    calibrationState = {
+        isActive: false,
+        overlay: null,
+        subtitleShowTime: null,
+        keyHandler: null,
+        samples: [],
+        maxSamples: 3,
+    };
 }
 
 // Register keyboard shortcut handler

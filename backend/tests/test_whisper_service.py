@@ -1,6 +1,13 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from backend.services.whisper_service import run_whisper_process, get_whisper_device
+from backend.services.whisper_service import (
+    run_whisper_process,
+    get_whisper_device,
+    refine_segment_boundaries,
+    trim_silence_padding,
+    smooth_segment_transitions,
+    refine_timestamps,
+)
 
 @pytest.fixture
 def mock_get_whisper_model():
@@ -248,3 +255,188 @@ def test_get_whisper_device_all_backends():
 
             mock_torch.backends.mps.is_available.return_value = False
             assert get_whisper_device() == "cpu"
+
+
+# =============================================================================
+# Timestamp Refinement Tests
+# =============================================================================
+
+class TestRefineSegmentBoundaries:
+    """Tests for refine_segment_boundaries function."""
+
+    def test_empty_segments(self):
+        """Empty list should return empty list."""
+        assert refine_segment_boundaries([]) == []
+
+    def test_segment_without_words(self):
+        """Segment without words should keep original times."""
+        segments = [{'start': 0.0, 'end': 2.0, 'text': 'Hello'}]
+        result = refine_segment_boundaries(segments)
+        assert result[0]['start'] == 0.0
+        assert result[0]['end'] == 2.0
+
+    def test_segment_with_words_refines_boundaries(self):
+        """Segment with word timestamps should use word boundaries."""
+        segments = [{
+            'start': 0.0,
+            'end': 3.0,
+            'text': 'Hello world',
+            'words': [
+                {'word': 'Hello', 'start': 0.5, 'end': 1.0},
+                {'word': 'world', 'start': 1.2, 'end': 1.8}
+            ]
+        }]
+        result = refine_segment_boundaries(segments)
+        assert result[0]['start'] == 0.5  # First word start
+        assert result[0]['end'] == 1.8    # Last word end
+
+    def test_multiple_segments(self):
+        """Multiple segments should all be refined."""
+        segments = [
+            {
+                'start': 0.0, 'end': 2.0, 'text': 'First',
+                'words': [{'word': 'First', 'start': 0.3, 'end': 0.8}]
+            },
+            {
+                'start': 2.0, 'end': 4.0, 'text': 'Second',
+                'words': [{'word': 'Second', 'start': 2.2, 'end': 2.9}]
+            }
+        ]
+        result = refine_segment_boundaries(segments)
+        assert result[0]['start'] == 0.3
+        assert result[0]['end'] == 0.8
+        assert result[1]['start'] == 2.2
+        assert result[1]['end'] == 2.9
+
+
+class TestTrimSilencePadding:
+    """Tests for trim_silence_padding function."""
+
+    def test_empty_segments(self):
+        """Empty list should return empty list."""
+        assert trim_silence_padding([]) == []
+
+    def test_short_segment_not_trimmed(self):
+        """Short segments (<500ms) should not be trimmed."""
+        segments = [{'start': 0.0, 'end': 0.4, 'text': 'Hi'}]
+        result = trim_silence_padding(segments)
+        assert result[0]['start'] == 0.0
+        assert result[0]['end'] == 0.4
+
+    def test_long_segment_trimmed(self):
+        """Long segments should be trimmed by default amounts."""
+        segments = [{'start': 0.0, 'end': 3.0, 'text': 'Hello world'}]
+        result = trim_silence_padding(segments)
+        # Start trimmed by 50ms, end by 100ms
+        assert result[0]['start'] == 0.05
+        assert result[0]['end'] == 2.9
+
+    def test_custom_trim_values(self):
+        """Custom trim values should be respected."""
+        segments = [{'start': 0.0, 'end': 3.0, 'text': 'Hello world'}]
+        result = trim_silence_padding(segments, trim_start_ms=100, trim_end_ms=200)
+        assert result[0]['start'] == 0.1
+        assert result[0]['end'] == 2.8
+
+    def test_maintains_minimum_duration(self):
+        """Trimming should not reduce segment below 200ms."""
+        segments = [{'start': 0.0, 'end': 0.6, 'text': 'Quick'}]
+        result = trim_silence_padding(segments, trim_start_ms=50, trim_end_ms=500)
+        # Should not trim end too much to maintain 200ms min
+        assert result[0]['end'] - result[0]['start'] >= 0.2
+
+
+class TestSmoothSegmentTransitions:
+    """Tests for smooth_segment_transitions function."""
+
+    def test_empty_segments(self):
+        """Empty list should return empty list."""
+        assert smooth_segment_transitions([]) == []
+
+    def test_single_segment(self):
+        """Single segment should be returned unchanged."""
+        segments = [{'start': 0.0, 'end': 2.0, 'text': 'Hello'}]
+        result = smooth_segment_transitions(segments)
+        assert len(result) == 1
+        assert result[0]['start'] == 0.0
+        assert result[0]['end'] == 2.0
+
+    def test_small_gap_bridged(self):
+        """Small gap between segments should be bridged."""
+        segments = [
+            {'start': 0.0, 'end': 2.0, 'text': 'First'},
+            {'start': 2.2, 'end': 4.0, 'text': 'Second'}  # 200ms gap
+        ]
+        result = smooth_segment_transitions(segments)
+        # First segment's end should be extended to meet second
+        assert result[0]['end'] == 2.2
+        assert result[1]['start'] == 2.2
+
+    def test_large_gap_not_bridged(self):
+        """Large gap (>300ms default) should not be bridged."""
+        segments = [
+            {'start': 0.0, 'end': 2.0, 'text': 'First'},
+            {'start': 3.0, 'end': 5.0, 'text': 'Second'}  # 1000ms gap
+        ]
+        result = smooth_segment_transitions(segments)
+        assert result[0]['end'] == 2.0  # Unchanged
+        assert result[1]['start'] == 3.0
+
+    def test_custom_max_gap(self):
+        """Custom max_gap_sec should be respected."""
+        segments = [
+            {'start': 0.0, 'end': 2.0, 'text': 'First'},
+            {'start': 2.8, 'end': 4.0, 'text': 'Second'}  # 800ms gap
+        ]
+        # With 1s max gap, should be bridged
+        result = smooth_segment_transitions(segments, max_gap_sec=1.0)
+        assert result[0]['end'] == 2.8
+
+
+class TestRefineTimestamps:
+    """Tests for the combined refine_timestamps function."""
+
+    def test_empty_segments(self):
+        """Empty list should return empty list."""
+        assert refine_timestamps([]) == []
+
+    def test_full_pipeline(self):
+        """Test that all refinement steps are applied."""
+        segments = [
+            {
+                'start': 0.0, 'end': 3.0, 'text': 'Hello world',
+                'words': [
+                    {'word': 'Hello', 'start': 0.3, 'end': 0.8},
+                    {'word': 'world', 'start': 1.0, 'end': 1.5}
+                ]
+            },
+            {
+                'start': 3.0, 'end': 6.0, 'text': 'Next segment',
+                'words': [
+                    {'word': 'Next', 'start': 3.2, 'end': 3.5},
+                    {'word': 'segment', 'start': 3.6, 'end': 4.0}
+                ]
+            }
+        ]
+        result = refine_timestamps(segments)
+
+        # Should have refined boundaries using words
+        # First segment: word boundaries are 0.3-1.5
+        # Then trimmed and smoothed
+        assert len(result) == 2
+        # Original times were 0.0-3.0, refined should be closer to word times
+        assert result[0]['start'] >= 0.3
+        assert result[0]['end'] <= 1.5 + 0.3  # Some tolerance for smoothing
+
+    def test_preserves_original_segment_data(self):
+        """Non-timing fields should be preserved."""
+        segments = [
+            {
+                'start': 0.0, 'end': 2.0, 'text': 'Hello',
+                'speaker': 'SPEAKER_A', 'confidence': 0.95
+            }
+        ]
+        result = refine_timestamps(segments)
+        assert result[0]['text'] == 'Hello'
+        assert result[0]['speaker'] == 'SPEAKER_A'
+        assert result[0]['confidence'] == 0.95

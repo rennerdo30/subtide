@@ -387,7 +387,7 @@ def smooth_speaker_segments(segments: list) -> list:
 
 def filter_hallucinations(segments: list) -> list:
     """Filter out Whisper hallucinations using the improved utility.
-    
+
     Detects: repetitive text, impossible speech rates, common patterns,
     consecutive duplicates, and mostly-punctuation segments.
     """
@@ -398,6 +398,153 @@ def filter_hallucinations(segments: list) -> list:
         # Fallback: just return segments as-is
         logger.warning("[HALLUCINATION] Could not import filter utility, skipping")
         return segments
+
+
+def refine_segment_boundaries(segments: list) -> list:
+    """Use word-level timestamps to tighten segment boundaries.
+
+    Whisper often adds padding around segments. This function uses
+    word timestamps (if available) to set precise start/end times
+    based on actual word boundaries.
+
+    Args:
+        segments: List of Whisper segments with optional 'words' field
+
+    Returns:
+        Segments with refined start/end times
+    """
+    if not segments:
+        return segments
+
+    refined = []
+    for seg in segments:
+        seg_copy = seg.copy()
+        words = seg.get('words', [])
+
+        if words and len(words) > 0:
+            # Use first word's start and last word's end for precise boundaries
+            first_word = words[0]
+            last_word = words[-1]
+
+            # Only refine if word timestamps are valid
+            if 'start' in first_word and 'end' in last_word:
+                old_start, old_end = seg_copy['start'], seg_copy['end']
+                seg_copy['start'] = first_word['start']
+                seg_copy['end'] = last_word['end']
+
+                # Log significant refinements (>100ms change)
+                if abs(old_start - seg_copy['start']) > 0.1 or abs(old_end - seg_copy['end']) > 0.1:
+                    logger.debug(f"[REFINE] Segment boundary: [{old_start:.2f}-{old_end:.2f}] -> [{seg_copy['start']:.2f}-{seg_copy['end']:.2f}]")
+
+        refined.append(seg_copy)
+
+    return refined
+
+
+def trim_silence_padding(segments: list, trim_start_ms: int = 50, trim_end_ms: int = 100) -> list:
+    """Remove excess silence padding at segment edges.
+
+    Whisper tends to include silence before/after speech. This function
+    trims a small amount from segment boundaries to reduce overlap perception.
+
+    Args:
+        segments: List of segments
+        trim_start_ms: Milliseconds to trim from start (default 50ms)
+        trim_end_ms: Milliseconds to trim from end (default 100ms)
+
+    Returns:
+        Segments with trimmed boundaries
+    """
+    if not segments:
+        return segments
+
+    trim_start_sec = trim_start_ms / 1000.0
+    trim_end_sec = trim_end_ms / 1000.0
+
+    trimmed = []
+    for seg in segments:
+        seg_copy = seg.copy()
+        duration = seg_copy['end'] - seg_copy['start']
+
+        # Only trim if segment is long enough (>500ms)
+        if duration > 0.5:
+            # Trim start (but don't go negative)
+            seg_copy['start'] = max(0, seg_copy['start'] + trim_start_sec)
+            # Trim end (but maintain minimum 200ms duration)
+            new_end = seg_copy['end'] - trim_end_sec
+            if new_end - seg_copy['start'] >= 0.2:
+                seg_copy['end'] = new_end
+
+        trimmed.append(seg_copy)
+
+    return trimmed
+
+
+def smooth_segment_transitions(segments: list, max_gap_sec: float = 0.3) -> list:
+    """Close small gaps between segments for smoother transitions.
+
+    When there are small gaps between segments, extend the previous segment's
+    end time to reduce perceived gaps in subtitle display.
+
+    Args:
+        segments: List of segments sorted by start time
+        max_gap_sec: Maximum gap to bridge (default 300ms)
+
+    Returns:
+        Segments with smoothed transitions
+    """
+    if not segments or len(segments) < 2:
+        return segments
+
+    smoothed = [segments[0].copy()]
+
+    for i in range(1, len(segments)):
+        prev = smoothed[-1]
+        curr = segments[i].copy()
+
+        gap = curr['start'] - prev['end']
+
+        # If gap is small, extend previous segment to meet current
+        if 0 < gap <= max_gap_sec:
+            prev['end'] = curr['start']
+            logger.debug(f"[SMOOTH] Bridged {gap:.3f}s gap at {prev['end']:.2f}s")
+
+        smoothed.append(curr)
+
+    return smoothed
+
+
+def refine_timestamps(segments: list) -> list:
+    """Apply all timestamp refinement steps.
+
+    Pipeline:
+    1. Refine boundaries using word timestamps
+    2. Trim silence padding
+    3. Smooth transitions between segments
+
+    Args:
+        segments: Raw Whisper segments
+
+    Returns:
+        Refined segments with improved timing
+    """
+    if not segments:
+        return segments
+
+    original_count = len(segments)
+
+    # Step 1: Use word timestamps for precise boundaries
+    segments = refine_segment_boundaries(segments)
+
+    # Step 2: Trim silence padding
+    segments = trim_silence_padding(segments)
+
+    # Step 3: Smooth transitions
+    segments = smooth_segment_transitions(segments)
+
+    logger.info(f"[TIMESTAMPS] Refined {original_count} segments")
+
+    return segments
 
 
 # Subprocess mode removed.
@@ -478,9 +625,10 @@ def _run_mlx_direct(audio_path: str, model_path: str, progress_callback=None, in
 
     logger.info(f"[MLX] Transcription completed in {elapsed:.1f}s on {device}")
     
-    # Filter hallucinations
+    # Filter hallucinations and refine timestamps
     if 'segments' in result:
          result['segments'] = filter_hallucinations(result['segments'])
+         result['segments'] = refine_timestamps(result['segments'])
          # Reconstruct text from filtered segments
          result['text'] = " ".join(s.get('text', '').strip() for s in result['segments'])
     
@@ -1163,7 +1311,10 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
     
     # Hallucination filtering - remove repeated text patterns
     segments = filter_hallucinations(segments)
-    
+
+    # Timestamp refinement - tighten boundaries using word timestamps
+    segments = refine_timestamps(segments)
+
     # Diarization
     pipeline = get_diarization_pipeline()
     if pipeline and ENABLE_DIARIZATION and DIARIZATION_MODE == 'on':

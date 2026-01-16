@@ -535,6 +535,10 @@ function setupSync() {
     let lastTextElCheck = 0;
     const TEXT_EL_CACHE_TTL = 1000; // Re-check for element every 1 second
 
+    // Track last displayed text for fade transitions
+    let lastDisplayedText = '';
+    let fadeTimeoutId = null;
+
     const syncLoop = () => {
         // Get subtitles from per-video state (MED-005 fix)
         const subs = getActiveSubtitles();
@@ -609,9 +613,28 @@ function setupSync() {
                 displayText = `[S${speakerNum}] ${displayText}`;
             }
 
-            // Only update DOM if content actually changed
+            // Only update DOM if content actually changed - with fade transition
             if (textEl.textContent !== displayText) {
-                textEl.textContent = displayText || '';
+                // If text is changing significantly, trigger fade transition
+                if (lastDisplayedText && displayText && lastDisplayedText !== displayText) {
+                    // Clear any pending fade timeout
+                    if (fadeTimeoutId) {
+                        clearTimeout(fadeTimeoutId);
+                        fadeTimeoutId = null;
+                    }
+                    // Fade out, update text, fade in
+                    textEl.classList.add('vt-fading');
+                    fadeTimeoutId = setTimeout(() => {
+                        textEl.textContent = displayText || '';
+                        textEl.classList.remove('vt-fading');
+                        fadeTimeoutId = null;
+                    }, 80); // Match half of CSS transition duration
+                } else {
+                    // First subtitle or empty to text - no fade needed
+                    textEl.textContent = displayText || '';
+                    textEl.classList.remove('vt-fading');
+                }
+                lastDisplayedText = displayText;
             }
 
             // Apply speaker color based on settings
@@ -626,18 +649,59 @@ function setupSync() {
                 textEl.style.setProperty('color', styleValues.color || '#fff', 'important');
             }
         } else if (textEl && textEl.textContent !== '') {
-            textEl.textContent = '';
+            // Fade out before clearing subtitle
+            if (lastDisplayedText && !fadeTimeoutId) {
+                textEl.classList.add('vt-fading');
+                fadeTimeoutId = setTimeout(() => {
+                    textEl.textContent = '';
+                    textEl.classList.remove('vt-fading');
+                    fadeTimeoutId = null;
+                    lastDisplayedText = '';
+                }, 80);
+            } else if (!fadeTimeoutId) {
+                textEl.textContent = '';
+                lastDisplayedText = '';
+            }
             syncState.currentSubIndex = -1;
         }
 
         syncState.animationFrameId = requestAnimationFrame(syncLoop);
     };
 
-    // Handle seeking - reset state and force immediate sync
+    // Handle seeking - reset state and immediately display correct subtitle
     video._vtSyncHandler = () => {
         syncState.lastVideoTime = -1;
         syncState.currentSubIndex = -1;
         syncState.isStalled = false;
+
+        // Immediately display subtitle at new position (don't wait for next frame)
+        const subs = getActiveSubtitles();
+        if (!subs?.length) return;
+
+        const time = video.currentTime * 1000;
+        const sub = findSubtitleAtTimeWithTolerance(subs, time, -1);
+        const textEl = document.querySelector('.vt-text');
+
+        if (textEl) {
+            if (sub) {
+                const displayText = sub.translatedText || sub.text;
+                // Clear any pending fade and show immediately
+                if (fadeTimeoutId) {
+                    clearTimeout(fadeTimeoutId);
+                    fadeTimeoutId = null;
+                }
+                textEl.classList.remove('vt-fading');
+                textEl.textContent = displayText;
+                lastDisplayedText = displayText;
+
+                // Update index for smooth continuation
+                const foundIndex = subs.indexOf(sub);
+                syncState.currentSubIndex = subtitleWindow.isEnabled ? toFullIndex(foundIndex) : foundIndex;
+            } else {
+                textEl.textContent = '';
+                lastDisplayedText = '';
+            }
+        }
     };
     video.addEventListener('seeked', video._vtSyncHandler);
 

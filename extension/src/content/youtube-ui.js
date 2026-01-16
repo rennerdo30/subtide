@@ -242,10 +242,13 @@ function createMoreOptionsSubmenuHTML() {
             </div>
             <div class="vt-sync-controls">
                 <span class="vt-sync-label">${chrome.i18n.getMessage('menuSync')}</span>
+                <button class="vt-sync-btn vt-sync-fine" data-offset="-100">-0.1s</button>
                 <button class="vt-sync-btn" data-offset="-500">-0.5s</button>
                 <span class="vt-sync-display">+0.0s</span>
                 <button class="vt-sync-btn" data-offset="500">+0.5s</button>
+                <button class="vt-sync-btn vt-sync-fine" data-offset="100">+0.1s</button>
                 <button class="vt-sync-btn vt-sync-reset">${chrome.i18n.getMessage('menuReset')}</button>
+                <button class="vt-sync-btn vt-calibrate-btn" title="Auto-calibrate sync timing">Cal</button>
             </div>
             <div class="vt-menu-separator"></div>
             <div class="vt-menu-option" data-setting="download">
@@ -541,6 +544,14 @@ function setupSettingsPanelListeners(settingsPanel) {
         syncReset.addEventListener('click', (e) => {
             e.stopPropagation();
             resetSyncOffset();
+        });
+    });
+
+    // Calibrate button
+    settingsPanel.querySelectorAll('.vt-calibrate-btn').forEach(calibrateBtn => {
+        calibrateBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            startSyncCalibration();
         });
     });
 

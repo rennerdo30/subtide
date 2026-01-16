@@ -221,6 +221,10 @@ function addStyles() {
             line-height: 1.4 !important;
             text-shadow: ${styleValues.textShadow} !important;
             opacity: ${styleValues.opacity} !important;
+            transition: opacity 0.12s ease-out !important;
+        }
+        .vt-text.vt-fading {
+            opacity: 0 !important;
         }
         .vt-settings-btn {
             opacity: 0.9 !important;
@@ -395,6 +399,14 @@ function addStyles() {
         .vt-sync-btn:hover {
             background: rgba(255,255,255,0.2) !important;
         }
+        .vt-sync-btn.vt-sync-fine {
+            padding: 4px 8px !important;
+            font-size: 11px !important;
+            opacity: 0.8 !important;
+        }
+        .vt-sync-btn.vt-sync-fine:hover {
+            opacity: 1 !important;
+        }
         .vt-sync-display {
             color: rgba(255,255,255,0.7) !important;
             font-size: 12px !important;
@@ -407,6 +419,68 @@ function addStyles() {
             margin-left: auto !important;
             padding-left: 12px !important;
             font-family: monospace !important;
+        }
+
+        /* Calibration Overlay */
+        .vt-calibration-overlay {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            background: rgba(0, 0, 0, 0.85) !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            z-index: 9999 !important;
+        }
+        .vt-calibration-content {
+            text-align: center !important;
+            color: #fff !important;
+            font-family: 'YouTube Noto', Roboto, Arial, sans-serif !important;
+            padding: 24px !important;
+        }
+        .vt-calibration-title {
+            font-size: 24px !important;
+            font-weight: 500 !important;
+            margin-bottom: 16px !important;
+        }
+        .vt-calibration-instructions {
+            font-size: 16px !important;
+            line-height: 1.6 !important;
+            margin-bottom: 20px !important;
+            color: rgba(255, 255, 255, 0.9) !important;
+        }
+        .vt-calibration-instructions kbd {
+            background: rgba(255, 255, 255, 0.2) !important;
+            padding: 4px 12px !important;
+            border-radius: 4px !important;
+            font-family: monospace !important;
+            font-size: 14px !important;
+        }
+        .vt-calibration-instructions small {
+            display: block !important;
+            margin-top: 8px !important;
+            color: rgba(255, 255, 255, 0.6) !important;
+        }
+        .vt-calibration-status {
+            font-size: 18px !important;
+            color: #4CAF50 !important;
+            margin-bottom: 20px !important;
+            min-height: 24px !important;
+        }
+        .vt-calibration-cancel {
+            background: transparent !important;
+            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            color: rgba(255, 255, 255, 0.7) !important;
+            padding: 8px 16px !important;
+            border-radius: 4px !important;
+            cursor: pointer !important;
+            font-size: 14px !important;
+        }
+        .vt-calibration-cancel:hover {
+            background: rgba(255, 255, 255, 0.1) !important;
+            color: #fff !important;
         }
 
         /* ================================ */
