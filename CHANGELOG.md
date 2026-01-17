@@ -5,6 +5,21 @@ All notable changes to Subtide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-01-18
+
+### Changed
+
+#### Rebrand to Subtide
+- New logo featuring ocean wave and subtitle motif
+- Updated all branding from "Video Translate" to "Subtide"
+- New popup header with matching inline SVG logo
+- Updated all GitHub URLs to github.com/rennerdo30/subtide
+- Renamed extension packages to subtide-extension
+- Renamed backend binaries to subtide-backend
+- Updated Docker image names and volumes
+
+---
+
 ## [1.1.0] - 2026-01-18
 
 ### Added
