@@ -311,6 +311,25 @@ async function setupPage(videoId) {
     console.log('[VideoTranslate] Tier:', userTier);
     console.log('[VideoTranslate] Subtitle settings:', subtitleSettings);
 
+    // Initialize TTS
+    if (window.vtTTS) {
+        window.vtTTS.init({
+            apiUrl: backendUrl,
+            onStateChange: (state) => {
+                console.log('[VideoTranslate] TTS state:', state);
+            }
+        });
+
+        // Set up subtitle change callback for TTS
+        if (typeof setSubtitleChangeCallback === 'function') {
+            setSubtitleChangeCallback((text, lang) => {
+                if (window.vtTTS.isEnabled()) {
+                    window.vtTTS.speak(text, lang);
+                }
+            });
+        }
+    }
+
     // Try to inject UI with error handling
     waitForControls().then(controls => {
         injectUI(controls);
@@ -405,6 +424,9 @@ async function prefetchSubtitles(videoId) {
  */
 async function translateVideo(targetLang, options = {}) {
     const { forceRefresh = false } = options;
+
+    // Store target language for TTS
+    window._vtCurrentTargetLang = targetLang;
 
     const state = getVideoState(currentVideoId);
 

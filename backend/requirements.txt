@@ -31,3 +31,7 @@ torchaudio==2.2.0
 openai-whisper
 pyannote.audio
 numba>=0.57.0
+
+# Text-to-Speech
+edge-tts
+gTTS

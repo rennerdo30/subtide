@@ -135,8 +135,10 @@ app.register_blueprint(translation_bp)
 
 from backend.routes.live import live_bp, init_socketio as init_live_socketio
 from backend.routes.feedback import feedback_bp
+from backend.routes.tts import tts_bp
 app.register_blueprint(live_bp)
 app.register_blueprint(feedback_bp)
+app.register_blueprint(tts_bp)
 init_live_socketio(socketio)
 
 # Initialize rate limiter for routes that need custom limits

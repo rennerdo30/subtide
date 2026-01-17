@@ -37,6 +37,7 @@
         "src/content/youtube-status.js",
         "src/content/youtube-subtitles.js",
         "src/content/youtube-styles.js",
+        "src/content/youtube-tts.js",
         "src/content/youtube-export.js",
         "src/content/youtube-ui.js",
         "src/content/youtube-shorts.js",
@@ -58,6 +59,7 @@
         "src/content/youtube-status.js",
         "src/content/youtube-subtitles.js",
         "src/content/youtube-styles.js",
+        "src/content/youtube-tts.js",
         "src/content/youtube-export.js",
         "src/content/twitch.js"
       ],

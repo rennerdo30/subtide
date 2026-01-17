@@ -491,6 +491,33 @@ let syncState = {
 };
 
 /**
+ * Callback for TTS when subtitle text changes
+ * Set by youtube.js after TTS is initialized
+ */
+let onSubtitleChangeCallback = null;
+
+/**
+ * Set callback for subtitle text changes (used by TTS)
+ * @param {Function} callback - Function(text, lang) called when subtitle changes
+ */
+function setSubtitleChangeCallback(callback) {
+    onSubtitleChangeCallback = callback;
+}
+
+/**
+ * Notify TTS of subtitle change
+ */
+function notifySubtitleChange(text, lang) {
+    if (onSubtitleChangeCallback && text) {
+        try {
+            onSubtitleChangeCallback(text, lang);
+        } catch (e) {
+            console.warn('[VideoTranslate] TTS callback error:', e);
+        }
+    }
+}
+
+/**
  * Setup video time sync for subtitle display
  * Uses requestAnimationFrame for smooth, frequent updates (~60fps)
  */
@@ -635,6 +662,10 @@ function setupSync() {
                     textEl.classList.remove('vt-fading');
                 }
                 lastDisplayedText = displayText;
+
+                // Notify TTS of subtitle change (use translated text for speech)
+                const ttsText = sub.translatedText || sub.text;
+                notifySubtitleChange(ttsText, window._vtCurrentTargetLang || 'en');
             }
 
             // Apply speaker color based on settings

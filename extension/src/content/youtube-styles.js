@@ -421,6 +421,50 @@ function addStyles() {
             font-family: monospace !important;
         }
 
+        /* TTS Controls */
+        .vt-tts-controls {
+            padding: 8px 16px !important;
+        }
+        .vt-tts-speed, .vt-tts-volume {
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            margin-bottom: 6px !important;
+        }
+        .vt-tts-label {
+            color: rgba(255,255,255,0.7) !important;
+            font-size: 12px !important;
+            min-width: 55px !important;
+        }
+        .vt-tts-speed-slider, .vt-tts-volume-slider {
+            flex: 1 !important;
+            height: 4px !important;
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            background: rgba(255,255,255,0.2) !important;
+            border-radius: 2px !important;
+            cursor: pointer !important;
+        }
+        .vt-tts-speed-slider::-webkit-slider-thumb,
+        .vt-tts-volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none !important;
+            appearance: none !important;
+            width: 12px !important;
+            height: 12px !important;
+            background: #fff !important;
+            border-radius: 50% !important;
+            cursor: pointer !important;
+        }
+        .vt-tts-speed-value, .vt-tts-volume-value {
+            color: rgba(255,255,255,0.7) !important;
+            font-size: 11px !important;
+            min-width: 35px !important;
+            text-align: right !important;
+        }
+        .vt-tts-status {
+            color: rgba(255,255,255,0.5) !important;
+        }
+
         /* Calibration Overlay */
         .vt-calibration-overlay {
             position: absolute !important;

@@ -240,6 +240,23 @@ function createMoreOptionsSubmenuHTML() {
                 <span class="vt-option-label">${chrome.i18n.getMessage('menuDualSubtitles')}</span>
                 <span class="vt-option-value vt-dual-status">${chrome.i18n.getMessage('menuSpeakerOff')}</span>
             </div>
+            <div class="vt-menu-option vt-tts-toggle">
+                <svg viewBox="0 0 24 24" width="24" height="24"><path fill="currentColor" d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                <span class="vt-option-label">Text-to-Speech</span>
+                <span class="vt-option-value vt-tts-status">Off</span>
+            </div>
+            <div class="vt-tts-controls" style="display: none;">
+                <div class="vt-tts-speed">
+                    <span class="vt-tts-label">Speed:</span>
+                    <input type="range" class="vt-tts-speed-slider" min="0.5" max="2" step="0.1" value="1">
+                    <span class="vt-tts-speed-value">1.0x</span>
+                </div>
+                <div class="vt-tts-volume">
+                    <span class="vt-tts-label">Volume:</span>
+                    <input type="range" class="vt-tts-volume-slider" min="0" max="1" step="0.1" value="0.8">
+                    <span class="vt-tts-volume-value">80%</span>
+                </div>
+            </div>
             <div class="vt-sync-controls">
                 <span class="vt-sync-label">${chrome.i18n.getMessage('menuSync')}</span>
                 <button class="vt-sync-btn vt-sync-fine" data-offset="-100">-0.1s</button>
@@ -521,6 +538,58 @@ function setupSettingsPanelListeners(settingsPanel) {
             updateDisplayedValues();
         });
     });
+
+    // TTS toggle (in more options submenu)
+    settingsPanel.querySelectorAll('.vt-tts-toggle').forEach(ttsToggle => {
+        ttsToggle.addEventListener('click', () => {
+            if (window.vtTTS) {
+                const newState = !window.vtTTS.isEnabled();
+                window.vtTTS.setEnabled(newState);
+
+                // Update UI
+                const statusEl = ttsToggle.querySelector('.vt-tts-status');
+                if (statusEl) {
+                    statusEl.textContent = newState ? 'On' : 'Off';
+                }
+
+                // Show/hide controls
+                const controlsEl = settingsPanel.querySelector('.vt-tts-controls');
+                if (controlsEl) {
+                    controlsEl.style.display = newState ? 'block' : 'none';
+                }
+            }
+        });
+    });
+
+    // TTS speed slider
+    const ttsSpeedSlider = settingsPanel.querySelector('.vt-tts-speed-slider');
+    if (ttsSpeedSlider) {
+        ttsSpeedSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            if (window.vtTTS) {
+                window.vtTTS.setRate(value);
+            }
+            const valueEl = settingsPanel.querySelector('.vt-tts-speed-value');
+            if (valueEl) {
+                valueEl.textContent = value.toFixed(1) + 'x';
+            }
+        });
+    }
+
+    // TTS volume slider
+    const ttsVolumeSlider = settingsPanel.querySelector('.vt-tts-volume-slider');
+    if (ttsVolumeSlider) {
+        ttsVolumeSlider.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            if (window.vtTTS) {
+                window.vtTTS.setVolume(value);
+            }
+            const valueEl = settingsPanel.querySelector('.vt-tts-volume-value');
+            if (valueEl) {
+                valueEl.textContent = Math.round(value * 100) + '%';
+            }
+        });
+    }
 
     // Toggle visibility
     const visibilityToggle = settingsPanel.querySelector('.vt-toggle-visibility');

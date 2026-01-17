@@ -680,14 +680,22 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 const shortsQueue = [];
 const shortsCache = new Map();  // videoId -> subtitles
 const shortsInProgress = new Set();  // videoIds currently being translated
-const MAX_CONCURRENT_SHORTS = 4;
+const MAX_CONCURRENT_SHORTS = 2;  // Reduced from 4 to be less aggressive
 const SHORTS_CACHE_MAX_SIZE = 50;  // Keep last 50 Shorts cached
+const MAX_SHORTS_QUEUE_SIZE = 5;  // Max total queued + in-progress
 let activeShortTranslations = 0;
 
 /**
  * Queue a Short video for pre-translation
  */
 async function queueShortsTranslation(videoId, targetLang, priority) {
+    // Check if Shorts translation is enabled
+    const { shortsEnabled } = await chrome.storage.local.get('shortsEnabled');
+    if (!shortsEnabled) {
+        vtLog.debug(`[Shorts] Skipping queue - Shorts translation is disabled`);
+        return { status: 'disabled' };
+    }
+
     // Skip if already cached
     if (shortsCache.has(videoId)) {
         vtLog.debug(`[Shorts] Already cached: ${videoId}`);
@@ -698,6 +706,13 @@ async function queueShortsTranslation(videoId, targetLang, priority) {
     if (shortsQueue.some(q => q.videoId === videoId) || shortsInProgress.has(videoId)) {
         vtLog.debug(`[Shorts] Already queued/processing: ${videoId}`);
         return { status: 'queued' };
+    }
+
+    // Reject if queue is at capacity (conservative limit)
+    const totalPending = shortsQueue.length + shortsInProgress.size;
+    if (totalPending >= MAX_SHORTS_QUEUE_SIZE) {
+        vtLog.debug(`[Shorts] Queue at capacity (${totalPending}/${MAX_SHORTS_QUEUE_SIZE}), skipping: ${videoId}`);
+        return { status: 'queue_full' };
     }
 
     // Add to queue with priority

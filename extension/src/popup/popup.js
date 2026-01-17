@@ -10,6 +10,12 @@ const elements = {
     provider: document.getElementById('provider'),
     model: document.getElementById('model'),
     forceGen: document.getElementById('forceGen'),
+    ttsEnabled: document.getElementById('ttsEnabled'),
+    ttsSource: document.getElementById('ttsSource'),
+    ttsRate: document.getElementById('ttsRate'),
+    ttsRateValue: document.getElementById('ttsRateValue'),
+    ttsVolume: document.getElementById('ttsVolume'),
+    ttsVolumeValue: document.getElementById('ttsVolumeValue'),
     defaultLanguage: document.getElementById('defaultLanguage'),
     toggleApiKey: document.getElementById('toggleApiKey'),
     saveConfig: document.getElementById('saveConfig'),
@@ -221,6 +227,18 @@ async function loadConfig() {
         elements.backendUrl.value = config.backendUrl || 'http://localhost:5001';
         elements.backendApiKey.value = config.backendApiKey || '';
 
+        // Load TTS settings
+        if (elements.ttsEnabled) elements.ttsEnabled.checked = config.ttsEnabled || false;
+        if (elements.ttsSource) elements.ttsSource.value = config.ttsSource || 'auto';
+        if (elements.ttsRate) {
+            elements.ttsRate.value = config.ttsRate || 1;
+            if (elements.ttsRateValue) elements.ttsRateValue.textContent = (config.ttsRate || 1).toFixed(1) + 'x';
+        }
+        if (elements.ttsVolume) {
+            elements.ttsVolume.value = config.ttsVolume || 0.8;
+            if (elements.ttsVolumeValue) elements.ttsVolumeValue.textContent = Math.round((config.ttsVolume || 0.8) * 100) + '%';
+        }
+
         // Apply tier-based UI
         updateUIForTier(config.tier || 'tier1');
         updateProviderUI(config.provider || 'openai');
@@ -306,6 +324,26 @@ function setupEventListeners() {
     elements.tier.addEventListener('change', (e) => {
         updateUIForTier(e.target.value);
     });
+
+    // TTS Rate slider
+    if (elements.ttsRate) {
+        elements.ttsRate.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            if (elements.ttsRateValue) {
+                elements.ttsRateValue.textContent = value.toFixed(1) + 'x';
+            }
+        });
+    }
+
+    // TTS Volume slider
+    if (elements.ttsVolume) {
+        elements.ttsVolume.addEventListener('input', (e) => {
+            const value = parseFloat(e.target.value);
+            if (elements.ttsVolumeValue) {
+                elements.ttsVolumeValue.textContent = Math.round(value * 100) + '%';
+            }
+        });
+    }
 
     // Live Translate Button
     elements.liveTranslateBtn.addEventListener('click', async () => {
@@ -547,6 +585,11 @@ async function saveConfiguration() {
             tier: elements.tier.value,
             backendUrl: elements.backendUrl.value.trim() || 'http://localhost:5001',
             backendApiKey: elements.backendApiKey.value.trim(),
+            // TTS settings
+            ttsEnabled: elements.ttsEnabled?.checked || false,
+            ttsSource: elements.ttsSource?.value || 'auto',
+            ttsRate: parseFloat(elements.ttsRate?.value) || 1,
+            ttsVolume: parseFloat(elements.ttsVolume?.value) || 0.8,
         };
 
         await sendMessage({ action: 'saveConfig', config });

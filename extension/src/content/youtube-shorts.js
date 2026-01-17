@@ -595,6 +595,12 @@ function setupShortsInterceptor() {
  * Queue videos for pre-translation via service worker
  */
 async function queueShortsForTranslation(videoIds) {
+    // Don't queue if Shorts translation is disabled
+    if (!shortsEnabled) {
+        vtLog.debug('[Shorts] Skipping queue - Shorts translation is disabled');
+        return;
+    }
+
     const targetLang = shortsTargetLang || 'en';
 
     vtLog.debug(`[Shorts] Queuing ${videoIds.length} videos for pre-translation to ${targetLang}`);
@@ -740,6 +746,8 @@ async function createShortsToggle() {
         powerBtn.classList.toggle('active', shortsEnabled);
 
         if (shortsEnabled) {
+            // Setup interceptor when user enables Shorts
+            setupShortsInterceptor();
             startShortsMode();
         } else {
             stopShortsMode();
@@ -1023,6 +1031,9 @@ function makeDraggable(element) {
 function showShortsSubtitles(subtitles) {
     hideTranslatingStatus();
 
+    // Set target language for TTS
+    window._vtCurrentTargetLang = shortsTargetLang || 'en';
+
     // Get or create overlay - always append to body for proper z-index and dragging
     let overlay = document.querySelector('.vt-shorts-overlay');
     if (!overlay) {
@@ -1128,14 +1139,15 @@ function startShortsMode() {
     // Detect from DOM
     const videoIds = detectShortsInFeed();
     if (videoIds.length > 0) {
-        // Current video first, then all others
+        // Current video first, then next few videos (limit to 3 to avoid aggressive queueing)
         const currentId = getCurrentShortsId();
         const orderedIds = currentId
             ? [currentId, ...videoIds.filter(id => id !== currentId)]
             : videoIds;
-        // Queue all detected videos for translation
-        queueShortsForTranslation(orderedIds);
-        vtLog.info(`[Shorts] Queued ${orderedIds.length} videos for pre-translation`);
+        // Only queue first 3 videos to be conservative
+        const limitedIds = orderedIds.slice(0, 3);
+        queueShortsForTranslation(limitedIds);
+        vtLog.info(`[Shorts] Queued ${limitedIds.length} videos for pre-translation`);
     }
 
     // Watch for navigation/scroll changes
@@ -1169,9 +1181,11 @@ function startFeedScanner() {
 
         const videoIds = detectShortsInFeed();
         if (videoIds.length > 0) {
-            queueShortsForTranslation(videoIds);
+            // Only queue next 3 videos to avoid aggressive queueing
+            const limitedIds = videoIds.slice(0, 3);
+            queueShortsForTranslation(limitedIds);
         }
-    }, 3000);  // Scan every 3 seconds for new videos
+    }, 10000);  // Scan every 10 seconds for new videos (reduced from 3s)
 }
 
 /**
@@ -1290,13 +1304,13 @@ function onShortsChanged(videoId) {
     // Display cached subtitles if available
     displayCachedSubtitles(videoId);
 
-    // Queue ALL remaining videos for pre-translation
+    // Queue next 3 videos for pre-translation (conservative limit)
     const feedIds = detectShortsInFeed();
     const currentIndex = feedIds.indexOf(videoId);
 
     if (currentIndex !== -1) {
-        // Queue all videos after current one
-        const nextIds = feedIds.slice(currentIndex + 1);
+        // Only queue next 3 videos after current one
+        const nextIds = feedIds.slice(currentIndex + 1, currentIndex + 4);
         if (nextIds.length > 0) {
             queueShortsForTranslation(nextIds);
             vtLog.debug(`[Shorts] Queued ${nextIds.length} upcoming videos`);
@@ -1322,19 +1336,18 @@ function handleTranslationReady(videoId, subtitles) {
 async function initShorts() {
     if (!isShortsPage()) return;
 
-    // Setup fetch interceptor to capture upcoming video IDs
-    setupShortsInterceptor();
-
     // Inject styles first
     injectShortsStyles();
 
     vtLog.debug('[Shorts] Initializing on Shorts page');
 
-    // Create toggle button (this loads settings internally)
+    // Create toggle button (this loads settings internally and sets shortsEnabled)
     await createShortsToggle();
 
     // Auto-start if previously enabled (shortsEnabled is set by createShortsToggle)
     if (shortsEnabled) {
+        // Only setup interceptor when Shorts translation is enabled
+        setupShortsInterceptor();
         startShortsMode();
     }
 }
