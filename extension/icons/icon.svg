@@ -1,55 +1,70 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <defs>
-    <!-- Modern gradient - deeper teal to cyan -->
-    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#06b6d4"/>
+    <!-- Ocean depth gradient -->
+    <linearGradient id="oceanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0d9488"/>
       <stop offset="50%" stop-color="#0891b2"/>
-      <stop offset="100%" stop-color="#0e7490"/>
+      <stop offset="100%" stop-color="#0369a1"/>
     </linearGradient>
-    <!-- Subtle inner shadow -->
-    <filter id="innerGlow">
-      <feGaussianBlur stdDeviation="2" result="blur"/>
-      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+
+    <!-- Wave shimmer gradient -->
+    <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#5eead4"/>
+      <stop offset="50%" stop-color="#22d3ee"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+
+    <!-- Glow effect -->
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
     </filter>
   </defs>
 
   <!-- Rounded Square Background -->
-  <rect x="4" y="4" width="120" height="120" rx="28" ry="28" fill="url(#bgGrad)"/>
+  <rect x="4" y="4" width="120" height="120" rx="26" ry="26" fill="url(#oceanGrad)"/>
 
-  <!-- Subtle highlight on top-left -->
-  <ellipse cx="40" cy="36" rx="32" ry="24" fill="white" opacity="0.12"/>
+  <!-- Ambient light reflection -->
+  <ellipse cx="38" cy="32" rx="28" ry="18" fill="white" opacity="0.1"/>
 
-  <!-- Speech bubble / caption bubble - main element -->
-  <path d="M24 38
-           C24 30, 30 24, 38 24
-           L90 24
-           C98 24, 104 30, 104 38
-           L104 70
-           C104 78, 98 84, 90 84
-           L52 84
-           L40 96
-           L40 84
-           L38 84
-           C30 84, 24 78, 24 70
-           Z"
-        fill="white"
-        opacity="0.95"/>
+  <!-- Main Wave - flowing S-curve representing the tide -->
+  <path d="M20 78
+           C32 78, 38 58, 54 58
+           C70 58, 70 78, 86 78
+           C102 78, 108 58, 108 58"
+        fill="none"
+        stroke="url(#waveGrad)"
+        stroke-width="8"
+        stroke-linecap="round"
+        filter="url(#glow)"
+        opacity="0.9"/>
 
-  <!-- Translation icon: globe with text lines -->
-  <!-- Globe circle -->
-  <circle cx="48" cy="54" r="16" fill="none" stroke="#0891b2" stroke-width="3"/>
-  <!-- Globe horizontal line -->
-  <ellipse cx="48" cy="54" rx="16" ry="6" fill="none" stroke="#0891b2" stroke-width="2.5"/>
-  <!-- Globe vertical line -->
-  <path d="M48 38 Q42 54, 48 70 M48 38 Q54 54, 48 70" fill="none" stroke="#0891b2" stroke-width="2.5"/>
+  <!-- Secondary wave - creates depth -->
+  <path d="M20 92
+           C36 92, 42 72, 58 72
+           C74 72, 74 92, 90 92
+           C106 92, 108 76, 108 76"
+        fill="none"
+        stroke="white"
+        stroke-width="5"
+        stroke-linecap="round"
+        opacity="0.4"/>
 
-  <!-- Text lines representing subtitles -->
-  <rect x="70" y="46" width="24" height="4" rx="2" fill="#0891b2"/>
-  <rect x="70" y="54" width="20" height="4" rx="2" fill="#0891b2" opacity="0.7"/>
-  <rect x="70" y="62" width="16" height="4" rx="2" fill="#0891b2" opacity="0.5"/>
+  <!-- Subtitle text lines - the "Sub" in Subtide -->
+  <g opacity="0.95">
+    <!-- Line 1 - longest -->
+    <rect x="24" y="28" width="56" height="6" rx="3" fill="white"/>
+    <!-- Line 2 - medium -->
+    <rect x="24" y="40" width="44" height="6" rx="3" fill="white" opacity="0.85"/>
+    <!-- Line 3 - short -->
+    <rect x="24" y="52" width="32" height="6" rx="3" fill="white" opacity="0.7"/>
+  </g>
 
-  <!-- Play button indicator at bottom -->
-  <polygon points="52,100 52,112 62,106" fill="white" opacity="0.9"/>
-  <rect x="66" y="102" width="18" height="3" rx="1.5" fill="white" opacity="0.7"/>
-  <rect x="66" y="107" width="12" height="3" rx="1.5" fill="white" opacity="0.5"/>
+  <!-- Decorative bubble/droplet accent -->
+  <circle cx="96" cy="36" r="8" fill="white" opacity="0.25"/>
+  <circle cx="88" cy="28" r="4" fill="white" opacity="0.2"/>
+
 </svg>
