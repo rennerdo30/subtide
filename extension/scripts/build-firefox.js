@@ -27,7 +27,7 @@ function convertToFirefox() {
     // Add Firefox-specific settings
     firefoxManifest.browser_specific_settings = {
         gecko: {
-            id: 'subtide@video-translate',
+            id: 'subtide@rennerdo30.dev',
             strict_min_version: '109.0'
         }
     };

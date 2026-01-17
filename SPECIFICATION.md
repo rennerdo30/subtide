@@ -134,7 +134,7 @@ Health check endpoint.
 ```json
 {
   "status": "ok",
-  "service": "video-translate-backend",
+  "service": "subtide-backend",
   "features": {
     "whisper": true,
     "tier3": true
@@ -366,13 +366,13 @@ While the extension typically translates client-side for Tier 1 & 2 to keep API 
 ### Docker
 ```bash
 # Tier 1 (No Whisper)
-docker-compose up video-translate-tier1
+docker-compose up subtide-tier1
 
 # Tier 2 (Whisper enabled)
-docker-compose up video-translate-tier2
+docker-compose up subtide-tier2
 
 # Tier 3 (Managed translation)
-SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
+SERVER_API_KEY=sk-xxx docker-compose up subtide-tier3
 ```
 
 ### Local Development

@@ -212,7 +212,7 @@ docker run -d \
   -p 5001:5001 \
   -e WHISPER_MODEL=large-v3-turbo \
   -e WHISPER_BACKEND=faster \
-  ghcr.io/rennerdo30/video-translate-backend:latest
+  ghcr.io/rennerdo30/subtide-backend:latest
 ```
 
 Or use an env file:
@@ -221,7 +221,7 @@ Or use an env file:
 docker run -d \
   -p 5001:5001 \
   --env-file .env \
-  ghcr.io/rennerdo30/video-translate-backend:latest
+  ghcr.io/rennerdo30/subtide-backend:latest
 ```
 
 ---
@@ -231,7 +231,7 @@ docker run -d \
 The backend validates configuration on startup. Check logs for warnings:
 
 ```bash
-./video-translate-backend 2>&1 | grep -i warning
+./subtide-backend 2>&1 | grep -i warning
 ```
 
 ---

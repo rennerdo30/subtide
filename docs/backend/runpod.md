@@ -20,7 +20,7 @@ Deploy Subtide on RunPod for GPU-accelerated transcription.
 ### Docker Image
 
 ```bash
-docker pull ghcr.io/rennerdo30/video-translate-runpod:latest
+docker pull ghcr.io/rennerdo30/subtide-runpod:latest
 ```
 
 ### Configure Extension
@@ -40,7 +40,7 @@ Set your backend URL to your RunPod endpoint:
 2. Click **New Endpoint**
 3. Configure:
     - **Name**: `subtide`
-    - **Container Image**: `ghcr.io/rennerdo30/video-translate-runpod:latest`
+    - **Container Image**: `ghcr.io/rennerdo30/subtide-runpod:latest`
     - **GPU Type**: RTX 3090, RTX 4090, or A100
     - **Max Workers**: 3-5 (adjust based on load)
 
@@ -81,7 +81,7 @@ RunPod API Key: {YOUR_RUNPOD_API_KEY}
 3. Select a GPU (RTX 3090 or better recommended)
 4. Use the Docker image:
    ```
-   ghcr.io/rennerdo30/video-translate-runpod-server:latest
+   ghcr.io/rennerdo30/subtide-runpod-server:latest
    ```
 
 ### 2. Environment Variables

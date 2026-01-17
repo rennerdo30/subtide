@@ -2,7 +2,7 @@
 
 All notable changes to Subtide are documented here.
 
-For the full changelog, see [CHANGELOG.md](https://github.com/rennerdo30/video-translate/blob/main/CHANGELOG.md) in the repository.
+For the full changelog, see [CHANGELOG.md](https://github.com/rennerdo30/subtide/blob/main/CHANGELOG.md) in the repository.
 
 ---
 
@@ -65,6 +65,6 @@ Initial release of Subtide.
 
 ## Links
 
-- [Full Changelog](https://github.com/rennerdo30/video-translate/blob/main/CHANGELOG.md)
-- [Releases](https://github.com/rennerdo30/video-translate/releases)
-- [GitHub Repository](https://github.com/rennerdo30/video-translate)
+- [Full Changelog](https://github.com/rennerdo30/subtide/blob/main/CHANGELOG.md)
+- [Releases](https://github.com/rennerdo30/subtide/releases)
+- [GitHub Repository](https://github.com/rennerdo30/subtide)

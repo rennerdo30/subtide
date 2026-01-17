@@ -8,7 +8,7 @@ Deploy Subtide backend using Docker.
 
 ```bash
 cd backend
-docker-compose up video-translate-tier2
+docker-compose up subtide-tier2
 ```
 
 The backend will be available at `http://localhost:5001`.
@@ -22,7 +22,7 @@ The backend will be available at `http://localhost:5001`.
 YouTube captions only, no transcription:
 
 ```bash
-docker-compose up video-translate-tier1
+docker-compose up subtide-tier1
 ```
 
 Use when:
@@ -36,7 +36,7 @@ Use when:
 Full Whisper transcription support:
 
 ```bash
-docker-compose up video-translate-tier2
+docker-compose up subtide-tier2
 ```
 
 Use when:
@@ -53,7 +53,7 @@ Server-side API key:
 SERVER_API_KEY=sk-xxx \
 SERVER_API_URL=https://api.openai.com/v1 \
 SERVER_MODEL=gpt-4o \
-docker-compose up video-translate-tier3
+docker-compose up subtide-tier3
 ```
 
 Use when:
@@ -70,7 +70,7 @@ Real-time progressive translation:
 SERVER_API_KEY=sk-xxx \
 SERVER_API_URL=https://api.openai.com/v1 \
 SERVER_MODEL=gpt-4o \
-docker-compose up video-translate-tier4
+docker-compose up subtide-tier4
 ```
 
 Use when:
@@ -94,10 +94,10 @@ docker build -t subtide-backend .
 
 ```bash
 # Standard backend
-docker pull ghcr.io/rennerdo30/video-translate-backend:latest
+docker pull ghcr.io/rennerdo30/subtide-backend:latest
 
 # RunPod variant
-docker pull ghcr.io/rennerdo30/video-translate-runpod:latest
+docker pull ghcr.io/rennerdo30/subtide-runpod:latest
 ```
 
 ---
@@ -112,7 +112,7 @@ docker run -d \
   -e WHISPER_MODEL=large-v3-turbo \
   -e WHISPER_BACKEND=faster \
   -e CORS_ORIGINS="*" \
-  ghcr.io/rennerdo30/video-translate-backend:latest
+  ghcr.io/rennerdo30/subtide-backend:latest
 ```
 
 ### Available Variables
@@ -141,7 +141,7 @@ Persist downloaded Whisper models:
 docker run -d \
   -p 5001:5001 \
   -v ~/.cache/whisper:/root/.cache/whisper \
-  ghcr.io/rennerdo30/video-translate-backend:latest
+  ghcr.io/rennerdo30/subtide-backend:latest
 ```
 
 ### Custom Configuration
@@ -152,7 +152,7 @@ Mount a custom `.env` file:
 docker run -d \
   -p 5001:5001 \
   -v /path/to/.env:/app/.env \
-  ghcr.io/rennerdo30/video-translate-backend:latest
+  ghcr.io/rennerdo30/subtide-backend:latest
 ```
 
 ---
@@ -168,7 +168,7 @@ docker run -d \
   --gpus all \
   -p 5001:5001 \
   -e WHISPER_BACKEND=faster \
-  ghcr.io/rennerdo30/video-translate-backend:latest
+  ghcr.io/rennerdo30/subtide-backend:latest
 ```
 
 Requires:
@@ -187,7 +187,7 @@ version: '3.8'
 
 services:
   subtide:
-    image: ghcr.io/rennerdo30/video-translate-backend:latest
+    image: ghcr.io/rennerdo30/subtide-backend:latest
     ports:
       - "5001:5001"
     environment:

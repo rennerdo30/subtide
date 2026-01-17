@@ -37,7 +37,7 @@ docker-compose up --build
 Running a specific tier (e.g., Tier 1):
 
 ```bash
-docker-compose up --build video-translate-tier1
+docker-compose up --build subtide-tier1
 ```
 
 ## Local Development

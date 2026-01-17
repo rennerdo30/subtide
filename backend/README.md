@@ -4,7 +4,7 @@ Standalone backend server for the Video Translate Chrome extension.
 
 ## Quick Start (Binary)
 
-Download the binary for your operating system from the [Releases](https://github.com/rennerdo30/video-translate/releases) page.
+Download the binary for your operating system from the [Releases](https://github.com/rennerdo30/subtide/releases) page.
 
 ### Prerequisites
 
@@ -24,22 +24,22 @@ Download the binary for your operating system from the [Releases](https://github
 ### Running the Server
 
 1. Download the appropriate binary:
-   - `video-translate-backend-linux` (Linux)
-   - `video-translate-backend-macos` (macOS)
-   - `video-translate-backend-windows.exe` (Windows)
+   - `subtide-backend-linux` (Linux)
+   - `subtide-backend-macos` (macOS)
+   - `subtide-backend-windows.exe` (Windows)
 
 2. Make executable (Linux/macOS only):
    ```bash
-   chmod +x video-translate-backend-linux  # or -macos
+   chmod +x subtide-backend-linux  # or -macos
    ```
 
 3. Run the server:
    ```bash
    # Linux/macOS
-   ./video-translate-backend-linux
+   ./subtide-backend-linux
 
    # Windows
-   video-translate-backend-windows.exe
+   subtide-backend-windows.exe
    ```
 
 4. The server will start on `http://localhost:5001`

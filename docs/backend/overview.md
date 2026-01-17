@@ -57,15 +57,15 @@ The Subtide backend is a Flask-based REST API that handles:
 
 ```bash
 # Download from releases
-chmod +x video-translate-backend-macos
-./video-translate-backend-macos
+chmod +x subtide-backend-macos
+./subtide-backend-macos
 ```
 
 ### Docker (Production)
 
 ```bash
 cd backend
-docker-compose up video-translate-tier2
+docker-compose up subtide-tier2
 ```
 
 ### Source (Development)
@@ -89,7 +89,7 @@ Subtide supports multiple Whisper implementations:
 Optimized for M1/M2/M3/M4 Macs:
 
 ```bash
-WHISPER_BACKEND=mlx ./video-translate-backend
+WHISPER_BACKEND=mlx ./subtide-backend
 ```
 
 - Uses unified memory efficiently
@@ -101,7 +101,7 @@ WHISPER_BACKEND=mlx ./video-translate-backend
 CUDA-accelerated for NVIDIA GPUs:
 
 ```bash
-WHISPER_BACKEND=faster ./video-translate-backend
+WHISPER_BACKEND=faster ./subtide-backend
 ```
 
 - Requires CUDA toolkit
@@ -113,7 +113,7 @@ WHISPER_BACKEND=faster ./video-translate-backend
 Original Whisper implementation:
 
 ```bash
-WHISPER_BACKEND=openai ./video-translate-backend
+WHISPER_BACKEND=openai ./subtide-backend
 ```
 
 - CPU-based (slower)

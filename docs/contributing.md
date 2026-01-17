@@ -16,8 +16,8 @@ Guide for contributing to Subtide development.
 ### Clone Repository
 
 ```bash
-git clone https://github.com/rennerdo30/video-translate.git
-cd video-translate
+git clone https://github.com/rennerdo30/subtide.git
+cd subtide
 ```
 
 ---
@@ -57,7 +57,7 @@ pip install -r requirements-dev.txt
 ## Project Structure
 
 ```
-video-translate/
+subtide/
 ├── backend/                 # Python Flask server
 │   ├── app.py               # Entry point
 │   ├── config.py            # Configuration
@@ -237,8 +237,8 @@ Include:
 
 ## Community
 
-- [GitHub Issues](https://github.com/rennerdo30/video-translate/issues) - Bug reports, feature requests
-- [GitHub Discussions](https://github.com/rennerdo30/video-translate/discussions) - Questions, ideas
+- [GitHub Issues](https://github.com/rennerdo30/subtide/issues) - Bug reports, feature requests
+- [GitHub Discussions](https://github.com/rennerdo30/subtide/discussions) - Questions, ideas
 
 ---
 

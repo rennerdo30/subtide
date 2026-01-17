@@ -20,19 +20,19 @@ Deploy Video Translate on RunPod.io for fast, cost-effective GPU acceleration.
 
 | Deployment Type | Docker Image | Entrypoint | URL Format |
 |-----------------|--------------|------------|------------|
-| **Serverless Queue** | `video-translate-runpod:latest` | `runpod_handler.py` | `api.runpod.ai/v2/{id}/runsync` |
-| **Load Balancer** | `video-translate-runpod-server:latest` | `gunicorn` (Flask) | `{id}.api.runpod.ai/api/process` |
-| **Dedicated Pod** | `video-translate-runpod-server:latest` | `gunicorn` (Flask) | `pod-5001.proxy.runpod.net/api/process` |
+| **Serverless Queue** | `subtide-runpod:latest` | `runpod_handler.py` | `api.runpod.ai/v2/{id}/runsync` |
+| **Load Balancer** | `subtide-runpod-server:latest` | `gunicorn` (Flask) | `{id}.api.runpod.ai/api/process` |
+| **Dedicated Pod** | `subtide-runpod-server:latest` | `gunicorn` (Flask) | `pod-5001.proxy.runpod.net/api/process` |
 
 ### Understanding the Modes
 
-**Serverless Queue** (`video-translate-runpod`):
+**Serverless Queue** (`subtide-runpod`):
 - Uses RunPod's job queue system
 - Requests go to `/runsync` endpoint (RunPod SDK handles routing)
 - No persistent HTTP server; workers process jobs from queue
 - Best for: Variable workloads, pay-per-second, long-running tasks
 
-**Load Balancer** (`video-translate-runpod-server`):
+**Load Balancer** (`subtide-runpod-server`):
 - Runs Flask/Gunicorn HTTP server directly
 - RunPod routes requests to healthy workers via `/ping` health checks
 - Direct HTTP access to your custom endpoints (`/api/process`, `/api/stream`)
@@ -41,7 +41,7 @@ Deploy Video Translate on RunPod.io for fast, cost-effective GPU acceleration.
 - **Environment Variables**: `PORT` (default: 5001), `PORT_HEALTH` (default: same as PORT)
 - See: [RunPod Load Balancing Docs](https://docs.runpod.io/serverless/load-balancing/overview)
 
-**Dedicated Pod** (`video-translate-runpod-server`):
+**Dedicated Pod** (`subtide-runpod-server`):
 - Same image as Load Balancer, but always-on single instance
 - Fixed hourly cost, no cold starts
 - Full control over the container
@@ -92,7 +92,7 @@ This runs the full Flask backend, providing native SSE support for the "live str
 2. Click **Deploy**.
 3. Choose **RTX 4090** (Best value), **RTX 3090**, or **RTX A4500** (High Availability).
 4. **Customize Deployment**:
-   - **Container Image**: `ghcr.io/rennerdo30/video-translate-runpod-server:latest`
+   - **Container Image**: `ghcr.io/rennerdo30/subtide-runpod-server:latest`
    - **Expose Port**: `5001` (HTTP)
    - **Environment Variables**:
      ```env
@@ -118,7 +118,7 @@ Best for on-demand usage where you don't want to pay for idle time.
 #### 1. Create Template
 1. Go to [Templates](https://www.runpod.io/console/serverless/user/templates).
 2. Click **New Template**.
-3. **Container Image**: `ghcr.io/rennerdo30/video-translate-runpod:latest`
+3. **Container Image**: `ghcr.io/rennerdo30/subtide-runpod:latest`
 4. **Container Disk**: `20 GB`.
 5. **Environment Variables**:
    ```env
@@ -204,7 +204,7 @@ The provided `Dockerfile` in the root is optimized for both use cases.
 
 ### ModuleNotFoundError: No module named 'backend'
 - This indicates an outdated Docker image. Rebuild with the latest Dockerfile that includes `PYTHONPATH=/app`.
-- Pull the latest image: `ghcr.io/rennerdo30/video-translate-runpod:latest`
+- Pull the latest image: `ghcr.io/rennerdo30/subtide-runpod:latest`
 
 ### Streaming Lag (Serverless)
 - Serverless cold starts can take 10-30s depending on GPU availability.

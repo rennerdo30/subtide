@@ -80,7 +80,7 @@ Target Language: Spanish
 
 **Backend:**
 ```bash
-./video-translate-backend-macos
+./subtide-backend-macos
 ```
 
 ---
@@ -99,7 +99,7 @@ Target Language: Japanese
 
 **Backend:**
 ```bash
-WHISPER_MODEL=large-v3-turbo WHISPER_BACKEND=mlx ./video-translate-backend-macos
+WHISPER_MODEL=large-v3-turbo WHISPER_BACKEND=mlx ./subtide-backend-macos
 ```
 
 ---
@@ -118,7 +118,7 @@ Target Language: German
 SERVER_API_KEY=sk-xxx \
 SERVER_API_URL=https://api.openai.com/v1 \
 SERVER_MODEL=gpt-4o \
-docker-compose up video-translate-tier3
+docker-compose up subtide-tier3
 ```
 
 ---
@@ -138,7 +138,7 @@ SERVER_API_KEY=sk-xxx \
 SERVER_API_URL=https://api.openai.com/v1 \
 SERVER_MODEL=gpt-4o \
 WHISPER_MODEL=large-v3-turbo \
-docker-compose up video-translate-tier4
+docker-compose up subtide-tier4
 ```
 
 ---

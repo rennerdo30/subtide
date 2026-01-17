@@ -1,6 +1,6 @@
 # Backend API Documentation
 
-The `video-translate` backend provides a robust API for subtitle fetching, AI transcription, and LLM-powered translation.
+The Subtide backend provides a robust API for subtitle fetching, AI transcription, and LLM-powered translation.
 
 ## Getting Started
 

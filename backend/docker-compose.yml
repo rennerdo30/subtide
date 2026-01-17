@@ -42,7 +42,7 @@ services:
       - LOG_LEVEL=INFO
       - LOG_JSON=true
     volumes:
-      - video-translate-cache:/app/cache
+      - subtide-cache:/app/cache
     restart: unless-stopped
     profiles:
       - production
@@ -62,7 +62,7 @@ services:
       - LOG_LEVEL=INFO
       - LOG_JSON=true
     volumes:
-      - video-translate-cache:/app/cache
+      - subtide-cache:/app/cache
       - whisper-models:/root/.cache/whisper
     restart: unless-stopped
     deploy:
@@ -90,7 +90,7 @@ services:
       - LOG_LEVEL=INFO
       - LOG_JSON=true
     volumes:
-      - video-translate-cache:/app/cache
+      - subtide-cache:/app/cache
       - whisper-models:/root/.cache/whisper
     restart: unless-stopped
     deploy:
@@ -136,7 +136,7 @@ services:
       - HF_TOKEN=${HF_TOKEN}
       - LOG_LEVEL=INFO
     volumes:
-      - video-translate-cache:/app/cache
+      - subtide-cache:/app/cache
       - runpod-models:/root/.cache
     deploy:
       resources:
@@ -167,7 +167,7 @@ services:
       - SERVER_MODEL=${SERVER_MODEL:-gpt-4o-mini}
       - HF_TOKEN=${HF_TOKEN}
     volumes:
-      - video-translate-cache:/app/cache
+      - subtide-cache:/app/cache
       - runpod-models:/root/.cache
     deploy:
       resources:
@@ -181,7 +181,7 @@ services:
       - serverless
 
 volumes:
-  video-translate-cache:
+  subtide-cache:
   whisper-models:
   redis-data:
   runpod-models:
@@ -204,6 +204,6 @@ volumes:
 #    docker-compose logs -f
 #
 # For RunPod.io deployment, use:
-#    docker build -f Dockerfile.runpod --target serverless -t video-translate-runpod .
-#    docker push <your-registry>/video-translate-runpod
+#    docker build -f Dockerfile.runpod --target serverless -t subtide-runpod .
+#    docker push <your-registry>/subtide-runpod
 # ============================================================================

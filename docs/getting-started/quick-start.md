@@ -10,21 +10,21 @@ Choose one of the following options:
 
 === "Binary (Recommended)"
 
-    Download the latest backend binary from [Releases](https://github.com/rennerdo30/video-translate/releases):
+    Download the latest backend binary from [Releases](https://github.com/rennerdo30/subtide/releases):
 
-    - `video-translate-backend-linux`
-    - `video-translate-backend-macos`
-    - `video-translate-backend-windows.exe`
+    - `subtide-backend-linux`
+    - `subtide-backend-macos`
+    - `subtide-backend-windows.exe`
 
     !!! note "Prerequisite"
         [FFmpeg](https://ffmpeg.org/download.html) must be installed.
 
     ```bash
     # Make executable (Linux/macOS)
-    chmod +x video-translate-backend-macos
+    chmod +x subtide-backend-macos
 
     # Run
-    ./video-translate-backend-macos
+    ./subtide-backend-macos
     ```
 
 === "Python Source"
@@ -41,7 +41,7 @@ Choose one of the following options:
 
     ```bash
     cd backend
-    docker-compose up video-translate-tier2
+    docker-compose up subtide-tier2
     ```
 
 The backend will start on `http://localhost:5001`.
@@ -52,7 +52,7 @@ The backend will start on `http://localhost:5001`.
 
 === "Chrome / Edge / Brave"
 
-    1. Download `video-translate-extension.zip` from [Releases](https://github.com/rennerdo30/video-translate/releases)
+    1. Download `subtide-extension.zip` from [Releases](https://github.com/rennerdo30/subtide/releases)
     2. Extract the ZIP file
     3. Open Chrome → `chrome://extensions`
     4. Enable **Developer mode** (top right)
@@ -61,7 +61,7 @@ The backend will start on `http://localhost:5001`.
 
 === "Firefox"
 
-    1. Download `video-translate-extension-firefox.zip` from [Releases](https://github.com/rennerdo30/video-translate/releases)
+    1. Download `subtide-extension-firefox.zip` from [Releases](https://github.com/rennerdo30/subtide/releases)
     2. Open Firefox → `about:debugging`
     3. Click **This Firefox** → **Load Temporary Add-on**
     4. Select the ZIP file

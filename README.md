@@ -55,19 +55,19 @@
 
 **Option A: Download Binary (Recommended)**
 
-Download the latest backend binary from [Releases](https://github.com/rennerdo30/video-translate/releases):
-- `video-translate-backend-linux`
-- `video-translate-backend-macos`
-- `video-translate-backend-windows.exe`
+Download the latest backend binary from [Releases](https://github.com/rennerdo30/subtide/releases):
+- `subtide-backend-linux`
+- `subtide-backend-macos`
+- `subtide-backend-windows.exe`
 
 > **Prerequisite**: [FFmpeg](https://ffmpeg.org/download.html) must be installed.
 
 ```bash
 # Make executable (Linux/macOS)
-chmod +x video-translate-backend-macos
+chmod +x subtide-backend-macos
 
 # Run
-./video-translate-backend-macos
+./subtide-backend-macos
 ```
 
 **Option B: Run from Source**
@@ -84,7 +84,7 @@ pip install -r requirements.txt
 
 ```bash
 cd backend
-docker-compose up video-translate-tier2
+docker-compose up subtide-tier2
 ```
 
 ### 2. Install the Extension
@@ -173,13 +173,13 @@ Shorts are consumed rapidly (swipe behavior), so on-demand translation is too sl
 cd backend
 
 # Tier 1: Standard (YouTube captions only)
-docker-compose up video-translate-tier1
+docker-compose up subtide-tier1
 
 # Tier 2: With Whisper transcription
-docker-compose up video-translate-tier2
+docker-compose up subtide-tier2
 
 # Tier 3/4: Managed with server-side API key
-SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
+SERVER_API_KEY=sk-xxx docker-compose up subtide-tier3
 ```
 
 ### Environment Variables
@@ -203,7 +203,7 @@ SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
 For GPU-accelerated transcription, deploy on [RunPod.io](https://runpod.io):
 
 ```bash
-docker pull ghcr.io/rennerdo30/video-translate-runpod:latest
+docker pull ghcr.io/rennerdo30/subtide-runpod:latest
 ```
 
 Configure the extension with your RunPod endpoint:
@@ -276,7 +276,7 @@ Run translations completely locally using LM Studio or Ollama.
 ## Architecture
 
 ```
-video-translate/
+subtide/
 ├── backend/                    # Python Flask server
 │   ├── app.py                  # Entry point
 │   ├── config.py               # Configuration

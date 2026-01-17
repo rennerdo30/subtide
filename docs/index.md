@@ -1,7 +1,7 @@
 # Subtide
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/rennerdo30/video-translate/main/extension/icons/icon128.png" width="128" height="128" alt="Subtide Logo">
+  <img src="https://raw.githubusercontent.com/rennerdo30/subtide/main/extension/icons/icon128.png" width="128" height="128" alt="Subtide Logo">
 </p>
 
 <p align="center">
@@ -117,4 +117,4 @@ This project is fully open-source with no paid tiers. The "Tiers" refer to diffe
 
 ## License
 
-Subtide is released under the [MIT License](https://github.com/rennerdo30/video-translate/blob/main/LICENSE).
+Subtide is released under the [MIT License](https://github.com/rennerdo30/subtide/blob/main/LICENSE).

@@ -106,7 +106,7 @@ Backend URL: http://localhost:5001
 Whisper transcription is required since most sites don't have caption tracks:
 
 ```bash
-WHISPER_MODEL=base ./video-translate-backend
+WHISPER_MODEL=base ./subtide-backend
 ```
 
 ---

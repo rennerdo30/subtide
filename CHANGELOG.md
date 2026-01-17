@@ -97,4 +97,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-[1.1.0]: https://github.com/rennerdo30/video-translate/releases/tag/v1.1.0
+[1.1.0]: https://github.com/rennerdo30/subtide/releases/tag/v1.1.0

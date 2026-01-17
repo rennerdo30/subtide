@@ -66,7 +66,7 @@ Thank you for your interest in contributing to Video Translate!
 ## Project Structure
 
 ```
-video-translate/
+subtide/
 ├── backend/                        # Python Flask server
 │   ├── app.py                      # Flask entry point
 │   ├── config.py                   # Configuration management

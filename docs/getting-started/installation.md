@@ -16,26 +16,26 @@ The easiest way to get started is with the pre-built binaries.
 
 **Download:**
 
-1. Go to [Releases](https://github.com/rennerdo30/video-translate/releases)
+1. Go to [Releases](https://github.com/rennerdo30/subtide/releases)
 2. Download the appropriate binary for your OS:
-    - `video-translate-backend-linux`
-    - `video-translate-backend-macos`
-    - `video-translate-backend-windows.exe`
+    - `subtide-backend-linux`
+    - `subtide-backend-macos`
+    - `subtide-backend-windows.exe`
 
 **Run:**
 
 === "Linux"
 
     ```bash
-    chmod +x video-translate-backend-linux
-    ./video-translate-backend-linux
+    chmod +x subtide-backend-linux
+    ./subtide-backend-linux
     ```
 
 === "macOS"
 
     ```bash
-    chmod +x video-translate-backend-macos
-    ./video-translate-backend-macos
+    chmod +x subtide-backend-macos
+    ./subtide-backend-macos
     ```
 
     !!! note "macOS Security"
@@ -47,7 +47,7 @@ The easiest way to get started is with the pre-built binaries.
 === "Windows"
 
     ```powershell
-    .\video-translate-backend-windows.exe
+    .\subtide-backend-windows.exe
     ```
 
 ---
@@ -65,8 +65,8 @@ For development or customization.
 
 ```bash
 # Clone the repository
-git clone https://github.com/rennerdo30/video-translate.git
-cd video-translate/backend
+git clone https://github.com/rennerdo30/subtide.git
+cd subtide/backend
 
 # Create virtual environment
 python -m venv venv
@@ -95,13 +95,13 @@ For containerized deployments.
 cd backend
 
 # Tier 1: Standard (YouTube captions only)
-docker-compose up video-translate-tier1
+docker-compose up subtide-tier1
 
 # Tier 2: With Whisper transcription
-docker-compose up video-translate-tier2
+docker-compose up subtide-tier2
 
 # Tier 3/4: Managed with server-side API key
-SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
+SERVER_API_KEY=sk-xxx docker-compose up subtide-tier3
 ```
 
 ---
@@ -112,7 +112,7 @@ SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
 
 === "From Release"
 
-    1. Download `video-translate-extension.zip` from [Releases](https://github.com/rennerdo30/video-translate/releases)
+    1. Download `subtide-extension.zip` from [Releases](https://github.com/rennerdo30/subtide/releases)
     2. Extract the ZIP file to a folder
     3. Open your browser and go to the extensions page:
         - Chrome: `chrome://extensions`
@@ -127,7 +127,7 @@ SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
 
     1. Clone the repository:
        ```bash
-       git clone https://github.com/rennerdo30/video-translate.git
+       git clone https://github.com/rennerdo30/subtide.git
        ```
     2. Open `chrome://extensions`
     3. Enable **Developer mode**
@@ -140,7 +140,7 @@ SERVER_API_KEY=sk-xxx docker-compose up video-translate-tier3
 
 === "Temporary Installation"
 
-    1. Download `video-translate-extension-firefox.zip` from [Releases](https://github.com/rennerdo30/video-translate/releases)
+    1. Download `subtide-extension-firefox.zip` from [Releases](https://github.com/rennerdo30/subtide/releases)
     2. Open Firefox and go to `about:debugging`
     3. Click **This Firefox**
     4. Click **Load Temporary Add-on**

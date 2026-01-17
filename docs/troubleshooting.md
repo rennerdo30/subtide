@@ -45,7 +45,7 @@ Solutions for common issues with Subtide.
 
 1. Set CORS to allow all origins:
    ```bash
-   CORS_ORIGINS=* ./video-translate-backend
+   CORS_ORIGINS=* ./subtide-backend
    ```
 
 2. Or specify YouTube domains:
@@ -108,7 +108,7 @@ ffmpeg -version
 
 1. Use a smaller model:
    ```bash
-   WHISPER_MODEL=base ./video-translate-backend
+   WHISPER_MODEL=base ./subtide-backend
    ```
 
 2. Model memory requirements:
@@ -135,17 +135,17 @@ ffmpeg -version
 
 1. On Apple Silicon, ensure MLX backend:
    ```bash
-   WHISPER_BACKEND=mlx ./video-translate-backend
+   WHISPER_BACKEND=mlx ./subtide-backend
    ```
 
 2. On NVIDIA GPU, ensure CUDA backend:
    ```bash
-   WHISPER_BACKEND=faster ./video-translate-backend
+   WHISPER_BACKEND=faster ./subtide-backend
    ```
 
 3. Use a faster model:
    ```bash
-   WHISPER_MODEL=large-v3-turbo ./video-translate-backend
+   WHISPER_MODEL=large-v3-turbo ./subtide-backend
    ```
 
 ---
@@ -164,7 +164,7 @@ ffmpeg -version
    ```
 3. Or use a different backend:
    ```bash
-   WHISPER_BACKEND=openai ./video-translate-backend
+   WHISPER_BACKEND=openai ./subtide-backend
    ```
 
 ---
@@ -347,7 +347,7 @@ This is expected for temporary add-ons. For permanent installation:
 
 If these solutions don't resolve your issue:
 
-1. Check the [GitHub Issues](https://github.com/rennerdo30/video-translate/issues)
+1. Check the [GitHub Issues](https://github.com/rennerdo30/subtide/issues)
 2. Search for similar problems
 3. Open a new issue with:
    - Browser and version

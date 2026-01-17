@@ -1,8 +1,8 @@
 site_name: Subtide Documentation
 site_description: AI-powered video subtitle translation for YouTube, Twitch, and any video site
-site_url: https://rennerdo30.github.io/video-translate/
-repo_url: https://github.com/rennerdo30/video-translate
-repo_name: rennerdo30/video-translate
+site_url: https://rennerdo30.github.io/subtide/
+repo_url: https://github.com/rennerdo30/subtide
+repo_name: rennerdo30/subtide
 edit_uri: edit/main/docs/
 
 theme:
@@ -82,6 +82,6 @@ nav:
 extra:
   social:
     - icon: fontawesome/brands/github
-      link: https://github.com/rennerdo30/video-translate
+      link: https://github.com/rennerdo30/subtide
   version:
     provider: mike

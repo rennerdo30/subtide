@@ -56,44 +56,44 @@ jobs:
 
       - name: Package Chrome Extension
         run: |
-          mkdir -p dist/video-translate-extension
-          cp extension/manifest.json dist/video-translate-extension/
-          cp -r extension/src dist/video-translate-extension/
-          cp -r extension/icons dist/video-translate-extension/
-          cp -r extension/_locales dist/video-translate-extension/
-          cp LICENSE dist/video-translate-extension/
-          cp README.md dist/video-translate-extension/
+          mkdir -p dist/subtide-extension
+          cp extension/manifest.json dist/subtide-extension/
+          cp -r extension/src dist/subtide-extension/
+          cp -r extension/icons dist/subtide-extension/
+          cp -r extension/_locales dist/subtide-extension/
+          cp LICENSE dist/subtide-extension/
+          cp README.md dist/subtide-extension/
 
           cd dist
-          zip -r ../video-translate-extension.zip video-translate-extension/
+          zip -r ../subtide-extension.zip subtide-extension/
 
       - name: Build Firefox Manifest
         run: node extension/scripts/build-firefox.js
 
       - name: Package Firefox Extension
         run: |
-          mkdir -p dist/video-translate-extension-firefox
-          cp extension/manifest.firefox.json dist/video-translate-extension-firefox/manifest.json
-          cp -r extension/src dist/video-translate-extension-firefox/
-          cp -r extension/icons dist/video-translate-extension-firefox/
-          cp -r extension/_locales dist/video-translate-extension-firefox/
-          cp LICENSE dist/video-translate-extension-firefox/
-          cp README.md dist/video-translate-extension-firefox/
+          mkdir -p dist/subtide-extension-firefox
+          cp extension/manifest.firefox.json dist/subtide-extension-firefox/manifest.json
+          cp -r extension/src dist/subtide-extension-firefox/
+          cp -r extension/icons dist/subtide-extension-firefox/
+          cp -r extension/_locales dist/subtide-extension-firefox/
+          cp LICENSE dist/subtide-extension-firefox/
+          cp README.md dist/subtide-extension-firefox/
 
           cd dist
-          zip -r ../video-translate-extension-firefox.zip video-translate-extension-firefox/
+          zip -r ../subtide-extension-firefox.zip subtide-extension-firefox/
 
       - name: Upload Chrome Extension Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: video-translate-extension
-          path: video-translate-extension.zip
+          name: subtide-extension
+          path: subtide-extension.zip
 
       - name: Upload Firefox Extension Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: video-translate-extension-firefox
-          path: video-translate-extension-firefox.zip
+          name: subtide-extension-firefox
+          path: subtide-extension-firefox.zip
 
   # Build Backend Binaries for each platform
   build-backend:
@@ -103,13 +103,13 @@ jobs:
         include:
           - os: ubuntu-latest
             name: linux
-            asset_name: video-translate-backend-linux
+            asset_name: subtide-backend-linux
           - os: macos-latest
             name: macos
-            asset_name: video-translate-backend-macos
+            asset_name: subtide-backend-macos
           - os: windows-latest
             name: windows
-            asset_name: video-translate-backend-windows.exe
+            asset_name: subtide-backend-windows.exe
     
     runs-on: ${{ matrix.os }}
     steps:
@@ -165,15 +165,15 @@ jobs:
       - name: Build with PyInstaller
         run: |
           cd backend
-          pyinstaller --onefile --name video-translate-backend --add-data ".env.example${{ env.SEP }}." app.py
+          pyinstaller --onefile --name subtide-backend --add-data ".env.example${{ env.SEP }}." app.py
 
       - name: Rename artifact (Unix)
         if: matrix.os != 'windows-latest'
-        run: mv backend/dist/video-translate-backend backend/dist/${{ matrix.asset_name }}
+        run: mv backend/dist/subtide-backend backend/dist/${{ matrix.asset_name }}
 
       - name: Rename artifact (Windows)
         if: matrix.os == 'windows-latest'
-        run: move backend\dist\video-translate-backend.exe backend\dist\${{ matrix.asset_name }}
+        run: move backend\dist\subtide-backend.exe backend\dist\${{ matrix.asset_name }}
 
       - name: Upload Backend Binary
         uses: actions/upload-artifact@v4
@@ -367,19 +367,19 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            artifacts/video-translate-extension/video-translate-extension.zip
-            artifacts/video-translate-extension-firefox/video-translate-extension-firefox.zip
-            artifacts/video-translate-backend-linux/video-translate-backend-linux
-            artifacts/video-translate-backend-macos/video-translate-backend-macos
-            artifacts/video-translate-backend-windows.exe/video-translate-backend-windows.exe
+            artifacts/subtide-extension/subtide-extension.zip
+            artifacts/subtide-extension-firefox/subtide-extension-firefox.zip
+            artifacts/subtide-backend-linux/subtide-backend-linux
+            artifacts/subtide-backend-macos/subtide-backend-macos
+            artifacts/subtide-backend-windows.exe/subtide-backend-windows.exe
           draft: false
           prerelease: false
           generate_release_notes: true
           body: |
             ## Browser Extensions
 
-            - **Chrome/Edge/Brave**: Download `video-translate-extension.zip`
-            - **Firefox**: Download `video-translate-extension-firefox.zip`
+            - **Chrome/Edge/Brave**: Download `subtide-extension.zip`
+            - **Firefox**: Download `subtide-extension-firefox.zip`
 
             ## Docker Images
 

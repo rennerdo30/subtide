@@ -162,7 +162,7 @@ For fully local operation:
 
 ```bash
 # Backend with local Whisper
-WHISPER_MODEL=base WHISPER_BACKEND=mlx ./video-translate-backend
+WHISPER_MODEL=base WHISPER_BACKEND=mlx ./subtide-backend
 ```
 
 ```
