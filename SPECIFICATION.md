@@ -61,10 +61,67 @@ A Chrome extension + Python backend that translates YouTube video subtitles in r
 - **Cache Management**: View and clear translation cache
 
 ### YouTube Integration
-- Translate button injected into player controls
+- Translate button injected into player controls (bottom right, `.ytp-right-controls`)
 - Language selector dropdown
 - Real-time subtitle overlay
 - Network interception for caption data
+
+### Generic Video Player Integration
+
+For non-YouTube/Twitch sites, the extension uses a different UI approach:
+
+#### UI Positioning (CRITICAL)
+- **Control bar at TOP of video** - Never at bottom to avoid blocking native controls
+- Native video controls (play, pause, seek, volume, fullscreen) are always at the bottom
+- Our controls at the top ensure zero interference with any video player
+
+#### Control Bar Layout
+```
+┌─────────────────────────────────────────────────────────────┐
+│ [▶ Translate]  [EN ▼]  "Translating... 45%"          [⚙]  │
+└─────────────────────────────────────────────────────────────┘
+                    (at TOP of video)
+```
+- Auto-hides when mouse leaves video area
+- Shows inline status during translation
+- Quick language dropdown (50+ languages with search)
+- Settings gear opens panel
+
+#### Status Panel (Centered Overlay)
+```
+┌────────────────────────────────┐
+│     Step 2 of 3: Transcribing  │
+│  ████████████░░░░░░░░  45%     │
+│     Processing audio...        │
+└────────────────────────────────┘
+```
+- Only shown during active translation
+- Step indicator with progress bar
+- Auto-hides on completion
+
+#### Settings Panel
+- Opens below the top control bar (not above)
+- Flat menu structure (no deep nesting)
+- Appearance settings: size, position, background, color, font, outline, opacity
+- Presets: Cinema, Minimal, High Contrast
+- Keyboard shortcuts displayed
+
+#### Keyboard Shortcuts
+| Key | Action |
+|-----|--------|
+| Alt+T | Start translation |
+| Alt+S | Toggle subtitles |
+| Alt+L | Open language menu |
+| Escape | Close menus |
+
+#### File Structure
+```
+extension/src/content/
+  generic-styles.js   # CSS with design tokens
+  generic-sync.js     # Subtitle synchronization
+  generic-ui.js       # UI components
+  generic.js          # Entry point
+```
 
 ## Backend API
 

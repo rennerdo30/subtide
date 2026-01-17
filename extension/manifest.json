@@ -78,6 +78,9 @@
       ],
       "js": [
         "src/lib/debug.js",
+        "src/content/generic-styles.js",
+        "src/content/generic-sync.js",
+        "src/content/generic-ui.js",
         "src/content/generic.js"
       ],
       "all_frames": true,
