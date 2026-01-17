@@ -15,11 +15,11 @@ const DEBUG_ENABLED = false; // Set to true for development
 
 const vtLog = {
     debug: (...args) => {
-        if (DEBUG_ENABLED) console.log('[VideoTranslate]', ...args);
+        if (DEBUG_ENABLED) console.log('[Subtide]', ...args);
     },
-    info: (...args) => console.log('[VideoTranslate]', ...args),
-    warn: (...args) => console.warn('[VideoTranslate]', ...args),
-    error: (...args) => console.error('[VideoTranslate]', ...args),
+    info: (...args) => console.log('[Subtide]', ...args),
+    warn: (...args) => console.warn('[Subtide]', ...args),
+    error: (...args) => console.error('[Subtide]', ...args),
 };
 
 // ============================================================================
@@ -110,7 +110,7 @@ async function encryptApiKey(plaintext) {
 
         return btoa(String.fromCharCode(...combined));
     } catch (e) {
-        console.error('[VideoTranslate] Encryption failed:', e);
+        console.error('[Subtide] Encryption failed:', e);
         return null;
     }
 }
@@ -132,7 +132,7 @@ async function decryptApiKey(encrypted) {
 
         return new TextDecoder().decode(decrypted);
     } catch (e) {
-        console.error('[VideoTranslate] Decryption failed:', e);
+        console.error('[Subtide] Decryption failed:', e);
         return null;
     }
 }
@@ -492,7 +492,7 @@ function mergePartialSentences(subtitles) {
     }
 
     if (merged.length !== subtitles.length) {
-        console.log(`[VideoTranslate] Merged ${subtitles.length} -> ${merged.length} sentences`);
+        console.log(`[Subtide] Merged ${subtitles.length} -> ${merged.length} sentences`);
     }
 
     return { merged, mapping };
@@ -649,7 +649,7 @@ function cancelRequests(tabId) {
     if (controller) {
         controller.abort();
         activeRequests.delete(tabId);
-        console.log(`[VideoTranslate] Cancelled requests for tab ${tabId}`);
+        console.log(`[Subtide] Cancelled requests for tab ${tabId}`);
     }
 }
 
@@ -929,7 +929,7 @@ async function translateDirectLLM(subtitles, sourceLanguage, targetLanguage, con
     // Language detection pre-check: skip translation if source = target
     const detectedLang = detectLanguage(subtitles);
     if (isSameLanguage(detectedLang, targetLanguage)) {
-        console.log(`[VideoTranslate] Source language (${detectedLang}) matches target (${targetLanguage}), skipping translation`);
+        console.log(`[Subtide] Source language (${detectedLang}) matches target (${targetLanguage}), skipping translation`);
         // Return subtitles with translatedText = original text
         return subtitles.map(sub => ({
             ...sub,
@@ -944,13 +944,13 @@ async function translateDirectLLM(subtitles, sourceLanguage, targetLanguage, con
     const usesSentenceMerging = mergedSubtitles.length < subtitles.length;
 
     if (usesSentenceMerging) {
-        console.log(`[VideoTranslate] Using sentence merging: ${subtitles.length} -> ${mergedSubtitles.length} segments`);
+        console.log(`[Subtide] Using sentence merging: ${subtitles.length} -> ${mergedSubtitles.length} segments`);
     }
 
     for (let i = 0; i < subsToTranslate.length; i += BATCH_SIZE) {
         // Check if request was cancelled
         if (signal?.aborted) {
-            console.log('[VideoTranslate] Translation cancelled by user');
+            console.log('[Subtide] Translation cancelled by user');
             throw new DOMException('Translation cancelled', 'AbortError');
         }
 
@@ -958,7 +958,7 @@ async function translateDirectLLM(subtitles, sourceLanguage, targetLanguage, con
         const batchNum = Math.floor(i / BATCH_SIZE) + 1;
         const totalBatches = Math.ceil(subsToTranslate.length / BATCH_SIZE);
 
-        console.log(`[VideoTranslate] Direct LLM batch ${batchNum}/${totalBatches}`);
+        console.log(`[Subtide] Direct LLM batch ${batchNum}/${totalBatches}`);
 
         let translations = null;
         let retryCount = 0;
@@ -979,7 +979,7 @@ async function translateDirectLLM(subtitles, sourceLanguage, targetLanguage, con
                 const unchangedPercent = (unchangedCount / translations.length) * 100;
 
                 if (unchangedPercent > 50 && retryCount < MAX_RETRIES) {
-                    console.warn(`[VideoTranslate] Batch ${batchNum}: ${unchangedPercent.toFixed(0)}% unchanged, retrying...`);
+                    console.warn(`[Subtide] Batch ${batchNum}: ${unchangedPercent.toFixed(0)}% unchanged, retrying...`);
                     retryCount++;
                     await new Promise(r => setTimeout(r, 500)); // Brief delay before retry
                     continue;
@@ -987,7 +987,7 @@ async function translateDirectLLM(subtitles, sourceLanguage, targetLanguage, con
 
                 break; // Success
             } catch (error) {
-                console.error(`[VideoTranslate] Batch ${batchNum} attempt ${retryCount + 1} failed:`, error);
+                console.error(`[Subtide] Batch ${batchNum} attempt ${retryCount + 1} failed:`, error);
                 retryCount++;
                 if (retryCount > MAX_RETRIES) {
                     // Keep original text on error after all retries
@@ -1028,24 +1028,24 @@ async function translateDirectLLM(subtitles, sourceLanguage, targetLanguage, con
     // Log warning if many translations failed
     const failedCount = results.filter(r => r.translationFailed).length;
     if (failedCount > results.length * 0.3) {
-        console.warn(`[VideoTranslate] Warning: ${failedCount}/${results.length} translations may have failed (unchanged from source)`);
+        console.warn(`[Subtide] Warning: ${failedCount}/${results.length} translations may have failed (unchanged from source)`);
     }
 
     // Resplit merged sentences back to original timing
     let finalResults = results;
     if (usesSentenceMerging) {
-        console.log('[VideoTranslate] Resplitting merged sentences to original timing...');
+        console.log('[Subtide] Resplitting merged sentences to original timing...');
         finalResults = resplitAfterTranslation(subtitles, results, sentenceMapping);
     }
 
     // Optional Multi-Pass Translation Refinement
     if (config.enableMultiPass && finalResults.length > 0) {
-        console.log('[VideoTranslate] Running multi-pass refinement...');
+        console.log('[Subtide] Running multi-pass refinement...');
         try {
             const refinedResults = await refineTranslations(finalResults, targetLanguage, config, onProgress);
             return refinedResults;
         } catch (error) {
-            console.warn('[VideoTranslate] Multi-pass refinement failed, using first-pass results:', error);
+            console.warn('[Subtide] Multi-pass refinement failed, using first-pass results:', error);
         }
     }
 
@@ -1090,7 +1090,7 @@ ${numbered}`;
                 }
             }
         } catch (error) {
-            console.warn(`[VideoTranslate] Refinement batch ${batchNum} failed:`, error);
+            console.warn(`[Subtide] Refinement batch ${batchNum} failed:`, error);
         }
 
         if (onProgress) {
@@ -1107,7 +1107,7 @@ ${numbered}`;
         await new Promise(r => setTimeout(r, 300));
     }
 
-    console.log('[VideoTranslate] Multi-pass refinement complete');
+    console.log('[Subtide] Multi-pass refinement complete');
     return refined;
 }
 
@@ -1378,7 +1378,7 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
                 });
 
                 if (!statusResponse.ok) {
-                    console.warn('[VideoTranslate] Status poll failed:', statusResponse.status);
+                    console.warn('[Subtide] Status poll failed:', statusResponse.status);
                     continue;
                 }
 
@@ -1470,7 +1470,7 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
                     if (data.result) return data.result.subtitles;
                     if (data.error) throw new Error(data.error);
                 } catch (e) {
-                    console.warn('[VideoTranslate] JSON Parse error:', e);
+                    console.warn('[Subtide] JSON Parse error:', e);
                 }
             }
         }
@@ -1490,7 +1490,7 @@ async function processVideoTier3(videoId, targetLanguage, config, onProgress, ta
 
     } catch (error) {
         clearTimeout(timeoutId);
-        console.error('[VideoTranslate] Fetch failed:', error);
+        console.error('[Subtide] Fetch failed:', error);
         throw error;
     }
 }
@@ -1671,14 +1671,14 @@ async function processVideoTier4(videoId, targetLanguage, config, onProgress, on
                             return;
                         }
                     } catch (e) {
-                        console.warn('[VideoTranslate] Tier4 SSE JSON parse error:', e, 'Data:', event.data);
+                        console.warn('[Subtide] Tier4 SSE JSON parse error:', e, 'Data:', event.data);
                     }
                 }
             }
 
             // If we got subtitles but no final result, return what we have
             if (allSubtitles.length > 0) {
-                console.log(`[VideoTranslate] Tier4: Stream ended with ${allSubtitles.length} subtitles (no final result event)`);
+                console.log(`[Subtide] Tier4: Stream ended with ${allSubtitles.length} subtitles (no final result event)`);
                 resolve(allSubtitles);
                 return;
             }
@@ -1696,7 +1696,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     handleMessage(message, sender)
         .then(sendResponse)
         .catch(error => {
-            console.error('[VideoTranslate] Error:', error);
+            console.error('[Subtide] Error:', error);
             sendResponse({ error: error.message });
         });
     return true;
@@ -1791,7 +1791,7 @@ async function handleMessage(message, sender) {
             return { success: true };
 
         case 'error':
-            console.error('[VideoTranslate] Offscreen error:', message.message || message.error || message);
+            console.error('[Subtide] Offscreen error:', message.message || message.error || message);
             return { success: true };
 
         // Queue management actions
@@ -2087,7 +2087,7 @@ async function handleStartLiveTranslate(message, sender, config) {
         });
         return { success: true, tabId };
     } catch (error) {
-        console.error('[VideoTranslate] Live translate failed:', error);
+        console.error('[Subtide] Live translate failed:', error);
         if (error.message && error.message.includes("Extension has not been invoked")) {
             throw new Error(chrome.i18n.getMessage('usePopupForLive') || "Please start Live Translation from the Extension Popup icon.");
         }
@@ -2124,7 +2124,7 @@ async function handleStopLiveTranslate() {
         });
         return { success: true };
     } catch (error) {
-        console.error('[VideoTranslate] Stop live failed:', error);
+        console.error('[Subtide] Stop live failed:', error);
         liveTranslationState = {
             isActive: false,
             activeTabId: null,
@@ -2268,7 +2268,7 @@ async function processQueue() {
         const pending = queue.find(item => item.status === 'pending');
 
         if (!pending) {
-            console.log('[VideoTranslate] Queue empty, stopping processor');
+            console.log('[Subtide] Queue empty, stopping processor');
             break;
         }
 
@@ -2276,7 +2276,7 @@ async function processQueue() {
         pending.status = 'processing';
         await saveQueue(queue);
 
-        console.log(`[VideoTranslate] Processing queue item: ${pending.videoId}`);
+        console.log(`[Subtide] Processing queue item: ${pending.videoId}`);
 
         try {
             // Check cache first
@@ -2327,7 +2327,7 @@ async function processQueue() {
                 pending.completedAt = Date.now();
             }
         } catch (error) {
-            console.error(`[VideoTranslate] Queue item failed: ${pending.videoId}`, error);
+            console.error(`[Subtide] Queue item failed: ${pending.videoId}`, error);
             pending.status = 'failed';
             pending.error = error.message;
             pending.completedAt = Date.now();

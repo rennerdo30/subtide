@@ -28,7 +28,7 @@
                             }
                         });
                         if (ids.length > 0) {
-                            console.log('[VideoTranslate] Fetch intercepted', ids.length, 'video IDs:', ids);
+                            console.log('[Subtide] Fetch intercepted', ids.length, 'video IDs:', ids);
                             window.postMessage({ type: 'vt-shorts-videos', ids: ids }, '*');
                         }
                     }
@@ -65,7 +65,7 @@
                             }
                         });
                         if (ids.length > 0) {
-                            console.log('[VideoTranslate] XHR intercepted', ids.length, 'video IDs');
+                            console.log('[Subtide] XHR intercepted', ids.length, 'video IDs');
                             window.postMessage({ type: 'vt-shorts-videos', ids: ids }, '*');
                         }
                     }
@@ -136,7 +136,7 @@
     setTimeout(() => {
         const ids = scanPageData();
         if (ids.length > 0) {
-            console.log('[VideoTranslate] Initial scan found', ids.length, 'video IDs');
+            console.log('[Subtide] Initial scan found', ids.length, 'video IDs');
             window.postMessage({ type: 'vt-shorts-videos', ids: ids }, '*');
         }
     }, 500);
@@ -144,7 +144,7 @@
     setTimeout(() => {
         const ids = scanPageData();
         if (ids.length > 0) {
-            console.log('[VideoTranslate] Delayed scan found', ids.length, 'video IDs');
+            console.log('[Subtide] Delayed scan found', ids.length, 'video IDs');
             window.postMessage({ type: 'vt-shorts-videos', ids: ids }, '*');
         }
     }, 2000);
@@ -165,10 +165,10 @@
 
         const ids = scanPageData();
         if (ids.length > 0) {
-            console.log('[VideoTranslate] Triggered scan found', ids.length, 'video IDs');
+            console.log('[Subtide] Triggered scan found', ids.length, 'video IDs');
             window.postMessage({ type: 'vt-shorts-videos', ids: ids }, '*');
         }
     });
 
-    console.log('[VideoTranslate] Shorts interceptor installed');
+    console.log('[Subtide] Shorts interceptor installed');
 })();

@@ -50,7 +50,7 @@ const isYouTube = location.host.includes('youtube.com');
 const isTwitch = location.host.includes('twitch.tv');
 
 if (!isYouTube && !isTwitch) {
-    console.log('[VideoTranslate] Initializing Generic Adapter');
+    console.log('[Subtide] Initializing Generic Adapter');
     init();
 }
 
@@ -91,16 +91,16 @@ function injectInterceptor() {
             this.remove();
         };
         (document.head || document.documentElement).appendChild(script);
-        console.log('[VideoTranslate] Interceptor injected');
+        console.log('[Subtide] Interceptor injected');
     } catch (e) {
-        console.error('[VideoTranslate] Failed to inject interceptor:', e);
+        console.error('[Subtide] Failed to inject interceptor:', e);
     }
 
     // Listen for events from the interceptor
     window.addEventListener('vt-stream-found', (e) => {
         if (e.detail && e.detail.url) {
             if (hlsUrl !== e.detail.url) {
-                console.log('[VideoTranslate] Received Stream URL from interceptor:', e.detail.url);
+                console.log('[Subtide] Received Stream URL from interceptor:', e.detail.url);
                 hlsUrl = e.detail.url;
             }
         }
@@ -120,7 +120,7 @@ async function loadConfig() {
         if (config.subtitleOpacity) subtitleSettings.opacity = config.subtitleOpacity;
         if (config.subtitleShowSpeaker) subtitleSettings.showSpeaker = config.subtitleShowSpeaker;
     } catch (e) {
-        console.warn('[VideoTranslate] Failed to load config:', e);
+        console.warn('[Subtide] Failed to load config:', e);
     }
 }
 
@@ -152,7 +152,7 @@ function setActiveVideo(video) {
     if (activeVideo === video) return;
 
     activeVideo = video;
-    console.log('[VideoTranslate] Active video found:', video);
+    console.log('[Subtide] Active video found:', video);
 
     // Try to find HLS or MPD URL
     hlsUrl = findStreamUrl(video);
@@ -203,7 +203,7 @@ function injectUI(video) {
     // Create UI components
     const UI = window.VTGenericUI;
     if (!UI) {
-        console.error('[VideoTranslate] UI module not loaded');
+        console.error('[Subtide] UI module not loaded');
         return;
     }
 
@@ -293,7 +293,7 @@ function handleSettingChange(key, value, settings) {
 
 function toggleSubtitles() {
     const visible = window.VTGenericUI?.toggleSubtitleVisibility(uiElements.subtitleOverlay);
-    console.log('[VideoTranslate] Subtitles:', visible ? 'visible' : 'hidden');
+    console.log('[Subtide] Subtitles:', visible ? 'visible' : 'hidden');
     return visible;
 }
 
@@ -344,11 +344,11 @@ async function startTranslation() {
 
         // If we found a direct stream URL (HLS/DASH), send it as streamUrl
         if (hlsUrl && (hlsUrl.includes('.m3u8') || hlsUrl.includes('.mpd'))) {
-            console.log('[VideoTranslate] Detected stream URL:', hlsUrl);
+            console.log('[Subtide] Detected stream URL:', hlsUrl);
             streamUrl = hlsUrl;
         }
 
-        console.log('[VideoTranslate] Sending request:', { videoUrl, streamUrl, lang: selectedLanguage });
+        console.log('[Subtide] Sending request:', { videoUrl, streamUrl, lang: selectedLanguage });
 
         const response = await sendMessage({
             action: 'process',
@@ -363,7 +363,7 @@ async function startTranslation() {
         handleTranslationResult(response.translations);
 
     } catch (e) {
-        console.error('[VideoTranslate] Translation failed:', e);
+        console.error('[Subtide] Translation failed:', e);
 
         UI?.updateStatusPanel(uiElements.statusPanel, {
             type: 'error',
@@ -421,11 +421,11 @@ function updateProgress(data) {
 
 function handleTranslationResult(subtitles) {
     if (!subtitles || !subtitles.length) {
-        console.warn('[VideoTranslate] No subtitles received');
+        console.warn('[Subtide] No subtitles received');
         return;
     }
 
-    console.log('[VideoTranslate] Received', subtitles.length, 'subtitles');
+    console.log('[Subtide] Received', subtitles.length, 'subtitles');
 
     translationState.isTranslating = false;
 

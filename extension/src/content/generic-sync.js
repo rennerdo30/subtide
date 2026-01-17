@@ -109,7 +109,7 @@ function initSubtitleWindow(subs) {
     subtitleWindow.activeList = subs.slice(0, SUBTITLE_WINDOW_SIZE);
     subtitleWindow.lastAccessTime = performance.now();
 
-    console.log('[VideoTranslate] Windowed access enabled for', subs.length, 'subtitles');
+    console.log('[Subtide] Windowed access enabled for', subs.length, 'subtitles');
 }
 
 /**
@@ -155,13 +155,13 @@ function analyzeSubtitleDensity(subtitles) {
 
     if (subsPerMinute > DENSITY_HIGH_THRESHOLD) {
         subtitleDensity = { ...HIGH_DENSITY_TIMING };
-        console.log('[VideoTranslate] High density subtitles:', Math.round(subsPerMinute), 'subs/min');
+        console.log('[Subtide] High density subtitles:', Math.round(subsPerMinute), 'subs/min');
     } else if (subsPerMinute < DENSITY_LOW_THRESHOLD) {
         subtitleDensity = { ...LOW_DENSITY_TIMING };
-        console.log('[VideoTranslate] Low density subtitles:', Math.round(subsPerMinute), 'subs/min');
+        console.log('[Subtide] Low density subtitles:', Math.round(subsPerMinute), 'subs/min');
     } else {
         subtitleDensity = { ...DEFAULT_TIMING };
-        console.log('[VideoTranslate] Normal density subtitles:', Math.round(subsPerMinute), 'subs/min');
+        console.log('[Subtide] Normal density subtitles:', Math.round(subsPerMinute), 'subs/min');
     }
 }
 
@@ -344,7 +344,7 @@ function stopSyncLoop() {
  */
 function adjustSyncOffset(offsetMs) {
     syncState.syncOffset += offsetMs;
-    console.log('[VideoTranslate] Sync offset adjusted to:', syncState.syncOffset, 'ms');
+    console.log('[Subtide] Sync offset adjusted to:', syncState.syncOffset, 'ms');
     return syncState.syncOffset;
 }
 
@@ -353,7 +353,7 @@ function adjustSyncOffset(offsetMs) {
  */
 function resetSyncOffset() {
     syncState.syncOffset = 0;
-    console.log('[VideoTranslate] Sync offset reset');
+    console.log('[Subtide] Sync offset reset');
     return 0;
 }
 
@@ -384,11 +384,11 @@ function setSyncOffset(offsetMs) {
  */
 function loadSubtitles(subtitles) {
     if (!subtitles || !subtitles.length) {
-        console.warn('[VideoTranslate] No subtitles to load');
+        console.warn('[Subtide] No subtitles to load');
         return;
     }
 
-    console.log('[VideoTranslate] Loading', subtitles.length, 'subtitles');
+    console.log('[Subtide] Loading', subtitles.length, 'subtitles');
 
     // Normalize subtitles
     const normalized = subtitles.map(s => ({

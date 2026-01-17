@@ -1,0 +1,153 @@
+# YouTube Shorts
+
+Special features for YouTube Shorts with pre-translation for instant subtitles.
+
+---
+
+## Overview
+
+YouTube Shorts are consumed rapidly with swipe behavior. On-demand translation would be too slow, so Subtide uses a **pre-translation** system:
+
+1. **Detection** - Automatically detects all Shorts in your feed
+2. **Pre-translation** - Translates 4+ videos ahead in the background
+3. **Instant Display** - Cached subtitles appear immediately when you swipe
+
+---
+
+## Getting Started
+
+1. Navigate to YouTube Shorts (`youtube.com/shorts/...`)
+2. Look for the **floating translate button** in the bottom-right
+3. Click to enable translation
+4. Subtitles appear on the current video
+5. **Swipe** to the next Short - subtitles appear instantly!
+
+---
+
+## Controls
+
+### Floating Button
+
+A circular button appears at the bottom-right of each Short:
+
+- **Click** to toggle translation on/off
+- **Color indicates status**:
+    - Teal: Active and ready
+    - Gray: Disabled
+
+### Dropdown Menu
+
+Click the arrow next to the button to access:
+
+- **Language Selection** - Quick language picker
+- **Subtitle Size** - S / M / L / XL options
+- **Queue Status** - Shows translation progress
+
+---
+
+## Pre-Translation Queue
+
+The queue system works in the background:
+
+```
+Queue Status: 4/4 ready
+
+[Current] ✓ Translated
+[Next 1]  ✓ Translated
+[Next 2]  ✓ Translated
+[Next 3]  ✓ Translated
+[Next 4]  ⟳ Translating...
+```
+
+!!! info "How It Works"
+    As you watch one Short, Subtide translates the next several videos in the background. When you swipe, subtitles are already cached and appear instantly.
+
+---
+
+## Subtitle Display
+
+### Positioning
+
+- **Default**: Centered near the bottom of the video
+- **Draggable**: Click and drag to move anywhere
+- **Reset**: Double-click to return to default
+
+### Sizing
+
+Choose a size that works for the vertical format:
+
+| Size | Description |
+|------|-------------|
+| S | Minimal, unobtrusive |
+| M | Balanced default |
+| L | Easy to read |
+| XL | Maximum visibility |
+
+---
+
+## Performance Tips
+
+### Optimize Queue Size
+
+The pre-translation queue loads 4+ videos ahead. For best experience:
+
+1. **Stable connection** - Pre-translation needs consistent bandwidth
+2. **Watch normally** - Don't skip too fast, let the queue build up
+3. **First Short** - May take a moment while the queue initializes
+
+### Backend Considerations
+
+For YouTube Shorts, consider:
+
+1. **Tier 2+** recommended for consistent quality
+2. **Fast Whisper model** like `large-v3-turbo` for quick processing
+3. **Local backend** for lowest latency
+
+---
+
+## Feed Detection
+
+Subtide automatically detects Shorts in:
+
+- Direct Shorts URLs (`youtube.com/shorts/xxxxx`)
+- Shorts tab on channels
+- Shorts appearing in search results
+- Shorts in your home feed
+
+---
+
+## Limitations
+
+1. **First video delay** - Initial Short may take a moment to translate
+2. **Rapid skipping** - Skipping very fast may outpace the queue
+3. **Live Shorts** - Not supported (no audio to transcribe)
+
+---
+
+## Troubleshooting
+
+### Subtitles not appearing
+
+1. Check that the floating button is visible
+2. Ensure translation is enabled (teal color)
+3. Wait a moment for the initial translation
+4. Verify backend is running
+
+### Queue not filling
+
+1. Check your network connection
+2. Verify backend health at `http://localhost:5001/health`
+3. Check browser console for errors
+
+### Subtitles disappear when swiping
+
+1. This means the queue hasn't caught up
+2. Watch the current Short a bit longer
+3. The queue will pre-translate upcoming videos
+
+---
+
+## Next Steps
+
+- [YouTube Guide](youtube.md) - Regular YouTube video features
+- [Keyboard Shortcuts](keyboard-shortcuts.md) - Available shortcuts

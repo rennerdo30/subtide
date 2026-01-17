@@ -1,7 +1,7 @@
-# Video Translate - Specification
+# Subtide - Specification
 
 ## Overview
-A Chrome extension + Python backend that translates YouTube video subtitles in real-time using LLM APIs.
+A Chrome extension + Python backend that translates video subtitles in real-time using LLM APIs. Works on YouTube, Twitch, and any video site.
 
 ## Architecture
 

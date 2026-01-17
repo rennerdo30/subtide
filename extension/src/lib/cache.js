@@ -47,11 +47,11 @@ export async function getCachedTranslation(videoId, sourceLanguage, targetLangua
         // Update access time for LRU
         entry.lastAccess = Date.now();
         await saveCache(cache);
-        console.log(`[VideoTranslate] Cache hit for ${key}`);
+        console.log(`[Subtide] Cache hit for ${key}`);
         return entry.translations;
     }
 
-    console.log(`[VideoTranslate] Cache miss for ${key}`);
+    console.log(`[Subtide] Cache miss for ${key}`);
     return null;
 }
 
@@ -80,11 +80,11 @@ export async function cacheTranslation(videoId, sourceLanguage, targetLanguage, 
         for (let i = 0; i < toRemove; i++) {
             delete cache.entries[entries[i][0]];
         }
-        console.log(`[VideoTranslate] Evicted ${toRemove} cache entries`);
+        console.log(`[Subtide] Evicted ${toRemove} cache entries`);
     }
 
     await saveCache(cache);
-    console.log(`[VideoTranslate] Cached translation for ${key}`);
+    console.log(`[Subtide] Cached translation for ${key}`);
 }
 
 /**
@@ -92,7 +92,7 @@ export async function cacheTranslation(videoId, sourceLanguage, targetLanguage, 
  */
 export async function clearCache() {
     await saveCache({ version: CACHE_VERSION, entries: {} });
-    console.log('[VideoTranslate] Cache cleared');
+    console.log('[Subtide] Cache cleared');
 }
 
 /**

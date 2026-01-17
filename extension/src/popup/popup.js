@@ -67,16 +67,16 @@ async function wakeUpServiceWorker(maxRetries = 3) {
             try {
                 const response = await sendMessage({ action: 'ping' }, 3000);
                 if (response?.pong) {
-                    console.log('[VideoTranslate] Service worker is ready');
+                    console.log('[Subtide] Service worker is ready');
                     return true;
                 }
             } catch (e) {
-                console.log(`[VideoTranslate] Wake-up attempt ${i + 1}/${maxRetries} failed:`, e.message);
+                console.log(`[Subtide] Wake-up attempt ${i + 1}/${maxRetries} failed:`, e.message);
                 // Wait a bit before retrying
                 await new Promise(resolve => setTimeout(resolve, 500));
             }
         }
-        console.warn('[VideoTranslate] Service worker may not be fully ready');
+        console.warn('[Subtide] Service worker may not be fully ready');
         return false;
     })();
 
@@ -91,7 +91,7 @@ async function wakeUpServiceWorker(maxRetries = 3) {
  * Initialize popup
  */
 async function init() {
-    console.log('[VideoTranslate] Popup initializing...');
+    console.log('[Subtide] Popup initializing...');
 
     // Localize page first (no async, instant)
     localizePage();
@@ -99,7 +99,7 @@ async function init() {
     // Wake up the service worker BEFORE any other operations
     await wakeUpServiceWorker();
 
-    console.log('[VideoTranslate] Popup initialized');
+    console.log('[Subtide] Popup initialized');
 
     // Load configuration
     await loadConfig();
@@ -158,7 +158,7 @@ async function checkBackendStatus() {
             throw new Error('Invalid protocol');
         }
     } catch (urlError) {
-        console.warn('[VideoTranslate] Invalid backend URL:', backendUrl);
+        console.warn('[Subtide] Invalid backend URL:', backendUrl);
         statusText.textContent = chrome.i18n.getMessage('statusOffline');
         statusDot.style.background = 'var(--error)';
         statusDot.style.boxShadow = '0 0 8px var(--error)';
@@ -174,7 +174,7 @@ async function checkBackendStatus() {
             headers['Authorization'] = `Bearer ${apiKey}`;
         }
 
-        console.log('[VideoTranslate] Health check:', `${backendUrl}/health`);
+        console.log('[Subtide] Health check:', `${backendUrl}/health`);
 
         const response = await fetch(`${backendUrl}/health`, {
             method: 'GET',
@@ -182,11 +182,11 @@ async function checkBackendStatus() {
             signal: AbortSignal.timeout(15000) // 15s timeout for cold starts
         });
 
-        console.log('[VideoTranslate] Health response:', response.status);
+        console.log('[Subtide] Health response:', response.status);
 
         if (response.ok) {
             const data = await response.json();
-            console.log('[VideoTranslate] Health data:', data);
+            console.log('[Subtide] Health data:', data);
 
             // Check for Flask response OR RunPod Serverless response
             // Flask: { "status": "ok" }
@@ -201,7 +201,7 @@ async function checkBackendStatus() {
         }
         throw new Error(`HTTP ${response.status}`);
     } catch (e) {
-        console.warn("[VideoTranslate] Backend check failed:", e);
+        console.warn("[Subtide] Backend check failed:", e);
 
         statusText.textContent = chrome.i18n.getMessage('statusOffline');
         statusDot.style.background = 'var(--error)';
@@ -244,7 +244,7 @@ async function loadConfig() {
         updateProviderUI(config.provider || 'openai');
 
     } catch (error) {
-        console.error('[VideoTranslate] Failed to load config:', error);
+        console.error('[Subtide] Failed to load config:', error);
     }
 }
 
@@ -261,7 +261,7 @@ async function loadCacheStats() {
         else msg = chrome.i18n.getMessage('cacheCountSome', [count.toString()]);
         elements.cacheCount.textContent = msg;
     } catch (error) {
-        console.error('[VideoTranslate] Failed to load cache stats:', error);
+        console.error('[Subtide] Failed to load cache stats:', error);
         elements.cacheCount.textContent = chrome.i18n.getMessage('cacheCountZero');
     }
 }
@@ -371,7 +371,7 @@ function setupEventListeners() {
                 updateLiveButtonState('inactive');
             }
         } catch (error) {
-            console.error('[VideoTranslate] Live toggle failed:', error);
+            console.error('[Subtide] Live toggle failed:', error);
             isLiveTranslating = false;
             updateLiveButtonState('inactive');
 
@@ -461,7 +461,7 @@ async function loadQueue() {
             });
         }
     } catch (error) {
-        console.error('[VideoTranslate] Failed to load queue:', error);
+        console.error('[Subtide] Failed to load queue:', error);
     }
 }
 
@@ -473,7 +473,7 @@ async function clearCompletedQueue() {
         await sendMessage({ action: 'clearCompletedQueue' });
         loadQueue();
     } catch (error) {
-        console.error('[VideoTranslate] Failed to clear queue:', error);
+        console.error('[Subtide] Failed to clear queue:', error);
     }
 }
 
@@ -606,7 +606,7 @@ async function saveConfiguration() {
         }, 2000);
 
     } catch (error) {
-        console.error('[VideoTranslate] Failed to save config:', error);
+        console.error('[Subtide] Failed to save config:', error);
         btnSaving.style.display = 'none';
         btnText.textContent = chrome.i18n.getMessage('saveError');
         btnText.style.display = 'inline';
@@ -639,7 +639,7 @@ async function clearCache() {
         }, 1500);
 
     } catch (error) {
-        console.error('[VideoTranslate] Failed to clear cache:', error);
+        console.error('[Subtide] Failed to clear cache:', error);
         btnText.textContent = chrome.i18n.getMessage('clearError');
 
         setTimeout(() => {

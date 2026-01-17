@@ -1,9 +1,9 @@
 {
     "extensionName": {
-        "message": "Video Translate"
+        "message": "Subtide"
     },
     "extensionDescription": {
-        "message": "Translate video subtitles using AI. Supports any OpenAI-compatible API."
+        "message": "AI-powered video subtitle translation. Works on YouTube, Twitch, and any video site."
     },
     "backendStatusTitle": {
         "message": "Backend Server Status"
@@ -341,7 +341,7 @@
         "message": "Russian"
     },
     "btnVideoTranslate": {
-        "message": "Video Translate"
+        "message": "Subtide"
     },
     "menuMoreOptions": {
         "message": "More Options"

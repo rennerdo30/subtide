@@ -35,7 +35,7 @@ function updateStatus(text, type = '', percent = null, options = {}) {
     if (stage !== currentStage) {
         currentStage = stage;
         stageStartTime = now;
-        console.log(`[VideoTranslate] Stage changed to: ${stage}`);
+        console.log(`[Subtide] Stage changed to: ${stage}`);
     }
     const panel = document.querySelector('.vt-status-panel');
     const stepIndicator = panel?.querySelector('.vt-step-indicator');
@@ -166,7 +166,7 @@ function updateStatus(text, type = '', percent = null, options = {}) {
 
         // Log progress for debugging
         if (type === 'loading' && percent !== null) {
-            console.log(`[VideoTranslate] Progress: ${percent}% - ${text} (stage: ${stage})`);
+            console.log(`[Subtide] Progress: ${percent}% - ${text} (stage: ${stage})`);
         }
 
         // Show panel for loading/error, hide on success after delay

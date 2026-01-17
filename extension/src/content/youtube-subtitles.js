@@ -147,13 +147,13 @@ function loadSyncOffset() {
         const stored = localStorage.getItem(`vt-sync-${videoId}`);
         if (stored) {
             syncOffset = parseInt(stored, 10) || 0;
-            console.log('[VideoTranslate] Loaded sync offset:', syncOffset, 'ms for', videoId);
+            console.log('[Subtide] Loaded sync offset:', syncOffset, 'ms for', videoId);
         } else {
-            console.log('[VideoTranslate] No saved sync offset for', videoId, '- using 0');
+            console.log('[Subtide] No saved sync offset for', videoId, '- using 0');
         }
         updateSyncOffsetDisplay();
     } catch (e) {
-        console.warn('[VideoTranslate] Could not load sync offset:', e);
+        console.warn('[Subtide] Could not load sync offset:', e);
         updateSyncOffsetDisplay();
     }
 }
@@ -167,14 +167,14 @@ function saveSyncOffset() {
         if (videoId === 'unknown') return;
 
         localStorage.setItem(`vt-sync-${videoId}`, syncOffset.toString());
-        console.log('[VideoTranslate] Saved sync offset:', syncOffset, 'ms for', videoId);
+        console.log('[Subtide] Saved sync offset:', syncOffset, 'ms for', videoId);
 
         // Periodically clean up old entries (1 in 10 saves)
         if (Math.random() < 0.1) {
             cleanupOldSyncOffsets();
         }
     } catch (e) {
-        console.warn('[VideoTranslate] Could not save sync offset:', e);
+        console.warn('[Subtide] Could not save sync offset:', e);
     }
 }
 
@@ -200,7 +200,7 @@ function cleanupOldSyncOffsets() {
         // Since we can't track access time, just remove random excess entries
         if (syncKeys.length > MAX_SYNC_ENTRIES) {
             const toRemove = syncKeys.length - MAX_SYNC_ENTRIES;
-            console.log(`[VideoTranslate] Cleaning up ${toRemove} old sync offsets`);
+            console.log(`[Subtide] Cleaning up ${toRemove} old sync offsets`);
 
             // Remove the first N entries (oldest by insertion order approximation)
             for (let i = 0; i < toRemove; i++) {
@@ -208,7 +208,7 @@ function cleanupOldSyncOffsets() {
             }
         }
     } catch (e) {
-        console.warn('[VideoTranslate] Could not cleanup sync offsets:', e);
+        console.warn('[Subtide] Could not cleanup sync offsets:', e);
     }
 }
 
@@ -218,7 +218,7 @@ function cleanupOldSyncOffsets() {
  */
 function adjustSyncOffset(deltaMs) {
     syncOffset += deltaMs;
-    console.log('[VideoTranslate] Sync offset:', syncOffset, 'ms');
+    console.log('[Subtide] Sync offset:', syncOffset, 'ms');
     updateSyncOffsetDisplay();
     saveSyncOffset();  // Persist to localStorage
 }
@@ -228,7 +228,7 @@ function adjustSyncOffset(deltaMs) {
  */
 function resetSyncOffset() {
     syncOffset = 0;
-    console.log('[VideoTranslate] Sync offset reset');
+    console.log('[Subtide] Sync offset reset');
     updateSyncOffsetDisplay();
     saveSyncOffset();  // Persist reset
 }
@@ -264,7 +264,7 @@ let subtitleWindow = {
  */
 function analyzeSubtitleDensity(subs) {
     if (!subs || subs.length < 2) {
-        console.log('[VideoTranslate] Not enough subtitles for density analysis');
+        console.log('[Subtide] Not enough subtitles for density analysis');
         return subtitleDensity;
     }
 
@@ -308,21 +308,21 @@ function analyzeSubtitleDensity(subs) {
         toleranceEnd = Math.min(50, minGap * 0.4);
         lookahead = Math.min(80, avgGap * 0.5);
         gapBridge = Math.min(150, avgGap * 0.8);
-        console.log('[VideoTranslate] High density detected - using tight tolerances');
+        console.log('[Subtide] High density detected - using tight tolerances');
     } else if (isLowDensity) {
         // Generous tolerances for sparse subtitles
         toleranceStart = 100;
         toleranceEnd = 200;
         lookahead = 300;
         gapBridge = 500;
-        console.log('[VideoTranslate] Low density detected - using generous tolerances');
+        console.log('[Subtide] Low density detected - using generous tolerances');
     } else {
         // Normal density - balanced tolerances
         toleranceStart = Math.max(30, Math.min(80, avgGap * 0.15));
         toleranceEnd = Math.max(50, Math.min(150, avgGap * 0.25));
         lookahead = Math.max(100, Math.min(250, avgGap * 0.4));
         gapBridge = Math.max(200, Math.min(400, avgGap * 0.6));
-        console.log('[VideoTranslate] Normal density - using balanced tolerances');
+        console.log('[Subtide] Normal density - using balanced tolerances');
     }
 
     subtitleDensity = {
@@ -338,7 +338,7 @@ function analyzeSubtitleDensity(subs) {
         isLowDensity,
     };
 
-    console.log('[VideoTranslate] Density analysis:', subtitleDensity);
+    console.log('[Subtide] Density analysis:', subtitleDensity);
     return subtitleDensity;
 }
 
@@ -356,7 +356,7 @@ function initSubtitleWindow(subs) {
         return;
     }
 
-    console.log(`[VideoTranslate] Enabling windowed access for ${subs.length} subtitles`);
+    console.log(`[Subtide] Enabling windowed access for ${subs.length} subtitles`);
 
     subtitleWindow = {
         isEnabled: true,
@@ -394,7 +394,7 @@ function updateSubtitleWindow(currentIndex) {
         subtitleWindow.windowEnd = idealEnd;
         subtitleWindow.activeList = subtitleWindow.fullList.slice(idealStart, idealEnd);
         subtitleWindow.lastAccessTime = now;
-        console.log(`[VideoTranslate] Window updated: ${idealStart}-${idealEnd}`);
+        console.log(`[Subtide] Window updated: ${idealStart}-${idealEnd}`);
     }
 }
 
@@ -450,7 +450,7 @@ function updateActiveSubtitles(newSubtitles) {
         subtitleWindow.activeList = newSubtitles;
     }
 
-    console.log(`[VideoTranslate] Active subtitles updated: ${newSubtitles.length} total`);
+    console.log(`[Subtide] Active subtitles updated: ${newSubtitles.length} total`);
 }
 
 /**
@@ -512,7 +512,7 @@ function notifySubtitleChange(text, lang) {
         try {
             onSubtitleChangeCallback(text, lang);
         } catch (e) {
-            console.warn('[VideoTranslate] TTS callback error:', e);
+            console.warn('[Subtide] TTS callback error:', e);
         }
     }
 }
@@ -584,12 +584,12 @@ function setupSync() {
                 if (!syncState.isStalled && now - syncState.lastSyncTime > 200) {
                     syncState.isStalled = true;
                     syncState.stallStartTime = now;
-                    console.log('[VideoTranslate] Detected buffering/stall');
+                    console.log('[Subtide] Detected buffering/stall');
                 }
             } else {
                 // Video is playing normally
                 if (syncState.isStalled) {
-                    console.log('[VideoTranslate] Resumed from stall');
+                    console.log('[Subtide] Resumed from stall');
                     syncState.isStalled = false;
                 }
                 syncState.lastSyncTime = now;
@@ -739,14 +739,14 @@ function setupSync() {
     // Handle playback rate changes
     video._vtRateHandler = () => {
         syncState.playbackRate = video.playbackRate;
-        console.log('[VideoTranslate] Playback rate changed to:', video.playbackRate);
+        console.log('[Subtide] Playback rate changed to:', video.playbackRate);
     };
     video.addEventListener('ratechange', video._vtRateHandler);
 
     // Handle buffering/waiting events
     video._vtWaitingHandler = () => {
         syncState.isStalled = true;
-        console.log('[VideoTranslate] Video waiting (buffering)');
+        console.log('[Subtide] Video waiting (buffering)');
     };
     video.addEventListener('waiting', video._vtWaitingHandler);
 
@@ -755,14 +755,14 @@ function setupSync() {
         if (syncState.isStalled) {
             syncState.isStalled = false;
             syncState.lastSyncTime = performance.now();
-            console.log('[VideoTranslate] Video playing (resumed from buffer)');
+            console.log('[Subtide] Video playing (resumed from buffer)');
         }
     };
     video.addEventListener('playing', video._vtPlayingHandler);
 
     // Start the sync loop
     syncState.animationFrameId = requestAnimationFrame(syncLoop);
-    console.log('[VideoTranslate] Subtitle sync started with requestAnimationFrame');
+    console.log('[Subtide] Subtitle sync started with requestAnimationFrame');
 }
 
 /**
@@ -1000,7 +1000,7 @@ function getSubtitleStyleValues() {
  */
 window.startSubtitleSync = function(subtitles, overlayElement) {
     if (!subtitles || subtitles.length === 0) {
-        console.warn('[VideoTranslate] No subtitles provided to startSubtitleSync');
+        console.warn('[Subtide] No subtitles provided to startSubtitleSync');
         return;
     }
 
@@ -1025,7 +1025,7 @@ window.startSubtitleSync = function(subtitles, overlayElement) {
     // Start the sync loop
     setupSync();
 
-    console.log('[VideoTranslate] Subtitle sync started with', subtitles.length, 'subtitles');
+    console.log('[Subtide] Subtitle sync started with', subtitles.length, 'subtitles');
 };
 
 /**
@@ -1046,5 +1046,5 @@ window.stopSubtitleSync = function() {
         lastAccessTime: 0,
     };
 
-    console.log('[VideoTranslate] Subtitle sync stopped');
+    console.log('[Subtide] Subtitle sync stopped');
 };

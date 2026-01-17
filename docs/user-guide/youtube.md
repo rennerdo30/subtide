@@ -1,0 +1,148 @@
+# YouTube
+
+Complete guide to using Subtide with YouTube videos.
+
+---
+
+## Getting Started
+
+1. Navigate to any YouTube video
+2. Look for the **Subtide button** in the player controls (bottom right, next to settings)
+3. Click to start translation
+4. Subtitles appear within seconds
+
+!!! tip "First Time"
+    Make sure your backend is running and the extension is configured before translating.
+
+---
+
+## Player Controls
+
+Subtide integrates directly into YouTube's native player controls.
+
+### Translation Button
+
+Located in the bottom-right control bar:
+
+- **Click** to start/stop translation
+- **Icon changes** to indicate active translation
+- **Tooltip** shows current status
+
+### Subtitle Display
+
+- **Position**: Centered at the bottom of the video
+- **Draggable**: Click and drag to reposition anywhere
+- **Reset**: Double-click to return to default position
+
+---
+
+## Display Options
+
+### Subtitle Size
+
+Choose from four sizes:
+
+| Size | Use Case |
+|------|----------|
+| **Small** | Large monitors, minimal distraction |
+| **Medium** | Default, balanced readability |
+| **Large** | Smaller screens, easier reading |
+| **XL** | Accessibility, maximum visibility |
+
+### Dual Subtitle Mode
+
+Show both original and translated text simultaneously:
+
+1. Press `D` or toggle in the dropdown menu
+2. Original text appears above the translation
+3. Useful for language learning
+
+---
+
+## Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `T` | Toggle subtitles on/off |
+| `D` | Toggle dual subtitle mode |
+| `S` | Download subtitles |
+
+---
+
+## Export Options
+
+Download your translated subtitles:
+
+1. Click the **download icon** in the Subtide menu
+2. Choose format:
+    - **SRT** - Standard subtitle format, compatible with most players
+    - **VTT** - Web Video Text Tracks, for HTML5 video
+    - **TXT** - Plain text transcript
+
+---
+
+## Operation Modes
+
+### Tier 1: Standard
+
+- Uses existing YouTube captions as the source
+- Your API key is used directly from the browser
+- Best for: Videos with existing subtitles
+
+### Tier 2: Enhanced
+
+- Generates subtitles using Whisper AI
+- Works on videos without existing captions
+- Your API key is used from the browser
+- Best for: Any video, regardless of existing subtitles
+
+### Tier 3/4: Managed
+
+- Server handles all API calls
+- API key stored securely on the server
+- Best for: Shared deployments, teams
+
+---
+
+## Tips & Tricks
+
+### Better Translation Quality
+
+1. **Use GPT-4o** for complex languages
+2. **Enable context merging** for better sentence handling
+3. **Choose the right Whisper model** for your hardware
+
+### Performance
+
+1. **Cache is automatic** - Replay videos instantly
+2. **Pause video** if subtitles are too fast
+3. **Use Tier 4** for real-time streaming translation
+
+### Troubleshooting
+
+If subtitles don't appear:
+
+1. Check that the backend is running
+2. Verify your API key is valid
+3. Look at the browser console for errors
+4. See [Troubleshooting](../troubleshooting.md) for more help
+
+---
+
+## Embedded Players
+
+Subtide works with embedded YouTube players on other websites:
+
+1. The extension detects YouTube iframes automatically
+2. Controls appear in the embedded player
+3. All features work the same as on youtube.com
+
+!!! note "Limitations"
+    Some websites may block extension access to embedded content.
+
+---
+
+## Next Steps
+
+- [YouTube Shorts](youtube-shorts.md) - Special features for Shorts
+- [Keyboard Shortcuts](keyboard-shortcuts.md) - All available shortcuts

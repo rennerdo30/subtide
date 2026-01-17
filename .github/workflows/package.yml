@@ -49,6 +49,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
       - name: Package Chrome Extension
         run: |
           mkdir -p dist/video-translate-extension
@@ -58,15 +63,37 @@ jobs:
           cp -r extension/_locales dist/video-translate-extension/
           cp LICENSE dist/video-translate-extension/
           cp README.md dist/video-translate-extension/
-          
+
           cd dist
           zip -r ../video-translate-extension.zip video-translate-extension/
 
-      - name: Upload Extension Artifact
+      - name: Build Firefox Manifest
+        run: node extension/scripts/build-firefox.js
+
+      - name: Package Firefox Extension
+        run: |
+          mkdir -p dist/video-translate-extension-firefox
+          cp extension/manifest.firefox.json dist/video-translate-extension-firefox/manifest.json
+          cp -r extension/src dist/video-translate-extension-firefox/
+          cp -r extension/icons dist/video-translate-extension-firefox/
+          cp -r extension/_locales dist/video-translate-extension-firefox/
+          cp LICENSE dist/video-translate-extension-firefox/
+          cp README.md dist/video-translate-extension-firefox/
+
+          cd dist
+          zip -r ../video-translate-extension-firefox.zip video-translate-extension-firefox/
+
+      - name: Upload Chrome Extension Artifact
         uses: actions/upload-artifact@v4
         with:
           name: video-translate-extension
           path: video-translate-extension.zip
+
+      - name: Upload Firefox Extension Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-translate-extension-firefox
+          path: video-translate-extension-firefox.zip
 
   # Build Backend Binaries for each platform
   build-backend:
@@ -341,6 +368,7 @@ jobs:
         with:
           files: |
             artifacts/video-translate-extension/video-translate-extension.zip
+            artifacts/video-translate-extension-firefox/video-translate-extension-firefox.zip
             artifacts/video-translate-backend-linux/video-translate-backend-linux
             artifacts/video-translate-backend-macos/video-translate-backend-macos
             artifacts/video-translate-backend-windows.exe/video-translate-backend-windows.exe
@@ -348,6 +376,11 @@ jobs:
           prerelease: false
           generate_release_notes: true
           body: |
+            ## Browser Extensions
+
+            - **Chrome/Edge/Brave**: Download `video-translate-extension.zip`
+            - **Firefox**: Download `video-translate-extension-firefox.zip`
+
             ## Docker Images
 
             ### Standard Backend

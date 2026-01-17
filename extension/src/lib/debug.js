@@ -38,7 +38,7 @@ const vtLog = {
      */
     debug: (...args) => {
         if (isDebugEnabled()) {
-            console.log('[VideoTranslate]', ...args);
+            console.log('[Subtide]', ...args);
         }
     },
 
@@ -47,7 +47,7 @@ const vtLog = {
      * @param {...any} args - Arguments to log
      */
     info: (...args) => {
-        console.log('[VideoTranslate]', ...args);
+        console.log('[Subtide]', ...args);
     },
 
     /**
@@ -55,7 +55,7 @@ const vtLog = {
      * @param {...any} args - Arguments to log
      */
     warn: (...args) => {
-        console.warn('[VideoTranslate]', ...args);
+        console.warn('[Subtide]', ...args);
     },
 
     /**
@@ -63,7 +63,7 @@ const vtLog = {
      * @param {...any} args - Arguments to log
      */
     error: (...args) => {
-        console.error('[VideoTranslate]', ...args);
+        console.error('[Subtide]', ...args);
     },
 
     /**
@@ -72,10 +72,10 @@ const vtLog = {
     enable: () => {
         try {
             localStorage.setItem(DEBUG_KEY, 'true');
-            console.log('[VideoTranslate] Debug mode enabled. Reload the page to see debug logs.');
+            console.log('[Subtide] Debug mode enabled. Reload the page to see debug logs.');
         } catch (e) {
             window.VT_DEBUG = true;
-            console.log('[VideoTranslate] Debug mode enabled (session only).');
+            console.log('[Subtide] Debug mode enabled (session only).');
         }
     },
 
@@ -86,7 +86,7 @@ const vtLog = {
         try {
             localStorage.removeItem(DEBUG_KEY);
             window.VT_DEBUG = false;
-            console.log('[VideoTranslate] Debug mode disabled.');
+            console.log('[Subtide] Debug mode disabled.');
         } catch (e) {
             window.VT_DEBUG = false;
         }

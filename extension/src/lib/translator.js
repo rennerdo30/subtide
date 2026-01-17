@@ -289,7 +289,7 @@ export async function translateSubtitles(subtitles, sourceLanguage, targetLangua
     }
 
 
-    console.log(`[VideoTranslate] Translating ${subtitles.length} subtitles from ${sourceLanguage} to ${targetLanguage}`);
+    console.log(`[Subtide] Translating ${subtitles.length} subtitles from ${sourceLanguage} to ${targetLanguage}`);
 
     const results = [];
     const totalBatches = Math.ceil(subtitles.length / BATCH_SIZE);
@@ -298,7 +298,7 @@ export async function translateSubtitles(subtitles, sourceLanguage, targetLangua
         const batch = subtitles.slice(i, i + BATCH_SIZE);
         const batchNumber = Math.floor(i / BATCH_SIZE) + 1;
 
-        console.log(`[VideoTranslate] Translating batch ${batchNumber}/${totalBatches}`);
+        console.log(`[Subtide] Translating batch ${batchNumber}/${totalBatches}`);
 
         try {
             const translations = await translateBatch(batch, sourceLanguage, targetLanguage, config);
@@ -320,7 +320,7 @@ export async function translateSubtitles(subtitles, sourceLanguage, targetLangua
                 });
             }
         } catch (error) {
-            console.error(`[VideoTranslate] Batch ${batchNumber} failed:`, error);
+            console.error(`[Subtide] Batch ${batchNumber} failed:`, error);
 
             // On error, keep original text
             for (const sub of batch) {
@@ -338,7 +338,7 @@ export async function translateSubtitles(subtitles, sourceLanguage, targetLangua
         }
     }
 
-    console.log(`[VideoTranslate] Translation complete: ${results.length} subtitles`);
+    console.log(`[Subtide] Translation complete: ${results.length} subtitles`);
     return results;
 }
 

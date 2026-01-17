@@ -18,7 +18,7 @@ function waitForControls(maxRetries = 30) {
                 retries++;
                 setTimeout(check, 500);
             } else {
-                console.warn('[VideoTranslate] Controls not found after max retries');
+                console.warn('[Subtide] Controls not found after max retries');
                 reject(new Error('Controls not found'));
             }
         };
@@ -52,7 +52,7 @@ function debouncedReinjection() {
         if (!document.querySelector('.vt-container')) {
             const controls = document.querySelector('.ytp-right-controls');
             if (controls && controls.offsetParent !== null) {
-                console.log('[VideoTranslate] Debounced re-injection triggered');
+                console.log('[Subtide] Debounced re-injection triggered');
                 injectUI(controls);
             }
         }
@@ -72,7 +72,7 @@ function watchControls(controls) {
     // Strategy 1: Watch the controls element directly
     controlsObserver = new MutationObserver((mutations) => {
         if (!document.querySelector('.vt-container')) {
-            console.log('[VideoTranslate] UI missing (controls mutation), re-injecting...');
+            console.log('[Subtide] UI missing (controls mutation), re-injecting...');
             debouncedReinjection();
         }
     });
@@ -88,7 +88,7 @@ function watchControls(controls) {
                 // Verify controls still exist or find new ones
                 const newControls = document.querySelector('.ytp-right-controls');
                 if (newControls && newControls.offsetParent !== null) {
-                    console.log('[VideoTranslate] UI missing (player mutation), re-injecting...');
+                    console.log('[Subtide] UI missing (player mutation), re-injecting...');
                     debouncedReinjection();
                 }
             }
@@ -103,7 +103,7 @@ function watchControls(controls) {
         const parentObserver = new MutationObserver(() => {
             const newControls = document.querySelector('.ytp-right-controls');
             if (newControls && newControls !== controls) {
-                console.log('[VideoTranslate] Controls replaced, re-initializing...');
+                console.log('[Subtide] Controls replaced, re-initializing...');
                 controls = newControls;
                 debouncedReinjection();
                 watchControls(controls);
@@ -628,7 +628,7 @@ function setupSettingsPanelListeners(settingsPanel) {
     settingsPanel.querySelectorAll('.vt-add-to-queue').forEach(addToQueueBtn => {
         addToQueueBtn.addEventListener('click', async () => {
             if (!currentVideoId) {
-                console.warn('[VideoTranslate] No video ID for queue');
+                console.warn('[Subtide] No video ID for queue');
                 return;
             }
 
@@ -645,20 +645,20 @@ function setupSettingsPanelListeners(settingsPanel) {
                 });
 
                 if (response.success) {
-                    console.log('[VideoTranslate] Added to queue:', currentVideoId);
+                    console.log('[Subtide] Added to queue:', currentVideoId);
                     addToQueueBtn.querySelector('.vt-option-label').textContent = chrome.i18n.getMessage('menuAdded');
                     setTimeout(() => {
                         addToQueueBtn.querySelector('.vt-option-label').textContent = chrome.i18n.getMessage('menuAddToQueue');
                     }, 2000);
                 } else {
-                    console.warn('[VideoTranslate] Queue error:', response.error);
+                    console.warn('[Subtide] Queue error:', response.error);
                     addToQueueBtn.querySelector('.vt-option-label').textContent = response.error || 'Error';
                     setTimeout(() => {
                         addToQueueBtn.querySelector('.vt-option-label').textContent = chrome.i18n.getMessage('menuAddToQueue');
                     }, 2000);
                 }
             } catch (error) {
-                console.error('[VideoTranslate] Failed to add to queue:', error);
+                console.error('[Subtide] Failed to add to queue:', error);
             }
 
             settingsPanel.classList.remove('show');

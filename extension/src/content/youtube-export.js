@@ -38,7 +38,7 @@ function formatVTTTime(ms) {
  */
 function exportAsSRT(subtitles) {
     if (!subtitles || subtitles.length === 0) {
-        console.error('[VideoTranslate] No subtitles to export');
+        console.error('[Subtide] No subtitles to export');
         return null;
     }
 
@@ -58,7 +58,7 @@ function exportAsSRT(subtitles) {
  */
 function exportAsVTT(subtitles) {
     if (!subtitles || subtitles.length === 0) {
-        console.error('[VideoTranslate] No subtitles to export');
+        console.error('[Subtide] No subtitles to export');
         return null;
     }
 
@@ -93,7 +93,7 @@ function triggerDownload(content, filename, mimeType) {
     document.body.removeChild(a);
 
     URL.revokeObjectURL(url);
-    console.log('[VideoTranslate] Downloaded:', filename);
+    console.log('[Subtide] Downloaded:', filename);
 }
 
 /**
@@ -105,7 +105,7 @@ function downloadSubtitles(format = 'srt') {
     const subs = translatedSubtitles || sourceSubtitles;
 
     if (!subs || subs.length === 0) {
-        console.error('[VideoTranslate] No subtitles available for download');
+        console.error('[Subtide] No subtitles available for download');
         alert('No subtitles available to download. Please translate a video first.');
         return;
     }

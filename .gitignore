@@ -8,3 +8,16 @@ backend/.env
 .DS_Store
 backend/.env.backup.*
 CODE_REVIEW.md
+
+# MkDocs
+site/
+
+# Generated Firefox manifest
+extension/manifest.firefox.json
+
+# Node
+node_modules/
+
+# Build artifacts
+dist/
+*.zip

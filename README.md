@@ -1,15 +1,15 @@
-# Video Translate
+# Subtide
 
 <p align="center">
-  <img src="extension/icons/icon128.png" width="128" height="128" alt="Video Translate Logo">
+  <img src="extension/icons/icon128.png" width="128" height="128" alt="Subtide Logo">
 </p>
 
 <p align="center">
-  <b>AI-powered video subtitle translation for YouTube, Twitch, and more.</b>
+  <b>AI-powered video subtitle translation for YouTube, Twitch, and any video site.</b>
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.0-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-1.1.0-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/python-3.9+-yellow.svg" alt="Python">
   <img src="https://img.shields.io/badge/chrome-MV3-blue.svg" alt="Chrome Extension">
@@ -342,6 +342,87 @@ video-translate/
 | `/api/translate` | POST | Translate video (batch) |
 | `/api/stream` | POST | Translate video (streaming) |
 | `/api/status/{id}` | GET | Check translation status |
+
+---
+
+## Troubleshooting
+
+### Backend Connection Issues
+
+**"Cannot connect to backend" / "Network Error"**
+- Verify the backend is running: `curl http://localhost:5001/health`
+- Check if another application is using port 5001
+- Ensure your firewall allows connections on port 5001
+- For Docker: verify the container is running with `docker ps`
+
+**CORS Errors in Browser Console**
+- Set `CORS_ORIGINS=*` in your environment or `.env` file
+- Restart the backend after changing CORS settings
+
+### FFmpeg Issues
+
+**"FFmpeg not found" / Audio extraction fails**
+- Install FFmpeg:
+  - macOS: `brew install ffmpeg`
+  - Ubuntu/Debian: `sudo apt install ffmpeg`
+  - Windows: `choco install ffmpeg` or download from [ffmpeg.org](https://ffmpeg.org/download.html)
+- Verify installation: `ffmpeg -version`
+- Ensure FFmpeg is in your system PATH
+
+### Whisper / Transcription Issues
+
+**Out of memory errors**
+- Use a smaller model: `WHISPER_MODEL=base` or `WHISPER_MODEL=tiny`
+- Model memory requirements:
+  - `tiny`: ~1 GB
+  - `base`: ~1 GB
+  - `small`: ~2 GB
+  - `medium`: ~5 GB
+  - `large-v3`: ~10 GB
+
+**Slow transcription**
+- On Apple Silicon: ensure `WHISPER_BACKEND=mlx` is set
+- On NVIDIA GPU: ensure `WHISPER_BACKEND=faster` and CUDA is installed
+- Consider using `large-v3-turbo` for faster processing with similar quality
+
+**"No module named 'mlx'" (Apple Silicon)**
+- MLX only works on Apple Silicon Macs
+- Install with: `pip install mlx-whisper`
+
+### Extension Issues
+
+**Extension not loading**
+- Ensure Developer mode is enabled in `chrome://extensions`
+- Check for errors in the extension card
+- Try removing and re-adding the extension
+
+**Subtitles not appearing**
+- Click the translate button in the player controls
+- Check the extension popup for error messages
+- Verify the backend URL is correct in settings
+- Check browser console (F12) for errors
+
+**YouTube controls not showing translate button**
+- Refresh the page
+- Disable other extensions that modify YouTube's interface
+- Clear browser cache and reload
+
+### Docker Issues
+
+**Container exits immediately**
+- Check logs: `docker logs <container_id>`
+- Verify port mapping: `-p 5001:5001`
+- Ensure sufficient memory is allocated to Docker
+
+**"Permission denied" errors**
+- On Linux, you may need to run with `sudo` or add your user to the docker group
+
+### API Key Issues
+
+**"Invalid API key" / 401 errors**
+- Verify your API key is correct and has not expired
+- Check that you're using the correct API URL for your provider
+- For local LLMs (LM Studio, Ollama), use any non-empty string as the API key
 
 ---
 

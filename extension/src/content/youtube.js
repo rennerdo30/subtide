@@ -155,7 +155,7 @@ let subtitleSettings = {
  * Initialize on YouTube
  */
 function init() {
-    console.log('[VideoTranslate] Initializing');
+    console.log('[Subtide] Initializing');
     observeNavigation();
     checkForVideo();
 }
@@ -275,7 +275,7 @@ function checkForVideo() {
 
     if (videoId && videoId !== currentVideoId) {
         currentVideoId = videoId;
-        console.log('[VideoTranslate] Video detected:', videoId, '(isEmbed:', url.pathname.startsWith('/embed/'), ')');
+        console.log('[Subtide] Video detected:', videoId, '(isEmbed:', url.pathname.startsWith('/embed/'), ')');
         setupPage(videoId);
     }
 }
@@ -308,15 +308,15 @@ async function setupPage(videoId) {
         showSpeaker: config.subtitleShowSpeaker || 'color',
     };
 
-    console.log('[VideoTranslate] Tier:', userTier);
-    console.log('[VideoTranslate] Subtitle settings:', subtitleSettings);
+    console.log('[Subtide] Tier:', userTier);
+    console.log('[Subtide] Subtitle settings:', subtitleSettings);
 
     // Initialize TTS
     if (window.vtTTS) {
         window.vtTTS.init({
             apiUrl: backendUrl,
             onStateChange: (state) => {
-                console.log('[VideoTranslate] TTS state:', state);
+                console.log('[Subtide] TTS state:', state);
             }
         });
 
@@ -335,7 +335,7 @@ async function setupPage(videoId) {
         injectUI(controls);
         watchControls(controls);
     }).catch(err => {
-        console.error('[VideoTranslate] Failed to find controls:', err);
+        console.error('[Subtide] Failed to find controls:', err);
         setTimeout(() => {
             const retryControls = document.querySelector('.ytp-right-controls');
             if (retryControls) {
@@ -350,7 +350,7 @@ async function setupPage(videoId) {
         if (!document.querySelector('.vt-container')) {
             const controls = document.querySelector('.ytp-right-controls');
             if (controls && controls.offsetParent !== null) {
-                console.log('[VideoTranslate] Periodic re-injection');
+                console.log('[Subtide] Periodic re-injection');
                 injectUI(controls);
             }
         }
@@ -370,7 +370,7 @@ async function setupPage(videoId) {
         if (!document.querySelector('.vt-container')) {
             const controls = document.querySelector('.ytp-right-controls');
             if (controls && controls.offsetParent !== null) {
-                console.log('[VideoTranslate] Fast re-injection attempt', fastRetryCount);
+                console.log('[Subtide] Fast re-injection attempt', fastRetryCount);
                 injectUI(controls);
                 watchControls(controls);
             }
@@ -408,7 +408,7 @@ async function prefetchSubtitles(videoId) {
             updateStatus(chrome.i18n.getMessage('noSubtitles'), 'error');
         }
     } catch (error) {
-        console.error('[VideoTranslate] Prefetch failed:', error);
+        console.error('[Subtide] Prefetch failed:', error);
         updateStatus(chrome.i18n.getMessage('noSubtitles'), 'error');
     }
 }
@@ -437,7 +437,7 @@ async function translateVideo(targetLang, options = {}) {
 
     // If force refresh, clear local state first
     if (forceRefresh) {
-        console.log('[VideoTranslate] Force refresh requested, clearing cache...');
+        console.log('[Subtide] Force refresh requested, clearing cache...');
         state.translatedSubtitles = null;
         state.streamedSubtitles = [];
 
@@ -446,7 +446,7 @@ async function translateVideo(targetLang, options = {}) {
             const cacheKey = `vt-cache-${currentVideoId}-${targetLang}`;
             localStorage.removeItem(cacheKey);
         } catch (e) {
-            console.warn('[VideoTranslate] Could not clear local cache:', e);
+            console.warn('[Subtide] Could not clear local cache:', e);
         }
     }
 
@@ -516,7 +516,7 @@ async function translateVideo(targetLang, options = {}) {
 
         if (result.error) throw new Error(result.error);
 
-        console.log('[VideoTranslate] Received translations:', state.translatedSubtitles?.length, 'items');
+        console.log('[Subtide] Received translations:', state.translatedSubtitles?.length, 'items');
 
         if (!state.translatedSubtitles || state.translatedSubtitles.length === 0) {
             throw new Error(chrome.i18n.getMessage('noTranslations'));
@@ -547,7 +547,7 @@ async function translateVideo(targetLang, options = {}) {
         }
 
     } catch (error) {
-        console.error('[VideoTranslate] Translation failed:', error);
+        console.error('[Subtide] Translation failed:', error);
         updateStatus(chrome.i18n.getMessage('failed'), 'error');
         state.isStreaming = false;
     } finally {
@@ -566,7 +566,7 @@ function forceRetranslate() {
         'Re-translate this video?\n\nThis will:\n• Clear the cached translation\n• Use your API quota\n• Take some time to complete\n\nContinue?';
 
     if (!confirm(confirmMessage)) {
-        console.log('[VideoTranslate] Force re-translate cancelled by user');
+        console.log('[Subtide] Force re-translate cancelled by user');
         return Promise.resolve();
     }
 
@@ -785,7 +785,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
  * Called when each batch of translated subtitles arrives
  */
 function handleStreamingSubtitles(newSubtitles, batchIndex, totalBatches) {
-    console.log(`[VideoTranslate] Streaming batch ${batchIndex}/${totalBatches}: ${newSubtitles.length} subtitles`);
+    console.log(`[Subtide] Streaming batch ${batchIndex}/${totalBatches}: ${newSubtitles.length} subtitles`);
 
     const state = getVideoState(currentVideoId);
 
@@ -828,7 +828,7 @@ function handleStreamingSubtitles(newSubtitles, batchIndex, totalBatches) {
 function handleStreamingComplete(finalSubtitles, cached) {
     const state = getVideoState(currentVideoId);
 
-    console.log(`[VideoTranslate] Streaming complete: ${finalSubtitles?.length || state.streamedSubtitles.length} total subtitles`);
+    console.log(`[Subtide] Streaming complete: ${finalSubtitles?.length || state.streamedSubtitles.length} total subtitles`);
 
     state.isStreaming = false;
 
@@ -922,7 +922,7 @@ function toggleSubtitleVisibility() {
     if (overlay) {
         const isVisible = overlay.style.display !== 'none';
         overlay.style.display = isVisible ? 'none' : 'block';
-        console.log('[VideoTranslate] Subtitles', isVisible ? 'hidden' : 'shown');
+        console.log('[Subtide] Subtitles', isVisible ? 'hidden' : 'shown');
     }
 }
 
@@ -931,7 +931,7 @@ function toggleSubtitleVisibility() {
  */
 function toggleDualMode() {
     subtitleSettings.dualMode = !subtitleSettings.dualMode;
-    console.log('[VideoTranslate] Dual mode:', subtitleSettings.dualMode ? 'ON' : 'OFF');
+    console.log('[Subtide] Dual mode:', subtitleSettings.dualMode ? 'ON' : 'OFF');
 
     // Update overlay structure
     updateOverlayForDualMode();
@@ -989,7 +989,7 @@ function startSyncCalibration() {
     const subs = typeof getActiveSubtitles === 'function' ? getActiveSubtitles() : null;
 
     if (!video || !subs?.length) {
-        console.warn('[VideoTranslate] Cannot calibrate: no video or subtitles');
+        console.warn('[Subtide] Cannot calibrate: no video or subtitles');
         return;
     }
 
@@ -1038,7 +1038,7 @@ function startSyncCalibration() {
     // Start monitoring subtitle changes
     monitorSubtitlesForCalibration();
 
-    console.log('[VideoTranslate] Calibration started');
+    console.log('[Subtide] Calibration started');
 }
 
 /**
@@ -1139,8 +1139,8 @@ function finishCalibration() {
     // we need to delay subtitles by 200ms (positive offset)
     const calculatedOffset = Math.round(median);
 
-    console.log('[VideoTranslate] Calibration samples:', calibrationState.samples);
-    console.log('[VideoTranslate] Calculated offset:', calculatedOffset, 'ms');
+    console.log('[Subtide] Calibration samples:', calibrationState.samples);
+    console.log('[Subtide] Calculated offset:', calculatedOffset, 'ms');
 
     // Apply the offset
     if (typeof adjustSyncOffset === 'function') {
@@ -1163,7 +1163,7 @@ function finishCalibration() {
  * Cancel calibration without applying changes
  */
 function cancelCalibration() {
-    console.log('[VideoTranslate] Calibration cancelled');
+    console.log('[Subtide] Calibration cancelled');
     cleanupCalibration();
 }
 

@@ -21,10 +21,9 @@ def test_whisper_backend_detection_openai_whisper():
     # Simulate Linux/Intel where mlx is not available
     with patch('platform.system', return_value='Linux'), \
          patch('platform.machine', return_value='x86_64'), \
-         patch.dict(sys.modules, {'mlx_whisper': None}, clear=True):
-         # Hide whisper as well to see if it handles missing backend
-         with patch.dict(sys.modules, {'whisper': MagicMock()}):
-             assert ws.get_whisper_backend() == 'openai-whisper'
+         patch.dict(sys.modules, {'mlx_whisper': None}), \
+         patch.dict(sys.modules, {'whisper': MagicMock()}):
+        assert ws.get_whisper_backend() == 'openai-whisper'
 
 def test_get_whisper_device_cuda():
     with patch('backend.services.whisper_service.get_whisper_backend', return_value='openai-whisper'), \

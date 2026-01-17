@@ -3,7 +3,7 @@
     if (window.VT_INTERCEPTOR_LOADED) return;
     window.VT_INTERCEPTOR_LOADED = true;
 
-    console.log('[VideoTranslate] Network Interceptor Loaded');
+    console.log('[Subtide] Network Interceptor Loaded');
 
     const OriginalXHR = window.XMLHttpRequest;
     const OriginalFetch = window.fetch;
@@ -17,7 +17,7 @@
         }
 
         if (url.includes('.m3u8') || url.includes('.mpd')) {
-            console.log('[VideoTranslate] Intercepted Stream URL:', url);
+            console.log('[Subtide] Intercepted Stream URL:', url);
             window.dispatchEvent(new CustomEvent('vt-stream-found', {
                 detail: { url: url }
             }));
@@ -67,7 +67,7 @@
         window.fetch = OriginalFetch;
         window.XMLHttpRequest = OriginalXHR;
         window.VT_INTERCEPTOR_LOADED = false;
-        console.log('[VideoTranslate] Network Interceptor Disabled');
+        console.log('[Subtide] Network Interceptor Disabled');
     };
 
 })();

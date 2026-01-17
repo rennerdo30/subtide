@@ -1,0 +1,147 @@
+# Twitch
+
+Using Subtide for live stream translation on Twitch.
+
+---
+
+## Overview
+
+Subtide supports Twitch streams with real-time transcription and translation:
+
+- **Live transcription** using Whisper
+- **Real-time translation** of spoken content
+- **Overlay subtitles** that don't interfere with the stream
+
+---
+
+## Getting Started
+
+1. Navigate to any Twitch stream
+2. Look for the **Subtide controls** in the player
+3. Click to start translation
+4. Subtitles appear as the streamer speaks
+
+!!! warning "Requirements"
+    Twitch translation requires **Tier 2 or higher** since live streams don't have pre-existing subtitles.
+
+---
+
+## How It Works
+
+1. **Audio Capture** - The extension captures audio from the stream
+2. **Transcription** - Whisper processes audio chunks in real-time
+3. **Translation** - LLM translates the transcribed text
+4. **Display** - Subtitles appear with minimal delay
+
+---
+
+## Controls
+
+### Translation Toggle
+
+Located in the Twitch player controls:
+
+- Click to start/stop translation
+- Icon indicates active state
+
+### Subtitle Display
+
+- **Position**: Adjustable via drag-and-drop
+- **Size**: Configurable in the menu
+- **Style**: Matches Subtide's dark theme
+
+---
+
+## Configuration
+
+For best results with Twitch:
+
+### Backend Settings
+
+```bash
+# Recommended for live streaming
+WHISPER_MODEL=base  # Fast processing
+WHISPER_BACKEND=mlx  # Or 'faster' for NVIDIA
+```
+
+!!! tip "Model Selection"
+    For live streams, use smaller models (`tiny`, `base`) for lower latency. Accuracy is less critical than speed.
+
+### Extension Settings
+
+- **Operation Mode**: Tier 2 (Enhanced)
+- **Target Language**: Your preferred language
+
+---
+
+## Limitations
+
+1. **Delay** - There's inherent latency in transcription/translation
+2. **Audio quality** - Depends on stream quality
+3. **Multiple speakers** - May have difficulty with overlapping speech
+4. **Music/SFX** - Background audio can affect transcription quality
+
+---
+
+## Tips for Better Results
+
+### Reduce Latency
+
+1. Use a smaller Whisper model (`tiny` or `base`)
+2. Run backend locally for lowest network latency
+3. Use Apple Silicon MLX or CUDA for hardware acceleration
+
+### Improve Accuracy
+
+1. Higher quality streams have clearer audio
+2. Single-speaker streams work best
+3. Gaming streams with commentary work well
+
+### Handle Multiple Languages
+
+If the streamer speaks multiple languages:
+
+1. Subtide will detect language changes
+2. Translation continues regardless of source language
+3. Some mixing may occur during transitions
+
+---
+
+## VODs and Clips
+
+Subtide also works with:
+
+- **VODs** (Video on Demand) - Past broadcasts
+- **Clips** - Short highlight clips
+- **Highlights** - Curated stream moments
+
+These function like regular videos with full translation support.
+
+---
+
+## Troubleshooting
+
+### No audio captured
+
+1. Ensure the stream is unmuted
+2. Check browser permissions for audio
+3. Verify the extension has necessary permissions
+
+### High latency
+
+1. Use a smaller Whisper model
+2. Check your network connection
+3. Run backend locally instead of remote
+
+### Subtitles cutting off
+
+1. Speech is being chunked for processing
+2. This is normal for live content
+3. Context is maintained between chunks
+
+---
+
+## Next Steps
+
+- [Generic Sites](generic-sites.md) - Use on any video site
+- [Backend Overview](../backend/overview.md) - Optimize your backend

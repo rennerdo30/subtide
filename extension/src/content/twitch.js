@@ -44,7 +44,7 @@ let subtitleSettings = {
  * Initialize on Twitch
  */
 function init() {
-    console.log('[VideoTranslate] Initializing on Twitch');
+    console.log('[Subtide] Initializing on Twitch');
     observeNavigation();
     checkForStream();
 }
@@ -96,7 +96,7 @@ function checkForStream() {
         const newId = vodId || channelName;
         if (newId !== currentChannelId) {
             currentChannelId = newId;
-            console.log('[VideoTranslate] Twitch:', vodId ? `VOD ${vodId}` : `Channel ${channelName}`);
+            console.log('[Subtide] Twitch:', vodId ? `VOD ${vodId}` : `Channel ${channelName}`);
             setupTwitchPage(newId, !!vodId);
         }
     }
@@ -131,7 +131,7 @@ async function setupTwitchPage(id, isVod) {
         dualMode: config.subtitleDualMode || false,
     };
 
-    console.log('[VideoTranslate] Tier:', userTier);
+    console.log('[Subtide] Tier:', userTier);
 
     // Inject UI
     injectTwitchUI();
@@ -142,7 +142,7 @@ async function setupTwitchPage(id, isVod) {
             const controls = document.querySelector('[data-a-target="player-controls"]') ||
                 document.querySelector('.player-controls__right-control-group');
             if (controls) {
-                console.log('[VideoTranslate] Twitch periodic re-injection');
+                console.log('[Subtide] Twitch periodic re-injection');
                 injectTwitchUI();
             }
         }
@@ -183,7 +183,7 @@ function injectTwitchUI() {
         document.querySelector('.video-player__default-player');
 
     if (!controls) {
-        console.warn('[VideoTranslate] Twitch controls not found');
+        console.warn('[Subtide] Twitch controls not found');
         return;
     }
 
@@ -365,7 +365,7 @@ function toggleSubtitleVisibility() {
     if (overlay) {
         const isVisible = overlay.style.display !== 'none';
         overlay.style.display = isVisible ? 'none' : 'block';
-        console.log('[VideoTranslate] Subtitles', isVisible ? 'hidden' : 'shown');
+        console.log('[Subtide] Subtitles', isVisible ? 'hidden' : 'shown');
     }
 }
 

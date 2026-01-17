@@ -1,6 +1,6 @@
 {
     "extensionName": {
-        "message": "Video Translate"
+        "message": "Subtide"
     },
     "extensionDescription": {
         "message": "Translate video subtitles using AI. Supports any OpenAI-compatible API."
