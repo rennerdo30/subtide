@@ -6,6 +6,17 @@ For the full changelog, see [CHANGELOG.md](https://github.com/rennerdo30/subtide
 
 ---
 
+## [1.1.1] - 2026-01-18
+
+### Rebrand to Subtide
+
+- New logo featuring ocean wave and subtitle motif
+- Updated all branding from "Video Translate" to "Subtide"
+- New popup header with matching inline SVG logo
+- Renamed extension and backend packages
+
+---
+
 ## [1.1.0] - 2026-01-18
 
 Initial release of Subtide.

@@ -75,7 +75,9 @@ nav:
   - API Reference:
       - Endpoints: api/endpoints.md
       - Configuration: api/configuration.md
+  - FAQ: faq.md
   - Troubleshooting: troubleshooting.md
+  - Security: security.md
   - Contributing: contributing.md
   - Changelog: changelog.md
 

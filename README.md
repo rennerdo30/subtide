@@ -23,7 +23,7 @@
 - **Real-time Translation** — Translate video subtitles on the fly
 - **AI Transcription** — Generate subtitles with Whisper when none exist
 - **Streaming Mode** — See subtitles within seconds, not minutes (Tier 4)
-- **12+ Languages** — Support for major world languages
+- **13+ Languages** — Support for major world languages
 - **Context-Aware** — Merges partial sentences for better translation quality
 - **Smart Caching** — Translations cached for instant replay
 
