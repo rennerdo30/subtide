@@ -9,7 +9,7 @@ from flask import Blueprint, request, jsonify
 
 from backend.utils.feedback_store import store_feedback, get_feedback_stats
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 feedback_bp = Blueprint('feedback', __name__)
 

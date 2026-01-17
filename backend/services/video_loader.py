@@ -6,7 +6,7 @@ import yt_dlp
 from typing import Optional, Dict, Any
 from backend.config import CACHE_DIR, COOKIES_FILE
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 # Logging prefix for consistent log messages
 LOG_PREFIX = "[VIDEO_LOADER]"

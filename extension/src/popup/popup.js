@@ -1,5 +1,5 @@
 /**
- * Video Translate - Popup Script
+ * Subtide - Popup Script
  * Handles configuration UI and settings management
  * Internationalization enabled
  */

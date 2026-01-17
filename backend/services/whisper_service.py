@@ -100,7 +100,7 @@ from backend.config import (
 )
 from backend.utils.logging_utils import log_stage
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 # Whisper backend detection
 _whisper_backend = None

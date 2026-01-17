@@ -10,7 +10,7 @@ import logging
 from typing import List, Set, Optional
 from collections import Counter
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 # Common words to exclude (not proper nouns)
 COMMON_WORDS = {

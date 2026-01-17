@@ -13,7 +13,7 @@ from backend.services.tts_service import (
 )
 
 tts_bp = Blueprint('tts', __name__)
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 
 @tts_bp.route('/api/tts/status', methods=['GET'])

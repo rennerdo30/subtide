@@ -8,7 +8,7 @@ import numpy as np
 from backend.services.whisper_service import get_whisper_model, get_whisper_device
 from backend.services.translation_service import await_translate_subtitles
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 # Track audio chunk timing for debugging
 _last_chunk_time = {}

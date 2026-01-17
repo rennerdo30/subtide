@@ -1,7 +1,7 @@
 version: '3.8'
 
 # ============================================================================
-# Video Translate - Docker Compose Configuration
+# Subtide - Docker Compose Configuration
 # ============================================================================
 # Usage:
 #   Development:  docker-compose up dev

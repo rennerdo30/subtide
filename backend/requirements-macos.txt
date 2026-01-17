@@ -1,4 +1,4 @@
-# Video Translate Backend - macOS Requirements
+# Subtide Backend - macOS Requirements
 # For Apple Silicon (M1/M2/M3) with Metal GPU acceleration
 
 -r requirements.txt

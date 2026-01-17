@@ -78,7 +78,7 @@ from backend.services.translation_service import (
 # Ensure we import yt_dlp for the initial check in process_video_logic
 import yt_dlp
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 def estimate_whisper_time(duration_seconds: float) -> float:
     """

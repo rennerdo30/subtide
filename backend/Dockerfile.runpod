@@ -1,4 +1,4 @@
-# Video Translate Backend - RunPod/NVIDIA GPU Dockerfile
+# Subtide Backend - RunPod/NVIDIA GPU Dockerfile
 # Optimized for NVIDIA CUDA GPUs with faster-whisper and PyAnnote
 # NOTE: This file expects the build context to be the repository root.
 

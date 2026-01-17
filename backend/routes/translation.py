@@ -9,7 +9,7 @@ from backend.utils.model_utils import get_model_context_size
 import logging
 
 translation_bp = Blueprint('translation', __name__)
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 # Import limiter from app (will be set after blueprint registration)
 limiter = None

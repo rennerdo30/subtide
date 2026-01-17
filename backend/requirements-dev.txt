@@ -1,4 +1,4 @@
-# Video Translate Backend - Development Requirements
+# Subtide Backend - Development Requirements
 
 # Testing
 pytest

@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.hallucination_filter import filter_hallucinations, calculate_entropy, detect_looping_hallucination
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 # Test audio file (Japanese content)
 TEST_AUDIO = os.path.join(

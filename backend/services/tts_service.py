@@ -14,7 +14,7 @@ from typing import Optional, Dict, List, Tuple
 
 from backend.config import CACHE_DIR
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 # TTS cache directory
 TTS_CACHE_DIR = os.path.join(CACHE_DIR, 'tts')

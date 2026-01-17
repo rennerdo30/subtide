@@ -6,7 +6,7 @@ import os
 import time
 from backend.services.live_whisper_service import LiveWhisperService
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 live_bp = Blueprint('live', __name__)
 
 # Global dictionary to track active live sessions

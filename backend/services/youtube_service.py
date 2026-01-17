@@ -12,7 +12,7 @@ from backend.utils.file_utils import get_cache_path
 from backend.services.translation_service import parse_vtt_to_json3
 from backend.config import CACHE_DIR, COOKIES_FILE
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 # YouTube video ID validation (typically 11 chars, but relaxed for tests/variants)
 VIDEO_ID_PATTERN = re.compile(r'^[a-zA-Z0-9_-]{1,64}$')

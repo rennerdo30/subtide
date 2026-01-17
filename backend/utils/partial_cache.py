@@ -11,7 +11,7 @@ import hashlib
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional, List
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 CACHE_DIR = os.getenv('CACHE_DIR', os.path.join(os.path.dirname(__file__), '..', 'cache'))
 PARTIAL_CACHE_DIR = os.path.join(CACHE_DIR, 'partial_translations')

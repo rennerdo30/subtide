@@ -1,6 +1,6 @@
-# Video Translate Backend
+# Subtide Backend
 
-Standalone backend server for the Video Translate Chrome extension.
+Standalone backend server for the Subtide Chrome extension.
 
 ## Quick Start (Binary)
 

@@ -147,7 +147,7 @@ init_translation_limiter(limiter)
 # Startup Banner
 def print_banner():
     print("\n" + "="*60)
-    print(" VIDEO TRANSLATE BACKEND")
+    print(" SUBTIDE BACKEND")
     backend = get_whisper_backend()
     print(f" - Whisper Backend: {backend}")
     

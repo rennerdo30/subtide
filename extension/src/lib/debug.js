@@ -1,5 +1,5 @@
 /**
- * Debug logging utility for Video Translate extension
+ * Debug logging utility for Subtide extension
  *
  * In production, logs are disabled by default.
  * Enable debug mode by setting localStorage.vtDebug = 'true'

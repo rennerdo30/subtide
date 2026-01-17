@@ -1,6 +1,6 @@
-# Contributing to Video Translate
+# Contributing to Subtide
 
-Thank you for your interest in contributing to Video Translate!
+Thank you for your interest in contributing to Subtide!
 
 ## Table of Contents
 - [Development Setup](#development-setup)

@@ -44,7 +44,7 @@ PLATFORM = detect_platform()
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_DIR = os.getenv('CACHE_DIR', os.path.join(BASE_DIR, 'cache'))
 # MODEL_CACHE_DIR is for the AI model weights (persistent, mountable)
-MODEL_CACHE_DIR = os.getenv('MODEL_CACHE_DIR', os.path.join(os.path.expanduser("~"), '.cache', 'video-translate-models'))
+MODEL_CACHE_DIR = os.getenv('MODEL_CACHE_DIR', os.path.join(os.path.expanduser("~"), '.cache', 'subtide-models'))
 
 # Cache limits (for RunPod/serverless where storage is limited)
 CACHE_MAX_SIZE_MB = int(os.getenv('CACHE_MAX_SIZE_MB', '5000'))  # 5GB default

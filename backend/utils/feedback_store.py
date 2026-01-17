@@ -10,7 +10,7 @@ import logging
 from datetime import datetime
 from typing import Dict, Any, Optional, List
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 # Feedback file path
 FEEDBACK_DIR = os.getenv('CACHE_DIR', os.path.join(os.path.dirname(__file__), '..', 'cache'))

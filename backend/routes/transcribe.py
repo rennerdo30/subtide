@@ -4,7 +4,7 @@ from backend.services.process_service import await_whisper_transcribe
 import logging
 
 transcribe_bp = Blueprint('transcribe', __name__)
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 @transcribe_bp.route('/api/transcribe', methods=['GET'])
 def transcribe_video():

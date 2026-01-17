@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Video Translate</title>
+  <title>Subtide</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link
@@ -18,27 +18,32 @@
     <!-- Header -->
     <header class="header">
       <div class="logo">
-        <svg viewBox="0 0 128 128" width="28" height="28" role="img" aria-label="Video Translate Logo">
-          <title>Video Translate Logo</title>
+        <svg viewBox="0 0 128 128" width="28" height="28" role="img" aria-label="Subtide Logo">
+          <title>Subtide Logo</title>
           <defs>
             <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stop-color="#4fd1c5" />
-              <stop offset="100%" stop-color="#2a8f86" />
+              <stop offset="0%" stop-color="#0d9488" />
+              <stop offset="50%" stop-color="#0891b2" />
+              <stop offset="100%" stop-color="#0369a1" />
+            </linearGradient>
+            <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stop-color="#5eead4" />
+              <stop offset="50%" stop-color="#22d3ee" />
+              <stop offset="100%" stop-color="#38bdf8" />
             </linearGradient>
           </defs>
-          <rect x="8" y="8" width="112" height="112" rx="24" ry="24" fill="url(#logoGrad)" />
-          <rect x="24" y="32" width="80" height="52" rx="6" ry="6" fill="none" stroke="white" stroke-width="4"
-            opacity="0.95" />
-          <polygon points="52,46 52,72 72,59" fill="white" />
-          <rect x="32" y="72" width="64" height="8" rx="2" fill="white" opacity="0.9" />
-          <text x="38" y="106" font-family="system-ui, sans-serif" font-size="22" font-weight="bold"
-            fill="white">A</text>
-          <path d="M58 98 L68 98 M64 94 L68 98 L64 102" stroke="white" stroke-width="3" stroke-linecap="round"
-            stroke-linejoin="round" fill="none" />
-          <text x="74" y="106" font-family="system-ui, sans-serif" font-size="20" font-weight="bold"
-            fill="white">文</text>
+          <rect x="4" y="4" width="120" height="120" rx="26" ry="26" fill="url(#logoGrad)" />
+          <!-- Subtitle lines -->
+          <rect x="24" y="28" width="56" height="6" rx="3" fill="white" opacity="0.95" />
+          <rect x="24" y="40" width="44" height="6" rx="3" fill="white" opacity="0.8" />
+          <rect x="24" y="52" width="32" height="6" rx="3" fill="white" opacity="0.65" />
+          <!-- Wave -->
+          <path d="M20 78 C32 78, 38 58, 54 58 C70 58, 70 78, 86 78 C102 78, 108 58, 108 58"
+            fill="none" stroke="url(#waveGrad)" stroke-width="8" stroke-linecap="round" opacity="0.9" />
+          <path d="M20 92 C36 92, 42 72, 58 72 C74 72, 74 92, 90 92 C106 92, 108 76, 108 76"
+            fill="none" stroke="white" stroke-width="5" stroke-linecap="round" opacity="0.4" />
         </svg>
-        <span class="logo-text" data-i18n="extensionName">Video Translate</span>
+        <span class="logo-text" data-i18n="extensionName">Subtide</span>
       </div>
       <div class="status-container">
         <div class="status-badge" id="backendStatusBadge" title="Backend Server Status">

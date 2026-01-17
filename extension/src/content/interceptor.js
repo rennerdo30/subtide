@@ -15,7 +15,7 @@
                 console.log('[Subtide] Intercepted timedtext fetch:', url);
                 const clone = response.clone();
                 clone.text().then(text => {
-                    window.dispatchEvent(new CustomEvent('VideoTranslate_SubtitleData', {
+                    window.dispatchEvent(new CustomEvent('Subtide_SubtitleData', {
                         detail: { url, data: text, type: 'fetch' }
                     }));
                 }).catch(e => console.error('[Subtide] Interceptor read error:', e));
@@ -41,7 +41,7 @@
             if (this._url && this._url.includes('/api/timedtext')) {
                 console.log('[Subtide] Intercepted timedtext XHR:', this._url);
                 try {
-                    window.dispatchEvent(new CustomEvent('VideoTranslate_SubtitleData', {
+                    window.dispatchEvent(new CustomEvent('Subtide_SubtitleData', {
                         detail: { url: this._url, data: this.responseText, type: 'xhr' }
                     }));
                 } catch (e) {

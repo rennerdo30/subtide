@@ -17,7 +17,7 @@ import logging
 from typing import List, Dict, Any, Tuple
 from collections import Counter
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 # =============================================================================
 # Configuration Constants

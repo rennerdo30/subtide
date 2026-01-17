@@ -12,7 +12,7 @@ import re
 import logging
 from typing import Tuple, Optional
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 # Script detection patterns
 SCRIPT_PATTERNS = {

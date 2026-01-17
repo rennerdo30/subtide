@@ -1,5 +1,5 @@
 """
-Logging configuration for Video Translate backend.
+Logging configuration for Subtide backend.
 Supports structured JSON logging for production and human-readable for development.
 """
 
@@ -98,7 +98,7 @@ def setup_logging(
         json_format: Use JSON format (for production)
         log_file: Optional file path for logging
     """
-    logger = logging.getLogger('video-translate')
+    logger = logging.getLogger('subtide')
     logger.setLevel(getattr(logging, level.upper(), logging.INFO))
 
     # Clear existing handlers
@@ -220,7 +220,7 @@ def timed(logger: logging.Logger = None):
         def wrapper(*args, **kwargs):
             nonlocal logger
             if logger is None:
-                logger = logging.getLogger('video-translate')
+                logger = logging.getLogger('subtide')
             
             start_time = time.time()
             try:

@@ -10,7 +10,7 @@ import subprocess
 import logging
 from typing import Optional
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 
 def normalize_audio(

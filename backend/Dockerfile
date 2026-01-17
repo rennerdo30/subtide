@@ -1,4 +1,4 @@
-# Video Translate Backend
+# Subtide Backend
 # Multi-stage build for smaller production image
 
 # ============================================================================

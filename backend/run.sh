@@ -1,5 +1,5 @@
 #!/bin/bash
-# Video Translate Backend Runner
+# Subtide Backend Runner
 # Usage: ./run.sh [options]
 
 set -e
@@ -20,7 +20,7 @@ CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 echo -e "${BLUE}╔════════════════════════════════════════════╗${NC}"
-echo -e "${BLUE}║       Video Translate Backend Server       ║${NC}"
+echo -e "${BLUE}║       Subtide Backend Server       ║${NC}"
 echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
 echo ""
 

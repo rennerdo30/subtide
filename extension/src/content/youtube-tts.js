@@ -1,5 +1,5 @@
 /**
- * TTS (Text-to-Speech) Controller for YouTube Video Translate
+ * TTS (Text-to-Speech) Controller for YouTube Subtide
  *
  * Supports:
  * - Backend TTS (edge-tts via API)

@@ -579,7 +579,7 @@ function forceRetranslate() {
 async function toggleLiveTranslate() {
     // Chrome Manifest V3 restriction: tabCapture requires extension invocation (popup click)
     // We cannot trigger it from the content script directly.
-    alert(chrome.i18n.getMessage('usePopupForLive') || "Please use the Extension Popup to start Live Translation.\n\nClick the Video Translate icon in your browser toolbar.");
+    alert(chrome.i18n.getMessage('usePopupForLive') || "Please use the Extension Popup to start Live Translation.\n\nClick the Subtide icon in your browser toolbar.");
     return;
 }
 

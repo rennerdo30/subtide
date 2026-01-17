@@ -21,7 +21,7 @@ def health_check():
     """Health check endpoint for monitoring."""
     return jsonify({
         'status': 'ok',
-        'service': 'video-translate-backend',
+        'service': 'subtide-backend',
         'features': {
             'whisper': ENABLE_WHISPER,
             'tier3': bool(SERVER_API_KEY)

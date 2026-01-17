@@ -8,7 +8,7 @@ import unicodedata
 import logging
 from typing import List, Tuple, Dict, Pattern
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 # =============================================================================
 # Configuration Constants

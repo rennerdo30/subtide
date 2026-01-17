@@ -16,7 +16,7 @@ from backend.utils.partial_cache import (
 from backend.utils.language_detection import validate_batch_language, detect_source_language_leakage
 from backend.utils.model_utils import supports_json_mode
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 def get_historical_batch_time() -> float:
     """Get average batch time from history for initial ETA estimate."""
@@ -171,8 +171,8 @@ def await_translate_subtitles(
 
     if SERVER_API_URL and 'openrouter.ai' in SERVER_API_URL:
         client_args['default_headers'] = {
-            'HTTP-Referer': 'https://video-translate.app',
-            'X-Title': 'Video Translate'
+            'HTTP-Referer': 'https://subtide.app',
+            'X-Title': 'Subtide'
         }
 
     client = OpenAI(**client_args)
@@ -621,8 +621,8 @@ All {len(subtitles)} outputs MUST be in {t_name}."""
     if api_url:
         client_args['base_url'] = api_url.rstrip('/')
         if 'openrouter.ai' in api_url:
-            extra_headers['HTTP-Referer'] = 'https://video-translate.app'
-            extra_headers['X-Title'] = 'Video Translate'
+            extra_headers['HTTP-Referer'] = 'https://subtide.app'
+            extra_headers['X-Title'] = 'Subtide'
 
     if extra_headers:
         client_args['default_headers'] = extra_headers

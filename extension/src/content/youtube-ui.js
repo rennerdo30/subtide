@@ -838,7 +838,7 @@ function injectUI(controlsElement) {
     // Add main button
     const mainBtn = document.createElement('button');
     mainBtn.className = 'vt-main-btn ytp-button';
-    const btnLabel = chrome.i18n.getMessage('btnVideoTranslate') || 'Video Translate';
+    const btnLabel = chrome.i18n.getMessage('btnVideoTranslate') || 'Subtide';
     mainBtn.title = btnLabel;
     mainBtn.setAttribute('aria-label', btnLabel);
     mainBtn.setAttribute('aria-haspopup', 'true');

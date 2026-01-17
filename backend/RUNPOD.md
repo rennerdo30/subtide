@@ -1,6 +1,6 @@
 # RunPod Deployment Guide
 
-Deploy Video Translate on RunPod.io for fast, cost-effective GPU acceleration.
+Deploy Subtide on RunPod.io for fast, cost-effective GPU acceleration.
 
 ## 🚀 Quick Summary
 
@@ -69,7 +69,7 @@ Authorization: Bearer <YOUR_RUNPOD_API_KEY>
 ```
 
 ### Client / Extension Configuration
-1. Open the **Video Translate Extension Settings**.
+1. Open the **Subtide Extension Settings**.
 2. Select **Tier 3 (Batch)** or **Tier 4 (Stream)**.
 3. **Backend URL**:
    - **Serverless Queue**: `https://api.runpod.ai/v2/{ENDPOINT_ID}` (no trailing slash)

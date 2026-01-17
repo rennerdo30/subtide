@@ -199,7 +199,7 @@ function injectTwitchUI() {
     // Create translate button
     const btn = document.createElement('button');
     btn.className = 'vt-twitch-btn';
-    btn.title = 'Video Translate';
+    btn.title = 'Subtide';
     btn.style.cssText = `
         background: transparent;
         border: none;
@@ -354,7 +354,7 @@ async function translateTwitchStream() {
  */
 function startLiveTranslation() {
     // Chrome Manifest V3 restriction: tabCapture requires extension invocation (popup click)
-    alert('Please use the Extension Popup to start Live Translation.\n\nClick the Video Translate icon in your browser toolbar.');
+    alert('Please use the Extension Popup to start Live Translation.\n\nClick the Subtide icon in your browser toolbar.');
 }
 
 /**

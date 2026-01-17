@@ -15,7 +15,7 @@ from datetime import datetime
 
 from backend.config import CACHE_DIR
 
-logger = logging.getLogger('video-translate')
+logger = logging.getLogger('subtide')
 
 # History file path
 HISTORY_FILE = os.path.join(CACHE_DIR, 'timing_history.json')
