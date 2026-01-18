@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  <!-- Preconnect to Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+  <!-- Load Satoshi font from Fontshare -->
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@700,900&display=swap" rel="stylesheet">
+
+  <!-- Load Fira Code for code blocks -->
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <!-- Support both color schemes -->
+  <meta name="color-scheme" content="light dark">
+
+  <!-- Theme color (changes with scheme) -->
+  <meta name="theme-color" content="#0a0a0f" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)">
+{% endblock %}
+
+{% block announce %}
+  <!-- Optional announcement bar - uncomment to use -->
+  <!-- <div class="announce-bar">Welcome to the documentation!</div> -->
+{% endblock %}

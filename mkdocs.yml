@@ -7,32 +7,57 @@ edit_uri: edit/main/docs/
 
 theme:
   name: material
+  custom_dir: overrides
+  language: en
+
+  # Color palette with toggle (dark mode default, matching Luminous Void theme)
   palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: teal
-      accent: teal
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: teal
-      accent: teal
+    - scheme: slate
+      primary: custom
+      accent: custom
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
+    - scheme: default
+      primary: custom
+      accent: custom
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+
+  # Font configuration
+  font:
+    text: Inter
+    code: Fira Code
+
+  # Features
   features:
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.tracking
     - navigation.tabs
     - navigation.sections
     - navigation.expand
+    - navigation.path
     - navigation.top
+    - navigation.footer
+    - toc.follow
     - search.suggest
     - search.highlight
+    - search.share
     - content.code.copy
     - content.code.annotate
+    - content.tabs.link
+    - content.tooltips
+    - header.autohide
+
+  # Icons
   icon:
+    logo: material/rocket-launch
     repo: fontawesome/brands/github
+
+  # Favicon
+  favicon: assets/images/favicon.png
 
 plugins:
   - search
@@ -80,6 +105,9 @@ nav:
   - Security: security.md
   - Contributing: contributing.md
   - Changelog: changelog.md
+
+extra_css:
+  - assets/stylesheets/extra.css
 
 extra:
   social:
