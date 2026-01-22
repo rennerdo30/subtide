@@ -147,6 +147,13 @@ class TestIsLikelyTargetLanguage(unittest.TestCase):
         is_valid, reason = is_likely_target_language(text, 'ru')
         self.assertFalse(is_valid, "English text accepted as Russian")
 
+    def test_chinese_rejected_for_japanese(self):
+        """Chinese text should be rejected when Japanese is expected."""
+        # Pure Chinese text (no Hiragana/Katakana)
+        text = "这是一个纯中文的句子，不应该被识别为日语。"
+        is_valid, reason = is_likely_target_language(text, 'ja')
+        self.assertFalse(is_valid, "Chinese text accepted as Japanese")
+
 
 class TestValidateBatchLanguage(unittest.TestCase):
     """Tests for batch validation."""

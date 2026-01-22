@@ -10,6 +10,14 @@ from typing import List, Tuple, Dict, Pattern
 
 logger = logging.getLogger('subtide')
 
+try:
+    from langdetect import detect, LangDetectException
+    HAS_LANGDETECT = True
+except ImportError:
+    HAS_LANGDETECT = False
+    logger.warning("langdetect library not found. Falling back to regex-based detection.")
+
+
 # =============================================================================
 # Configuration Constants
 # =============================================================================
@@ -243,16 +251,59 @@ def is_likely_target_language(text: str, target_lang: str) -> Tuple[bool, str]:
                 return False, f"expected_{target_lang}_got_english"
             return False, f"expected_{target_lang}_got_latin"
 
-        # For CJK languages, need some target characters
+    # For CJK languages, need some target characters
         if base_lang in ('ja', 'ko', 'zh') and target_ratio < MIN_CJK_SCRIPT_RATIO:
             # Check if it's mostly Latin (could be romanized or wrong language)
             if latin_ratio > MIN_LATIN_RATIO_FOR_ROMANIZED:
                 return False, f"insufficient_{target_lang}_characters"
 
+        # STRICT Japanese check: Must contain Hiragana or Katakana
+        # Chinese characters alone are not enough to be sure it's Japanese
+        if base_lang == 'ja' and len(text) > MIN_TEXT_LENGTH_FOR_VALIDATION:
+            # Check for Hiragana or Katakana specifically
+            # Hiragana: \u3040-\u309F, Katakana: \u30A0-\u30FF
+            kana_pattern = re.compile(r'[\u3040-\u309F\u30A0-\u30FF]')
+            if not kana_pattern.search(text):
+                # If no Kana, it might be pure Chinese (incorrect) or very short Kanji-only (rare in subtitles)
+                # Let's trust langdetect if available, otherwise reject if it looks like Chinese
+                if HAS_LANGDETECT:
+                    try:
+                        detected = detect(text)
+                        if detected == 'zh-cn' or detected == 'zh-tw' or detected == 'zh':
+                            return False, "detected_chinese_instead_of_japanese"
+                    except LangDetectException:
+                        pass
+                
+                # Without langdetect, we can't be sure, but pure Kanji is suspicious for subtitles
+                # If it's long (e.g. > 10 chars) and has NO kana, it's almost certainly Chinese or error
+                if len(text) > 10:
+                     return False, "missing_hiragana_katakana_likely_chinese"
+
     # For Latin-based target languages (de, fr, es, etc.)
     # Use improved detection with word markers
     elif target_lang in LATIN_SCRIPT_LANGUAGES and target_lang != 'en':
         return is_likely_target_latin_language(text, target_lang)
+    
+    # Generic langdetect check as final safeguard
+    if HAS_LANGDETECT and len(text) > 20: # Only check longer text to avoid false positives
+        try:
+             # Map complex codes to simple ISO codes for langdetect
+             simple_target = base_lang
+             detected = detect(text)
+             
+             # Don't fail immediately, but if strong mismatch, return false
+             # E.g. expected 'ja', got 'en'
+             if detected == 'en' and simple_target != 'en':
+                 # Double check with our english detector
+                 if is_likely_english(text):
+                     return False, f"langdetect_says_en_expected_{target_lang}"
+             
+             # If expected Japanese but got Chinese
+             if simple_target == 'ja' and detected.startswith('zh'):
+                  return False, f"langdetect_says_{detected}_expected_{target_lang}"
+                  
+        except LangDetectException:
+            pass
 
     return True, "ok"
 

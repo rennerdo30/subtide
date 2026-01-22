@@ -1,37 +1,26 @@
-# Subtide Backend - Base Requirements
-# Shared dependencies for all platforms
-
-# Web framework
-flask
-flask-cors
-flask-limiter
-gunicorn
-
-# Real-time communication
-flask-socketio
-simple-websocket
-
-# API clients
-openai
-requests
-
-# YouTube
-yt-dlp
-
-# Configuration
+annotated-types
+anyio
+certifi
+charset-normalizer
+click
+distro
+h11
+httpcore
+httpx
+idna
+jiter
+pydantic
+pydantic_core
 python-dotenv
-
-# Data Processing
-numpy<2.0.0
-soundfile
-
-# AI / ML Core
-torch==2.2.0
-torchaudio==2.2.0
-openai-whisper
-pyannote.audio
-numba>=0.57.0
-
-# Text-to-Speech
-edge-tts
-gTTS
+requests
+sniffio
+tqdm
+typing_extensions
+urllib3
+openai>=2.15.0
+langdetect
+anthropic>=0.76.0
+google-genai>=1.59.0
+mistralai>=1.10.0
+ollama>=0.6.1
+openrouter>=0.1.1

@@ -8,16 +8,6 @@ from backend.services.translation_service import (
     await_translate_subtitles
 )
 
-
-def create_mock_response(content):
-    """Create a properly mocked OpenAI response with usage stats."""
-    resp = MagicMock()
-    resp.choices[0].message.content = content
-    resp.usage.prompt_tokens = 100
-    resp.usage.completion_tokens = 50
-    resp.usage.total_tokens = 150
-    return resp
-
 def test_save_batch_time_history_fail(mock_cache_dir):
     # Mock open to raise exception
     with patch('builtins.open', side_effect=IOError("Permission denied")):
@@ -34,23 +24,26 @@ def test_get_historical_batch_time_corrupt(mock_cache_dir):
         with patch('json.load', side_effect=json.JSONDecodeError("msg", "doc", 0)):
              assert get_historical_batch_time() == 3.0
 
-@patch('backend.services.translation_service.OpenAI')
+@patch('backend.services.llm.factory.get_llm_provider')
 @patch('backend.services.translation_service.SERVER_API_KEY', 'fake-key')
-def test_await_translate_subtitles_rate_limit(mock_openai):
+def test_await_translate_subtitles_rate_limit(mock_get_llm_provider):
     # Setup mocks
-    mock_client = mock_openai.return_value
+    mock_provider = mock_get_llm_provider.return_value
+    mock_provider.concurrency_limit = 3
+    mock_provider.provider_name = "mock"
+    mock_provider.default_model = "mock-model"
     
     # Batch size is 25. Input 1 batch.
     subs = [{'text': 'Hello'} for _ in range(25)]
     
     # 1st call: Raise exception with "Rate limited ... 429 ... retry in 1"
-    # Actually code checks str(e) for '429' or 'rate'
     error_msg = "Rate limit exceeded. Retry in 1 seconds. (429)"
 
     # 2nd call: Success
-    success_resp = create_mock_response("\n".join([f"{i+1}. Hola" for i in range(25)]))
+    # Return dict as generate_json usually returns
+    success_resp = {"translations": [f"{i+1}. Hola" for i in range(25)]}
 
-    mock_client.chat.completions.create.side_effect = [
+    mock_provider.generate_json.side_effect = [
         Exception(error_msg),
         success_resp
     ]
@@ -59,82 +52,71 @@ def test_await_translate_subtitles_rate_limit(mock_openai):
         res = await_translate_subtitles(subs, 'es')
         
         assert len(res) == 25
-        assert res[0]['translatedText'] == 'Hola'
-        # Check if sleep called with parsed time
-        # Parsing logic: re.search(r'retry in (\d+)', ...) -> 1 + 1 = 2s wait
-        # Or if "retry in 1", group(1) is '1'. Logic adds 1. So 2.
+        assert res[0]['translatedText'] == '1. Hola' # Note: my mock data includes numbers
+        
+        # Check if sleep called
         mock_sleep.assert_called()
 
-@patch('backend.services.translation_service.OpenAI')
+@patch('backend.services.llm.factory.get_llm_provider')
 @patch('backend.services.translation_service.SERVER_API_KEY', 'fake-key')
-def test_await_translate_subtitles_incomplete_and_retry(mock_openai):
+def test_await_translate_subtitles_incomplete_and_retry(mock_get_llm_provider):
     # Test retry logic for incomplete batches
-    mock_client = mock_openai.return_value
+    mock_provider = mock_get_llm_provider.return_value
+    mock_provider.concurrency_limit = 3
+    mock_provider.provider_name = "mock"
+    mock_provider.default_model = "mock-model"
     
     subs = [{'text': 'Hello'} for _ in range(25)]
     
     # 1st call: Return only 5 translations (incomplete < 80%)
-    incomplete_resp = create_mock_response("\n".join([f"{i+1}. Hola" for i in range(5)]))
+    incomplete_resp = {"translations": [f"{i+1}. Hola" for i in range(5)]}
 
     # Retry call: Return full
-    success_resp = create_mock_response("\n".join([f"{i+1}. Hola" for i in range(25)]))
+    success_resp = {"translations": [f"{i+1}. Hola" for i in range(25)]}
     
-    # Logic tries MAX_RETRIES (3) locally inside translate_batch?
-    # No, translate_batch checks length. If < 80%, it returns what it has and success=False.
-    # Then `process_batches` puts it in `failed_batches`.
-    # Then `await_translate_subtitles` loops `RETRY_ROUNDS`.
+    # generate_json side effects:
+    # 1. translate_batch call 1 -> returns incomplete
+    #    Service checks length, sees < 80%, logs warning.
+    #    Does NOT retry loop inside translate_batch (unless exception).
+    #    Returns success=False.
+    # 2. process_batches puts it in failed_batches.
+    # 3. Retry Round 1 calls translate_batch again -> returns success.
     
-    # So:
-    # 1. translate_batch called. Returns success=False.
-    # 2. failed_batches has 1 batch.
-    # 3. Retry loop calls process_batches again.
-    
-    mock_client.chat.completions.create.side_effect = [
-        incomplete_resp, # 1st attempt inside translate_batch
-        # Wait, translate_batch does NOT retry if it gets a response but incomplete?
-        # Let's check code:
-        # It parses. Verify count. If >= 0.8 return True.
-        # Else: logs warning. Does NOT retry loop (unless exception).
-        # It returns success=False.
-        
-        # So it returns to process_batches with success=False.
-        
-        success_resp # 2nd attempt in Retry Round 1
+    mock_provider.generate_json.side_effect = [
+        incomplete_resp, 
+        success_resp
     ]
     
     with patch('time.sleep'): # fast
         res = await_translate_subtitles(subs, 'es')
         assert len(res) == 25
-        # Should be full now
-        assert res[24].get('translatedText') == 'Hola'
+        assert res[24].get('translatedText') == '25. Hola'
 
-@patch('backend.services.translation_service.OpenAI')
+@patch('backend.services.llm.factory.get_llm_provider')
 @patch('backend.services.translation_service.SERVER_API_KEY', 'fake-key')
-def test_await_translate_subtitles_threading(mock_openai):
+def test_await_translate_subtitles_threading(mock_get_llm_provider):
     # Test with multiple batches to trigger ThreadPool
-    mock_client = mock_openai.return_value
+    mock_provider = mock_get_llm_provider.return_value
+    mock_provider.concurrency_limit = 3
+    mock_provider.provider_name = "mock"
+    mock_provider.default_model = "mock-model"
     
     # 30 subs -> 2 batches (25, 5)
     subs = [{'text': 'Hello'} for _ in range(30)]
     
     def side_effect(*args, **kwargs):
         # Infer batch size from prompts?
-        # message content has prompt.
-        msg = kwargs['messages'][1]['content']
-        count = msg.count('\n') # Rough count of lines in prompt
-        # Actually logic says "Translate these X subtitles"
-        if "25 subtitles" in msg:
-            ret = "\n".join([f"{i+1}. Hola" for i in range(25)])
+        # kwargs has 'prompt'
+        prompt = kwargs.get('prompt', '')
+        # "Return JSON with 25 translations" vs "Return JSON with 5 translations"
+        if "with 25 translations" in prompt:
+            return {"translations": [f"{i+1}. Hola" for i in range(25)]}
         else:
-            ret = "\n".join([f"{i+1}. Hola" for i in range(5)])
+            return {"translations": [f"{i+1}. Hola" for i in range(5)]}
 
-        return create_mock_response(ret)
-        
-    mock_client.chat.completions.create.side_effect = side_effect
+    mock_provider.generate_json.side_effect = side_effect
     
     res = await_translate_subtitles(subs, 'es')
     assert len(res) == 30
-    assert res[0]['translatedText'] == 'Hola'
-    assert res[29]['translatedText'] == 'Hola'
-
-
+    assert res[0]['translatedText'] == '1. Hola'
+    assert res[29]['translatedText'] == '5. Hola'

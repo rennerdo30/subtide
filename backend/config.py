@@ -65,9 +65,39 @@ DIARIZATION_MODE = os.getenv('DIARIZATION_MODE', 'on')  # on|off|deferred
 # Cookies
 COOKIES_FILE = os.getenv('COOKIES_FILE')
 
-# Server Config (Tier 3)
-SERVER_API_KEY = os.getenv('SERVER_API_KEY')
-SERVER_MODEL = os.getenv('SERVER_MODEL', 'gpt-3.5-turbo')
+# LLM Provider Configuration
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "openai").lower()
+
+# API Keys
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("SERVER_API_KEY")
+ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+MISTRAL_API_KEY = os.getenv("MISTRAL_API_KEY")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
+
+# Model Configuration
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.2")
+ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
+GOOGLE_MODEL = os.getenv("GOOGLE_MODEL", "gemini-2.0-flash-exp")
+MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-large-latest")
+OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.0-flash-exp:free")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.3")
+
+# Concurrency Configuration
+OPENAI_CONCURRENT_REQUESTS = int(os.getenv("OPENAI_CONCURRENT_REQUESTS", "3"))
+ANTHROPIC_CONCURRENT_REQUESTS = int(os.getenv("ANTHROPIC_CONCURRENT_REQUESTS", "2"))
+GOOGLE_CONCURRENT_REQUESTS = int(os.getenv("GOOGLE_CONCURRENT_REQUESTS", "5"))
+MISTRAL_CONCURRENT_REQUESTS = int(os.getenv("MISTRAL_CONCURRENT_REQUESTS", "2"))
+OPENROUTER_CONCURRENT_REQUESTS = int(os.getenv("OPENROUTER_CONCURRENT_REQUESTS", "5"))
+DEEPSEEK_CONCURRENT_REQUESTS = int(os.getenv("DEEPSEEK_CONCURRENT_REQUESTS", "2"))
+OLLAMA_CONCURRENT_REQUESTS = int(os.getenv("OLLAMA_CONCURRENT_REQUESTS", "1"))
+
+# Legacy Config (mapped for compatibility)
+SERVER_API_KEY = OPENAI_API_KEY
+SERVER_MODEL = os.getenv('SERVER_MODEL') or OPENAI_MODEL
 SERVER_API_URL = os.getenv('SERVER_API_URL')
 
 # Language-specific model mapping (JSON format)
