@@ -6,8 +6,8 @@
 # Whisper - MLX for Metal GPU acceleration
 mlx-whisper
 
-# Speaker diarization
-pyannote.audio
+# Speaker diarization (4.0+ for community-1 model, 3.1+ for legacy)
+pyannote.audio>=3.1
 
 # PyTorch (CPU/MPS)
 torch
