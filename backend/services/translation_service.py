@@ -440,12 +440,16 @@ Return JSON with {len(batch)} translations in {t_name}: {{"translations": ["..."
     EMPTY_RETRY_ROUNDS = 2
     CONTEXT_WINDOW = 3  # Number of surrounding subtitles to include as context
 
-    for empty_retry in range(EMPTY_RETRY_ROUNDS):
-        # Collect subtitles with empty translations
-        empty_subs = [(idx, sub) for idx, sub in enumerate(subtitles) if not sub.get('translatedText')]
+    # OPTIMIZATION: Track empty indices instead of rescanning full list each round
+    # Initial collection of empty indices (O(n) once, not O(n) per round)
+    empty_indices = {idx for idx, sub in enumerate(subtitles) if not sub.get('translatedText')}
 
-        if not empty_subs:
+    for empty_retry in range(EMPTY_RETRY_ROUNDS):
+        if not empty_indices:
             break
+
+        # Build list from tracked indices (O(k) where k = remaining empty count)
+        empty_subs = [(idx, subtitles[idx]) for idx in sorted(empty_indices)]
 
         logger.info(f"[TRANSLATE] Empty retry round {empty_retry + 1}: {len(empty_subs)} empty translations to retry")
 
@@ -523,12 +527,14 @@ Return JSON with exactly {len(batch_subs)} translations: {{"translations": ["...
                 elif isinstance(json_response, list):
                     retry_translations = json_response
 
-                # Apply retry results
+                # Apply retry results and update tracking set
+                filled = 0
                 for i, orig_idx in enumerate(original_indices):
                     if i < len(retry_translations) and retry_translations[i]:
                         subtitles[orig_idx]['translatedText'] = retry_translations[i]
+                        empty_indices.discard(orig_idx)  # O(1) removal from set
+                        filled += 1
 
-                filled = sum(1 for i, idx in enumerate(original_indices) if i < len(retry_translations) and retry_translations[i])
                 logger.info(f"[TRANSLATE] Empty retry filled {filled}/{len(batch_items)} translations")
 
             except Exception as e:

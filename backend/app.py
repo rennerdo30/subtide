@@ -26,7 +26,7 @@ from backend.config import (
     ENABLE_WHISPER, SERVER_API_KEY, COOKIES_FILE,
     ENABLE_DIARIZATION, HF_TOKEN
 )
-from backend.utils.logging_utils import setup_logging
+from backend.utils.logging_utils import setup_logging, setup_request_id_middleware
 from backend.services.whisper_service import get_whisper_backend
 
 # Setup logging
@@ -37,6 +37,9 @@ logger = setup_logging(
 )
 
 app = Flask(__name__)
+
+# Setup request ID middleware for log correlation
+setup_request_id_middleware(app)
 
 # CORS Configuration
 # In production, restrict to known origins. For development, allow localhost.
@@ -78,10 +81,6 @@ MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10MB
 def validate_request():
     """Validate incoming requests for size limits."""
     if request.method == 'POST':
-        # Debug logging for /api/process 400 error investigation
-        if request.path.endswith('/api/process'):
-             logger.info(f"POST /api/process - Headers: {dict(request.headers)}")
-        
         content_length = request.content_length
         if content_length and content_length > MAX_CONTENT_LENGTH:
             return jsonify({

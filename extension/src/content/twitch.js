@@ -23,6 +23,10 @@ let isLive = false;
 let userTier = 'tier1';
 let backendUrl = 'http://localhost:5001';
 
+// Track observers and intervals for cleanup
+let navigationObserver = null;
+let periodicCheckInterval = null;
+
 // Subtitle appearance settings
 let subtitleSettings = {
     size: 'medium',
@@ -55,21 +59,64 @@ function init() {
 function observeNavigation() {
     let lastUrl = location.href;
 
-    const observer = new MutationObserver(() => {
+    // Clean up existing observer if any
+    if (navigationObserver) {
+        navigationObserver.disconnect();
+    }
+
+    navigationObserver = new MutationObserver(() => {
         if (location.href !== lastUrl) {
             lastUrl = location.href;
             onNavigate();
         }
     });
 
-    observer.observe(document.body, { childList: true, subtree: true });
+    navigationObserver.observe(document.body, { childList: true, subtree: true });
     window.addEventListener('popstate', onNavigate);
+    window.addEventListener('beforeunload', cleanup);
+}
+
+/**
+ * Cleanup resources when leaving the page
+ */
+function cleanup() {
+    // Disconnect MutationObserver
+    if (navigationObserver) {
+        navigationObserver.disconnect();
+        navigationObserver = null;
+    }
+
+    // Clear periodic check interval
+    if (periodicCheckInterval) {
+        clearInterval(periodicCheckInterval);
+        periodicCheckInterval = null;
+    }
+
+    // Stop subtitle sync
+    if (typeof stopSync === 'function') {
+        stopSync();
+    }
+
+    // Remove event listeners
+    window.removeEventListener('popstate', onNavigate);
+    window.removeEventListener('beforeunload', cleanup);
 }
 
 /**
  * Handle navigation events
  */
 function onNavigate() {
+    // Clear periodic check interval on navigation
+    if (periodicCheckInterval) {
+        clearInterval(periodicCheckInterval);
+        periodicCheckInterval = null;
+    }
+
+    // Stop subtitle sync
+    if (typeof stopSync === 'function') {
+        stopSync();
+    }
+
     translatedSubtitles = null;
     sourceSubtitles = null;
     isProcessing = false;
@@ -136,8 +183,11 @@ async function setupTwitchPage(id, isVod) {
     // Inject UI
     injectTwitchUI();
 
-    // Setup periodic re-injection
-    setInterval(() => {
+    // Setup periodic re-injection (track for cleanup)
+    if (periodicCheckInterval) {
+        clearInterval(periodicCheckInterval);
+    }
+    periodicCheckInterval = setInterval(() => {
         if (!document.querySelector('.vt-twitch-container')) {
             const controls = document.querySelector('[data-a-target="player-controls"]') ||
                 document.querySelector('.player-controls__right-control-group');

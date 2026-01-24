@@ -2,6 +2,7 @@ import logging
 import os
 import re
 import hashlib
+from urllib.parse import urlparse
 import yt_dlp
 from typing import Optional, Dict, Any
 from backend.config import CACHE_DIR, COOKIES_FILE
@@ -19,6 +20,68 @@ MIN_VALID_AUDIO_SIZE_BYTES = 1000
 RESERVED_NAMES = {'CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4',
                   'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2',
                   'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'}
+
+# SECURITY: Whitelist of allowed domains to prevent SSRF attacks
+# Only allow URLs from known video hosting platforms
+ALLOWED_DOMAINS = {
+    # YouTube
+    'youtube.com', 'www.youtube.com', 'youtu.be', 'm.youtube.com',
+    'youtube-nocookie.com', 'www.youtube-nocookie.com',
+    # Twitch
+    'twitch.tv', 'www.twitch.tv', 'clips.twitch.tv',
+    # Vimeo
+    'vimeo.com', 'www.vimeo.com', 'player.vimeo.com',
+    # Dailymotion
+    'dailymotion.com', 'www.dailymotion.com',
+    # Bilibili
+    'bilibili.com', 'www.bilibili.com', 'b23.tv',
+    # NicoNico
+    'nicovideo.jp', 'www.nicovideo.jp', 'nico.ms',
+    # Twitter/X
+    'twitter.com', 'www.twitter.com', 'x.com', 'www.x.com',
+    # Reddit
+    'reddit.com', 'www.reddit.com', 'v.redd.it',
+    # TikTok
+    'tiktok.com', 'www.tiktok.com', 'vm.tiktok.com',
+    # Facebook
+    'facebook.com', 'www.facebook.com', 'fb.watch',
+    # Instagram
+    'instagram.com', 'www.instagram.com',
+    # Streamable
+    'streamable.com', 'www.streamable.com',
+}
+
+
+def is_allowed_url(url: str) -> bool:
+    """
+    Check if URL is from an allowed domain.
+
+    SECURITY: Prevents SSRF by only allowing known video hosting domains.
+    """
+    if not url:
+        return False
+
+    try:
+        parsed = urlparse(url)
+        host = parsed.hostname
+        if not host:
+            return False
+
+        # Normalize hostname (lowercase, strip www. for comparison)
+        host_lower = host.lower()
+
+        # Check exact match first
+        if host_lower in ALLOWED_DOMAINS:
+            return True
+
+        # Check if it's a subdomain of an allowed domain
+        for allowed in ALLOWED_DOMAINS:
+            if host_lower.endswith('.' + allowed):
+                return True
+
+        return False
+    except Exception:
+        return False
 
 def sanitize_id(raw_id: str) -> str:
     """
@@ -50,14 +113,21 @@ def is_supported_site(url: str) -> bool:
 def get_video_info(url: str) -> Dict[str, Any]:
     """
     Get video metadata using yt-dlp.
+
+    SECURITY: Only processes URLs from whitelisted domains.
     """
+    # SECURITY: Validate URL against whitelist
+    if not is_allowed_url(url):
+        logger.warning(f"{LOG_PREFIX} Rejected URL from non-whitelisted domain: {url[:100]}")
+        return {}
+
     ydl_opts = {
         'skip_download': True,
         'quiet': True,
         'no_warnings': True,
         'ignore_no_formats_error': True,
     }
-    
+
     # Add cookie file if available
     if COOKIES_FILE and os.path.exists(COOKIES_FILE):
         ydl_opts['cookiefile'] = COOKIES_FILE
@@ -73,15 +143,22 @@ def get_video_info(url: str) -> Dict[str, Any]:
 def download_audio(url: str, custom_id: Optional[str] = None) -> Optional[str]:
     """
     Download audio from any URL supported by yt-dlp.
-    
+
+    SECURITY: Only processes URLs from whitelisted domains.
+
     Args:
         url: The video URL or stream URL
         custom_id: Optional ID to force a specific cache filename (e.g. hash of URL)
                    If not provided, yt-dlp's ID will be used if available, else has of URL.
-    
+
     Returns:
         Path to the downloaded audio file, or None on failure.
     """
+    # SECURITY: Validate URL against whitelist
+    if not is_allowed_url(url):
+        logger.error(f"{LOG_PREFIX} Rejected download from non-whitelisted domain: {url[:100]}")
+        return None
+
     try:
         # Determine ID to use for filename
         vid_id = custom_id

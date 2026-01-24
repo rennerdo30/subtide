@@ -83,6 +83,9 @@ let backendUrl = 'http://localhost:5001';
 // Track MutationObserver for cleanup
 let navigationObserver = null;
 
+// Track periodic check interval for cleanup
+let periodicCheckInterval = null;
+
 // Track all active timeouts for proper cleanup
 const activeTimeouts = new Set();
 
@@ -195,6 +198,12 @@ function cleanup() {
         navigationObserver = null;
     }
 
+    // Clear periodic check interval
+    if (periodicCheckInterval) {
+        clearInterval(periodicCheckInterval);
+        periodicCheckInterval = null;
+    }
+
     // Clear all tracked timeouts
     clearAllTimeouts();
 
@@ -230,6 +239,12 @@ function onNavigate() {
     if (window._vtFastRetryInterval) {
         clearInterval(window._vtFastRetryInterval);
         window._vtFastRetryInterval = null;
+    }
+
+    // Clear periodic check interval
+    if (periodicCheckInterval) {
+        clearInterval(periodicCheckInterval);
+        periodicCheckInterval = null;
     }
 
     // Reset state for current video (use Map-based state)
@@ -346,7 +361,11 @@ async function setupPage(videoId) {
     });
 
     // Periodic check to ensure UI stays injected (reduced from 5s to 1s for faster recovery)
-    setInterval(() => {
+    // Clear any existing interval first to prevent leaks on re-navigation
+    if (periodicCheckInterval) {
+        clearInterval(periodicCheckInterval);
+    }
+    periodicCheckInterval = setInterval(() => {
         if (!document.querySelector('.vt-container')) {
             const controls = document.querySelector('.ytp-right-controls');
             if (controls && controls.offsetParent !== null) {

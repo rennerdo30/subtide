@@ -1420,33 +1420,48 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
             
             # Match speakers using SEGMENT-LEVEL approach (more stable than word-level)
             # This preserves Whisper's natural sentence boundaries and reduces noise
-            
+
             diarization_turns = list(diarization.itertracks(yield_label=True))
             logger.info(f"[DIARIZATION] Found {len(diarization_turns)} speaker turns")
             logger.info(f"[DIARIZATION] Processing {len(segments)} segments for speaker assignment")
-            
+
             # Use configurable limits from config.py
             max_duration = MAX_SUBTITLE_DURATION
             max_words = MAX_SUBTITLE_WORDS
-            
+
+            # OPTIMIZATION: Pre-extract turn end times for binary search
+            # This reduces speaker matching from O(n*m) to O(n*log(m) + overlapping turns)
+            import bisect
+            turn_end_times = [turn.end for turn, _, _ in diarization_turns]
+
             new_segments = []
-            
+
             for seg in segments:
                 seg_start = seg["start"]
                 seg_end = seg["end"]
                 seg_text = seg.get("text", "").strip()
                 seg_words = seg.get("words", [])
-                
+
+                # OPTIMIZATION: Use binary search to find overlapping turns
+                # Find first turn that ends after segment starts
+                start_idx = bisect.bisect_right(turn_end_times, seg_start)
+
                 # Find speaker with most overlap for this segment
                 speaker_overlaps = {}
-                for turn, _, speaker in diarization_turns:
+                for i in range(start_idx, len(diarization_turns)):
+                    turn, _, speaker = diarization_turns[i]
+
+                    # Early exit: if turn starts after segment ends, no more overlaps
+                    if turn.start >= seg_end:
+                        break
+
                     overlap_start = max(seg_start, turn.start)
                     overlap_end = min(seg_end, turn.end)
-                    overlap_duration = max(0, overlap_end - overlap_start)
-                    
+                    overlap_duration = overlap_end - overlap_start
+
                     if overlap_duration > 0:
                         speaker_overlaps[speaker] = speaker_overlaps.get(speaker, 0) + overlap_duration
-                
+
                 if speaker_overlaps:
                     best_speaker = max(speaker_overlaps, key=speaker_overlaps.get)
                 else:

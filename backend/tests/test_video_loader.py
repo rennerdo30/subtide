@@ -80,6 +80,7 @@ class TestDownloadAudio:
     def test_download_audio_options(self):
         """Test that download_audio configures yt-dlp correctly, especially postprocessors."""
         with patch('backend.services.video_loader.yt_dlp.YoutubeDL') as mock_ydl, \
+             patch('backend.services.video_loader.is_allowed_url', return_value=True), \
              patch('backend.services.video_loader.os.path.exists', return_value=False), \
              patch('backend.services.video_loader.os.makedirs'):
             mock_ctx = MagicMock()
@@ -90,7 +91,7 @@ class TestDownloadAudio:
                 'requested_downloads': [{'filepath': '/tmp/cache/audio/123.m4a'}]
             }
 
-            url = "https://example.com/video"
+            url = "https://youtube.com/watch?v=abc123"
             download_audio(url, custom_id="123")
 
             # Extract the call args to YoutubeDL constructor
@@ -110,7 +111,8 @@ class TestDownloadAudio:
 
     def test_download_audio_cache_hit(self):
         """Test that cached audio files are returned without re-downloading."""
-        with patch('backend.services.video_loader.os.path.exists') as mock_exists, \
+        with patch('backend.services.video_loader.is_allowed_url', return_value=True), \
+             patch('backend.services.video_loader.os.path.exists') as mock_exists, \
              patch('backend.services.video_loader.os.path.getsize') as mock_getsize, \
              patch('backend.services.video_loader.os.makedirs'), \
              patch('backend.services.video_loader.yt_dlp.YoutubeDL') as mock_ydl:
@@ -122,7 +124,7 @@ class TestDownloadAudio:
             mock_exists.side_effect = exists_side_effect
             mock_getsize.return_value = MIN_VALID_AUDIO_SIZE_BYTES + 1000
 
-            result = download_audio("https://example.com/video", custom_id="cached123")
+            result = download_audio("https://youtube.com/watch?v=abc123", custom_id="cached123")
 
             # Should return cached path without calling yt-dlp
             assert result is not None
@@ -131,7 +133,8 @@ class TestDownloadAudio:
 
     def test_download_audio_small_file_ignored(self):
         """Test that cached files smaller than minimum size are ignored."""
-        with patch('backend.services.video_loader.os.path.exists', return_value=True), \
+        with patch('backend.services.video_loader.is_allowed_url', return_value=True), \
+             patch('backend.services.video_loader.os.path.exists', return_value=True), \
              patch('backend.services.video_loader.os.path.getsize') as mock_getsize, \
              patch('backend.services.video_loader.os.makedirs'), \
              patch('backend.services.video_loader.os.listdir', return_value=[]), \
@@ -146,19 +149,25 @@ class TestDownloadAudio:
                 'requested_downloads': [{'filepath': '/tmp/audio.m4a'}]
             }
 
-            download_audio("https://example.com/video", custom_id="small_file")
+            download_audio("https://youtube.com/watch?v=abc123", custom_id="small_file")
 
             # Should call yt-dlp to re-download
             mock_ydl.assert_called_once()
 
     def test_download_audio_failure_returns_none(self):
         """Test that download failures return None gracefully."""
-        with patch('backend.services.video_loader.os.path.exists', return_value=False), \
+        with patch('backend.services.video_loader.is_allowed_url', return_value=True), \
+             patch('backend.services.video_loader.os.path.exists', return_value=False), \
              patch('backend.services.video_loader.os.makedirs'), \
              patch('backend.services.video_loader.yt_dlp.YoutubeDL') as mock_ydl:
 
             mock_ydl.return_value.__enter__.side_effect = Exception("Network error")
 
-            result = download_audio("https://example.com/video", custom_id="fail123")
+            result = download_audio("https://youtube.com/watch?v=abc123", custom_id="fail123")
 
             assert result is None
+
+    def test_download_audio_blocked_url_returns_none(self):
+        """Test that non-whitelisted URLs return None."""
+        result = download_audio("https://malicious-site.com/video", custom_id="blocked")
+        assert result is None

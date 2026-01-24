@@ -116,16 +116,17 @@ def test_fetch_subtitles_retry_logic(mock_yt_dlp, mock_requests, mock_cache_dir)
 
 def test_ensure_audio_downloaded_variant(mock_yt_dlp):
     # Mock fallback scan: file exists but not exact name match (maybe different extension in listdir)
-    # Actually logic: 
+    # Actually logic:
     # Check exact match for each ext.
     # IF fail, check os.listdir for startswith(safe_vid_id)
-    
-    with patch('os.path.exists', return_value=False), \
+
+    with patch('backend.services.video_loader.is_allowed_url', return_value=True), \
+         patch('os.path.exists', return_value=False), \
          patch('os.makedirs'), \
          patch('os.listdir', return_value=['vid123.mp3']), \
          patch('os.path.getsize', return_value=2000): # Size > 1000
-        
-        path = ensure_audio_downloaded('vid123', 'http://url')
+
+        path = ensure_audio_downloaded('vid123', 'https://youtube.com/watch?v=vid123')
         assert path.endswith('vid123.mp3')
 
 def test_ensure_audio_downloaded_fail(mock_yt_dlp):

@@ -38,6 +38,10 @@ let uiElements = {
     subtitleOverlay: null,
 };
 
+// Track observers and intervals for cleanup
+let domObserver = null;
+let periodicCheckInterval = null;
+
 // Translation state
 let translationState = {
     isTranslating: false,
@@ -59,12 +63,15 @@ if (!isYouTube && !isTwitch) {
 // =============================================================================
 
 function init() {
-    // 1. Observe DOM for video elements
-    const observer = new MutationObserver(checkForVideo);
-    observer.observe(document.body, { childList: true, subtree: true });
+    // 1. Observe DOM for video elements (track for cleanup)
+    domObserver = new MutationObserver(checkForVideo);
+    domObserver.observe(document.body, { childList: true, subtree: true });
 
-    // 2. Periodic check (some SPAs render late)
-    setInterval(checkForVideo, 2000);
+    // 2. Periodic check (some SPAs render late) - track for cleanup
+    periodicCheckInterval = setInterval(checkForVideo, 2000);
+
+    // 3. Cleanup on page unload
+    window.addEventListener('beforeunload', cleanup);
 
     // 3. Listen for play events to grab the "active" video
     document.addEventListener('play', (e) => {
@@ -81,6 +88,31 @@ function init() {
 
     // 6. Listen for progress messages from service worker
     chrome.runtime.onMessage.addListener(handleMessage);
+}
+
+/**
+ * Cleanup resources when leaving the page
+ */
+function cleanup() {
+    // Disconnect MutationObserver
+    if (domObserver) {
+        domObserver.disconnect();
+        domObserver = null;
+    }
+
+    // Clear periodic check interval
+    if (periodicCheckInterval) {
+        clearInterval(periodicCheckInterval);
+        periodicCheckInterval = null;
+    }
+
+    // Stop subtitle sync
+    if (typeof stopSync === 'function') {
+        stopSync();
+    }
+
+    // Remove event listener
+    window.removeEventListener('beforeunload', cleanup);
 }
 
 function injectInterceptor() {

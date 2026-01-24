@@ -56,26 +56,31 @@ def translate_subtitles():
     model_id = data.get('model')
     api_key = data.get('api_key')
     api_url = data.get('api_url')
-    tier = data.get('tier', 'tier1')
     force_refresh = data.get('force_refresh', False)
 
+    # SECURITY: Tier is determined by whether client provides API key, not by client claim
+    # - If api_key provided: Tier 1/2 (client-managed)
+    # - If no api_key: Tier 3 (server-managed, requires SERVER_API_KEY configured)
+
     if force_refresh:
-        logger.info(f"[TRANSLATE] Force refresh requested (Tier 1/2 - client-side cache cleared)")
+        logger.info(f"[TRANSLATE] Force refresh requested")
 
     if not subtitles:
         return jsonify({'error': 'No subtitles provided'}), 400
 
-    # Tier 3: Use server-managed API key (override frontend values)
-    if tier == 'tier3':
+    # Determine tier based on whether client provides credentials
+    if api_key:
+        # Tier 1/2: Client provides their own API key
+        logger.info(f"[TRANSLATE] Using client-provided API key (Tier 1/2)")
+    else:
+        # Tier 3: Use server-managed API key
         if SERVER_API_KEY:
             api_key = SERVER_API_KEY
             model_id = SERVER_MODEL
             api_url = SERVER_API_URL
-            logger.info(f"Using Tier 3 server config: {api_url} / {model_id}")
+            logger.info(f"[TRANSLATE] Using server config (Tier 3)")
         else:
-            return jsonify({'error': 'Tier 3 is not configured on this server. Please use your own API key.'}), 400
-    elif not api_key:
-        return jsonify({'error': 'API key is required for Tier 1/2'}), 400
+            return jsonify({'error': 'API key is required. Either provide your own or configure server-side API key.'}), 400
 
     if not model_id:
         return jsonify({'error': 'Model is required'}), 400

@@ -101,13 +101,17 @@ See the main README for detailed hardware requirements when running Whisper + LL
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | Health check |
+| `/health` | GET | Health check with feature flags |
+| `/ping` | GET | Load balancer health check |
+| `/api/version` | GET | Version and build info |
 | `/api/subtitles` | GET | Fetch YouTube subtitles |
 | `/api/transcribe` | GET | Generate subtitles with Whisper (Tier 2+) |
+| `/api/translate` | POST | Translate subtitles (Tier 1/2) |
 | `/api/process` | POST | Combined fetch + translate (Tier 3 only) |
 | `/api/stream` | POST | Progressive streaming translation (Tier 4) |
-| `/api/feedback` | POST | Submit translation quality feedback |
-| `/api/feedback/stats` | GET | Get feedback statistics |
+| `/api/model-info` | GET | Model configuration (Tier 3) |
+
+See [API.md](API.md) for complete API documentation.
 
 ### Tier 4 Streaming Mode
 

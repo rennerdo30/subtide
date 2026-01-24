@@ -14,9 +14,46 @@ cd backend
 ## Endpoints
 
 ### 1. Health & Config
-`GET /health`
+
+#### `GET /health`
 - **Purpose**: Verify server status and view active features.
-- **Returns**: JSON with version, hardware info, and enabled tiers.
+- **Returns**: JSON with status, service name, features, and model config.
+- **Example Response**:
+```json
+{
+  "status": "ok",
+  "service": "subtide-backend",
+  "features": {
+    "whisper": true,
+    "tier3": true
+  },
+  "config": {
+    "model": "gpt-4o-mini",
+    "context_size": 128000
+  }
+}
+```
+
+#### `GET /ping`
+- **Purpose**: Load balancer health check (RunPod compatible).
+- **Returns**: `200 OK` if ready, `204 No Content` if still initializing.
+
+#### `GET /api/version`
+- **Purpose**: Get version and build information.
+- **Returns**: JSON with version, build date, platform, and features.
+- **Example Response**:
+```json
+{
+  "version": "1.1.2",
+  "build_date": "2026-01-24",
+  "platform": "macos",
+  "whisper_backend": "mlx-whisper",
+  "features": {
+    "whisper": true,
+    "tier3": true
+  }
+}
+```
 
 ### 2. Subtitle Fetching
 `GET /api/subtitles`
@@ -87,8 +124,31 @@ stage: "complete"    → All done
 - **Purpose**: Get context window limits for the server's configured model.
 - **Tiers**: Tier 3.
 
+## Request Tracking
+
+All API requests include automatic request ID tracking for log correlation:
+
+- **Request Header**: Send `X-Request-ID` to use your own ID, or one will be generated
+- **Response Header**: `X-Request-ID` is always returned with the request ID
+- **Logs**: All log entries include the request ID for easy debugging
+
+Example:
+```bash
+curl -H "X-Request-ID: my-custom-id-123" http://localhost:5001/health
+# Response includes: X-Request-ID: my-custom-id-123
+```
+
 ## Caching
+
 All results are cached:
-- **Audio**: `backend/cache/*.mp3`
-- **Subtitles**: `backend/cache/*.json`
-- **Transcripts**: `backend/cache/*.whisper.json`
+- **Audio**: `backend/cache/audio/*.m4a`
+- **Subtitles**: `backend/cache/*_subs_*.json`
+- **Transcripts**: `backend/cache/*_whisper.json`
+- **Partial Progress**: `backend/cache/partial/*.json` (for resume on failure)
+
+## Security
+
+- **API Key Protection**: Server-side API keys are never exposed to clients
+- **SSRF Prevention**: Only whitelisted video domains (YouTube, Twitch, Vimeo, etc.) are allowed
+- **Rate Limiting**: Default 60 req/min, stricter limits on expensive endpoints
+- **Request Size Limit**: Maximum 10MB for POST requests

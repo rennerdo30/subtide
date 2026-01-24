@@ -39,13 +39,12 @@ def test_transcribe_video_tier1_forbidden(client):
     assert response.status_code == 403
     assert response.get_json()['upgrade'] is True
 
-@patch('backend.routes.translation.translate_subtitles_simple')
-def test_translate_subtitles_tier1_api_key_required(mock_translate, client):
-    # Missing API key
+@patch('backend.routes.translation.SERVER_API_KEY', None)
+def test_translate_subtitles_tier1_api_key_required(client):
+    # Missing API key and no server key - should require client API key
     response = client.post('/api/translate', json={
         'subtitles': [{'text': 'Hi'}],
-        'model': 'gpt',
-        'tier': 'tier1'
+        'model': 'gpt'
     })
     assert response.status_code == 400
     assert 'API key is required' in response.get_json()['error']

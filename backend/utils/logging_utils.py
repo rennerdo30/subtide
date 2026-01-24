@@ -136,6 +136,37 @@ def generate_request_id() -> str:
     return str(uuid.uuid4())
 
 
+def mask_api_key(api_key: Optional[str], visible_chars: int = 4) -> str:
+    """
+    Mask an API key for safe logging, showing only first and last few characters.
+
+    SECURITY: Use this function when logging any sensitive credentials.
+
+    Examples:
+        mask_api_key("sk-abc123xyz789") -> "sk-a...789"
+        mask_api_key("AIzaSy1234567890abc") -> "AIza...abc"
+        mask_api_key(None) -> "[not set]"
+        mask_api_key("short") -> "****"
+
+    Args:
+        api_key: The API key to mask
+        visible_chars: Number of characters to show at start and end (default 4)
+
+    Returns:
+        Masked string safe for logging
+    """
+    if not api_key:
+        return "[not set]"
+
+    if len(api_key) <= visible_chars * 2 + 3:
+        # Key is too short to mask meaningfully
+        return "*" * len(api_key)
+
+    prefix = api_key[:visible_chars]
+    suffix = api_key[-visible_chars:]
+    return f"{prefix}...{suffix}"
+
+
 
 class LogContext:
     """Thread-local context for request tracking."""
@@ -221,7 +252,7 @@ def timed(logger: logging.Logger = None):
             nonlocal logger
             if logger is None:
                 logger = logging.getLogger('subtide')
-            
+
             start_time = time.time()
             try:
                 result = func(*args, **kwargs)
@@ -243,3 +274,41 @@ def timed(logger: logging.Logger = None):
                 raise
         return wrapper
     return decorator
+
+
+def setup_request_id_middleware(app):
+    """
+    Setup Flask middleware to automatically add request IDs to all requests.
+
+    Usage:
+        from backend.utils.logging_utils import setup_request_id_middleware
+        setup_request_id_middleware(app)
+
+    The request ID is:
+    - Generated for each request (or uses X-Request-ID header if provided)
+    - Stored in LogContext for use in all log messages
+    - Added to response headers as X-Request-ID
+    """
+    from flask import request, g
+
+    @app.before_request
+    def add_request_id():
+        # Use provided request ID or generate new one
+        request_id = request.headers.get('X-Request-ID') or generate_request_id()
+        g.request_id = request_id
+        LogContext.set(request_id=request_id)
+
+        # Also set video_id if present in request
+        video_id = request.args.get('video_id') or request.json.get('video_id') if request.is_json else None
+        if video_id:
+            LogContext.set(video_id=video_id)
+
+    @app.after_request
+    def add_request_id_header(response):
+        if hasattr(g, 'request_id'):
+            response.headers['X-Request-ID'] = g.request_id
+        return response
+
+    @app.teardown_request
+    def clear_log_context(exception=None):
+        LogContext.clear()

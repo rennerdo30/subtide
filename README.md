@@ -9,10 +9,11 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.1-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-1.1.2-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
   <img src="https://img.shields.io/badge/python-3.9+-yellow.svg" alt="Python">
   <img src="https://img.shields.io/badge/chrome-MV3-blue.svg" alt="Chrome Extension">
+  <img src="https://img.shields.io/badge/tests-262%20passing-brightgreen.svg" alt="Tests">
 </p>
 
 ---
@@ -338,10 +339,14 @@ subtide/
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | Health check |
-| `/api/translate` | POST | Translate video (batch) |
-| `/api/stream` | POST | Translate video (streaming) |
-| `/api/status/{id}` | GET | Check translation status |
+| `/health` | GET | Health check with feature flags |
+| `/ping` | GET | Load balancer health check |
+| `/api/version` | GET | Version and build info |
+| `/api/subtitles` | GET | Fetch YouTube subtitles |
+| `/api/translate` | POST | Translate subtitles (batch) |
+| `/api/process` | POST | Full pipeline (fetch + translate) |
+| `/api/transcribe` | GET | Whisper transcription |
+| `/api/model-info` | GET | Model configuration (Tier 3) |
 
 ---
 

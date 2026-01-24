@@ -80,7 +80,10 @@ subtide/
 │   ├── utils/
 │   │   ├── model_utils.py          # Model loading/management
 │   │   ├── partial_cache.py        # Translation caching
-│   │   └── language_detection.py   # Language utilities
+│   │   ├── language_detection.py   # Language utilities
+│   │   ├── logging_utils.py        # Structured logging, request IDs
+│   │   ├── retry.py                # Retry decorator with backoff
+│   │   └── hallucination_filter.py # Whisper output filtering
 │   ├── tests/                      # Unit tests
 │   ├── requirements.txt            # Python dependencies
 │   ├── Dockerfile                  # Container configuration
@@ -125,28 +128,57 @@ subtide/
 
 ## Testing
 
-We use `pytest` for backend testing.
+We use `pytest` for backend testing. Current test count: **262+ tests**.
 
 ### Run All Tests
 ```bash
 cd backend
-export PYTHONPATH=$PYTHONPATH:$(pwd)
-python -m pytest tests/
+PYTHONPATH=$PYTHONPATH:$(pwd)/.. python -m pytest tests/ -v
 ```
 
 ### Run with Coverage
 ```bash
-python -m pytest tests/ --cov=. --cov-report=term-missing
+PYTHONPATH=$PYTHONPATH:$(pwd)/.. python -m pytest tests/ --cov=. --cov-report=term-missing --cov-fail-under=50
 ```
 
-### Run Specific Tests
+### Run Specific Test Categories
 ```bash
-python -m pytest tests/test_translation_service.py -v
-python -m pytest tests/ -k "test_cache"
+# Unit tests only (fast, no network)
+python -m pytest tests/ -m "not slow" -v
+
+# Real video integration tests (requires network)
+python -m pytest tests/test_real_video_pipeline.py -v -s
+
+# Cache layer tests
+python -m pytest tests/test_cache_service.py tests/test_partial_cache.py -v
+
+# LLM provider tests
+python -m pytest tests/test_llm_factory.py -v
+```
+
+### Test Markers
+- `@pytest.mark.slow` - Tests that require network access or take >10s
+- `@pytest.mark.network` - Tests that require internet connectivity
+
+### Test Utilities
+
+The `utils/retry.py` module provides a retry decorator for flaky tests:
+
+```python
+from backend.utils.retry import retry
+
+@retry(max_attempts=3, delay=1.0, exceptions=(TimeoutError,))
+def test_flaky_network_call():
+    ...
 ```
 
 ### CI Integration
-Every push to GitHub triggers the `test-backend` job. PRs will fail if tests don't pass.
+Every push to GitHub triggers:
+1. **code-quality** - flake8, black, isort checks
+2. **security-scan** - Bandit security analysis, pip-audit
+3. **test-backend** - Full pytest suite with 50% coverage requirement
+
+PRs will fail if any job fails.
 
 ---
 

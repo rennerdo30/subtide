@@ -7,6 +7,12 @@ import shutil
 # Add backend to path so we can import modules
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
+
+def pytest_configure(config):
+    """Configure custom pytest markers."""
+    config.addinivalue_line("markers", "slow: marks tests as slow (network required)")
+    config.addinivalue_line("markers", "network: marks tests that require network access")
+
 from app import app as flask_app
 
 @pytest.fixture

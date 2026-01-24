@@ -1,10 +1,14 @@
 from flask import Blueprint, jsonify, Response
 from backend.config import (
-    ENABLE_WHISPER, SERVER_API_KEY, SERVER_MODEL
+    ENABLE_WHISPER, SERVER_API_KEY, SERVER_MODEL, PLATFORM, WHISPER_BACKEND
 )
 from backend.utils.model_utils import get_model_context_size
 
 health_bp = Blueprint('health', __name__)
+
+# Version info
+VERSION = "1.1.2"
+BUILD_DATE = "2026-01-24"
 
 # Track if models are initialized (set by app.py after startup)
 _models_ready = False
@@ -37,17 +41,32 @@ def health_check():
 def ping():
     """
     RunPod Load Balancer health check endpoint.
-    
+
     Required for RunPod Serverless Load Balancing mode.
     See: https://docs.runpod.io/serverless/load-balancing/overview
-    
+
     Returns:
         200: Worker is healthy and ready to receive requests
         204: Worker is initializing (still loading models)
         5xx: Worker is unhealthy
     """
     if _models_ready:
-        return Response(status=200)
+        return jsonify({'status': 'ok'}), 200
     else:
         # Return 204 (initializing) if models aren't ready yet
         return Response(status=204)
+
+
+@health_bp.route('/api/version', methods=['GET'])
+def version():
+    """Return version and build information."""
+    return jsonify({
+        'version': VERSION,
+        'build_date': BUILD_DATE,
+        'platform': PLATFORM,
+        'whisper_backend': WHISPER_BACKEND if ENABLE_WHISPER else None,
+        'features': {
+            'whisper': ENABLE_WHISPER,
+            'tier3': bool(SERVER_API_KEY)
+        }
+    })

@@ -49,6 +49,15 @@ A Chrome extension + Python backend that translates video subtitles in real-time
   - Subtitles are delivered batch-by-batch as they translate
   - Uses `/api/stream` endpoint instead of `/api/process`
 
+### Backend Security (v1.1.2+)
+
+- **Tier Spoofing Prevention**: API tier is determined server-side based on whether a client API key is provided, not by client claims
+- **SSRF Protection**: URL domain whitelist prevents Server-Side Request Forgery attacks - only whitelisted video platforms (YouTube, Twitch, Vimeo, etc.) are allowed
+- **API Key Masking**: All API keys are masked in logs (shows only first/last 4 characters)
+- **Request ID Tracking**: All requests include unique IDs via `X-Request-ID` header for log correlation
+- **Rate Limiting**: Default 60 req/min with stricter limits on expensive endpoints (translate: 10/min, process: 5/min)
+- **Request Size Limit**: Maximum 10MB for POST request bodies
+
 ## Extension Features
 
 ### Popup Settings

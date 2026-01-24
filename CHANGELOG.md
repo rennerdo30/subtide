@@ -5,6 +5,51 @@ All notable changes to Subtide will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-01-24
+
+### Added
+
+#### Security Improvements
+- **Tier Spoofing Prevention** - API tier is now determined server-side based on API key presence, not client claims
+- **SSRF Protection** - Added URL domain whitelist to prevent Server-Side Request Forgery attacks
+- **API Key Masking** - All API keys are now masked in logs (shows only first/last 4 chars)
+- **Request ID Tracking** - All requests now include unique request IDs for log correlation
+
+#### Performance Optimizations
+- **O(n) Translation Retry** - Optimized empty translation retry from O(n²) to O(n) using set-based tracking
+- **O(n log m) Speaker Matching** - Optimized diarization speaker matching using binary search
+
+#### New API Endpoints
+- `GET /api/version` - Returns version, build date, platform, and feature flags
+- `GET /ping` - Returns JSON response for health checks
+
+#### Developer Experience
+- **Retry Decorator** - New `@retry` decorator with exponential backoff for flaky operations
+- **Request ID Middleware** - Automatic request ID injection for all Flask requests
+- **Real Video Integration Tests** - End-to-end pipeline tests with actual YouTube videos
+
+#### Testing Improvements
+- **262 tests** now passing (up from 188)
+- Added 29 real video integration tests
+- Added cache layer tests (15 tests)
+- Added LLM provider factory tests (15 tests)
+- Added integration tests (25 tests)
+
+#### CI/CD Improvements
+- Added code quality checks (flake8, black, isort)
+- Added security scanning (Bandit, pip-audit)
+- Backend tests now run with coverage reporting
+
+### Fixed
+- Extension memory leaks - MutationObservers and intervals now properly cleaned up on navigation
+- Integration tests using correct API routes
+
+### Changed
+- Whisper `no_speech_threshold` default is now 0.4 (more sensitive, catches quieter speech)
+- Hallucination filter thresholds relaxed for better accuracy with accented speech
+
+---
+
 ## [1.1.1] - 2026-01-18
 
 ### Changed
