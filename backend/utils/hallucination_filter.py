@@ -24,20 +24,21 @@ logger = logging.getLogger('subtide')
 # =============================================================================
 
 # Duration thresholds (seconds)
-MIN_SEGMENT_DURATION = 0.1  # Segments shorter than this are suspicious
+# Lowered from 0.1 to 0.05 to allow short interjections ("Oh!", "Hmm")
+MIN_SEGMENT_DURATION = 0.05  # Segments shorter than this are suspicious
 
 # Speech rate limits (characters per second)
-# Average speech is ~15-20 chars/sec, 30 is generous upper bound
-MAX_SPEECH_RATE_CHARS_PER_SEC = 30.0
+# Average speech is ~15-20 chars/sec, 40 allows fast speakers and technical terms
+MAX_SPEECH_RATE_CHARS_PER_SEC = 40.0
 
 # Entropy thresholds (bits per character)
-# Normal speech: 3.5-4.5, gibberish: < 2.0 or > 5.0
-MIN_ENTROPY_THRESHOLD = 2.0
+# Normal speech: 3.5-4.5, lowered threshold to allow accented/dialectal speech
+MIN_ENTROPY_THRESHOLD = 1.5
 MIN_TEXT_LENGTH_FOR_ENTROPY = 10
 
 # Repetition detection
 MIN_PATTERN_LENGTH = 2  # Minimum words in a repeated pattern
-REPETITION_THRESHOLD = 3  # Number of times pattern must repeat
+REPETITION_THRESHOLD = 4  # Number of times pattern must repeat (was 3)
 MAX_PATTERN_LENGTH = 8  # Maximum pattern length to check
 
 # Duplicate detection
@@ -45,7 +46,8 @@ CONSECUTIVE_DUPLICATE_LOOKBACK = 5  # Check last N segments for duplicates
 
 # Looping detection
 LOOPING_WINDOW_SIZE = 10  # Number of segments to check for loops
-LOOPING_UNIQUENESS_THRESHOLD = 0.3  # Ratio of unique texts (below = looping)
+# Lowered from 0.3 to 0.15 - only flag as looping if < 15% unique (very repetitive)
+LOOPING_UNIQUENESS_THRESHOLD = 0.15  # Ratio of unique texts (below = looping)
 
 # Punctuation threshold
 PUNCTUATION_RATIO_THRESHOLD = 0.5  # Text with > 50% punctuation is suspicious

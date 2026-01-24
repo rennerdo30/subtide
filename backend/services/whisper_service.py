@@ -1296,21 +1296,32 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
         text = result.get("text", "")
         detected_language = result.get("language", "en")
 
-    # VAD Filtering - remove hallucinated segments in silence
-    # NOTE: faster-whisper already does this with vad_filter=True
-    # We only need this manual pass for openai-whisper or mlx-whisper (if they don't have it built-in)
+    # VAD Filtering - DISABLED by default
+    # VAD post-filtering was removing valid segments that Whisper detected correctly.
+    # Whisper backends already have built-in speech detection, so double-filtering causes data loss.
+    # Set ENABLE_VAD=true to re-enable if needed for specific use cases.
     should_run_vad = ENABLE_VAD
-    if backend == "faster-whisper":
+    if backend in ("faster-whisper", "mlx-whisper"):
         should_run_vad = False
-        logger.info("Skipping manual VAD (faster-whisper handles it internally)")
+        logger.debug(f"Skipping manual VAD ({backend} handles speech detection internally)")
 
+    pre_vad_count = len(segments)
     if should_run_vad:
         speech_timestamps = get_speech_timestamps(normalized_audio, progress_callback)
         if speech_timestamps:
             segments = filter_segments_by_vad(segments, speech_timestamps)
-    
+            logger.info(f"[WHISPER] VAD filter: {pre_vad_count} -> {len(segments)} segments")
+
     # Hallucination filtering - remove repeated text patterns
+    pre_hallucination_count = len(segments)
     segments = filter_hallucinations(segments)
+    if pre_hallucination_count != len(segments):
+        logger.info(f"[WHISPER] Hallucination filter: {pre_hallucination_count} -> {len(segments)} segments")
+
+    # Warn if all segments were filtered out
+    if not segments and (pre_vad_count > 0 or pre_hallucination_count > 0):
+        logger.warning(f"[WHISPER] WARNING: All {pre_vad_count} segments were filtered out! "
+                      f"Consider lowering WHISPER_NO_SPEECH_THRESHOLD or disabling filters.")
 
     # Timestamp refinement - tighten boundaries using word timestamps
     segments = refine_timestamps(segments)

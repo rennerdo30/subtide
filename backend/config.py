@@ -172,7 +172,9 @@ LANG_NAMES = {
 }
 
 # VAD (Voice Activity Detection) Config
-ENABLE_VAD = os.getenv('ENABLE_VAD', 'true').lower() == 'true'
+# Disabled by default - Whisper backends have built-in speech detection
+# VAD post-filter was removing valid segments that Whisper correctly detected
+ENABLE_VAD = os.getenv('ENABLE_VAD', 'false').lower() == 'true'
 VAD_THRESHOLD = float(os.getenv('VAD_THRESHOLD', '0.5'))  # Speech probability threshold
 
 # Subtitle Segment Limits
@@ -188,7 +190,8 @@ MIN_SEGMENT_DURATION = float(os.getenv('MIN_SEGMENT_DURATION', '1.0'))  # Merge 
 # Whisper Transcription Thresholds
 # Lower values = more sensitive (captures more speech, but may include noise/hallucinations)
 # Higher values = stricter (cleaner output, but may miss soft speech)
-WHISPER_NO_SPEECH_THRESHOLD = float(os.getenv('WHISPER_NO_SPEECH_THRESHOLD', '0.6'))
+# Default 0.4 is more sensitive - catches quieter speech that 0.6 would miss
+WHISPER_NO_SPEECH_THRESHOLD = float(os.getenv('WHISPER_NO_SPEECH_THRESHOLD', '0.4'))
 WHISPER_COMPRESSION_RATIO_THRESHOLD = float(os.getenv('WHISPER_COMPRESSION_RATIO_THRESHOLD', '2.4'))
 WHISPER_LOGPROB_THRESHOLD = float(os.getenv('WHISPER_LOGPROB_THRESHOLD', '-1.0'))
 WHISPER_CONDITION_ON_PREVIOUS = os.getenv('WHISPER_CONDITION_ON_PREVIOUS', 'false').lower() == 'true'
