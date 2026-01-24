@@ -96,7 +96,7 @@ DEEPSEEK_CONCURRENT_REQUESTS = int(os.getenv("DEEPSEEK_CONCURRENT_REQUESTS", "2"
 OLLAMA_CONCURRENT_REQUESTS = int(os.getenv("OLLAMA_CONCURRENT_REQUESTS", "1"))
 
 # Legacy Config (mapped for compatibility)
-# Determine active API key based on LLM_PROVIDER
+# Determine active API key and model based on LLM_PROVIDER
 def _get_active_api_key():
     provider_keys = {
         'openai': OPENAI_API_KEY,
@@ -109,8 +109,20 @@ def _get_active_api_key():
     }
     return provider_keys.get(LLM_PROVIDER) or OPENAI_API_KEY
 
+def _get_active_model():
+    provider_models = {
+        'openai': OPENAI_MODEL,
+        'anthropic': ANTHROPIC_MODEL,
+        'google': GOOGLE_MODEL,
+        'mistral': MISTRAL_MODEL,
+        'openrouter': OPENROUTER_MODEL,
+        'deepseek': DEEPSEEK_MODEL,
+        'ollama': OLLAMA_MODEL,
+    }
+    return os.getenv('SERVER_MODEL') or provider_models.get(LLM_PROVIDER) or OPENAI_MODEL
+
 SERVER_API_KEY = _get_active_api_key()
-SERVER_MODEL = os.getenv('SERVER_MODEL') or OPENAI_MODEL
+SERVER_MODEL = _get_active_model()
 SERVER_API_URL = os.getenv('SERVER_API_URL')
 
 # Language-specific model mapping (JSON format)
