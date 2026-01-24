@@ -1,0 +1,16 @@
+{
+  "name": "subtide-docs",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.37.3",
+    "astro": "^5.0.0",
+    "starlight-theme-galaxy": "^0.7.0"
+  }
+}

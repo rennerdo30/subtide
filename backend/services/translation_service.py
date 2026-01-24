@@ -436,6 +436,72 @@ Return JSON with {len(batch)} translations in {t_name}: {{"translations": ["..."
             if not sub.get('translatedText'):
                 sub['translatedText'] = translations[i]
 
+    # Retry empty individual translations
+    EMPTY_RETRY_ROUNDS = 2
+    for empty_retry in range(EMPTY_RETRY_ROUNDS):
+        # Collect subtitles with empty translations
+        empty_subs = [(idx, sub) for idx, sub in enumerate(subtitles) if not sub.get('translatedText')]
+
+        if not empty_subs:
+            break
+
+        logger.info(f"[TRANSLATE] Empty retry round {empty_retry + 1}: {len(empty_subs)} empty translations to retry")
+
+        # Batch the empty subs (smaller batches for retries)
+        empty_batch_size = min(BATCH_SIZE // 2, 10)
+        empty_batches = []
+        for i in range(0, len(empty_subs), empty_batch_size):
+            batch_items = empty_subs[i:i + empty_batch_size]
+            empty_batches.append((i, batch_items))
+
+        # Retry each empty batch
+        for batch_num, batch_items in empty_batches:
+            if not batch_items:
+                continue
+
+            # Extract just the subs for translation
+            batch_subs = [item[1] for item in batch_items]
+            original_indices = [item[0] for item in batch_items]
+
+            numbered_subs = "\n".join([f"{i+1}. {s['text']}" for i, s in enumerate(batch_subs)])
+
+            system_prompt = f"""You are a subtitle translator. Translate to {t_name} ({target_lang}).
+Return a JSON object with a "translations" array containing exactly {len(batch_subs)} translated strings."""
+
+            user_prompt = f"""Translate these subtitles to {t_name} ({target_lang}):
+
+{numbered_subs}
+
+Return JSON: {{"translations": ["...", "..."]}}"""
+
+            try:
+                json_response = provider.generate_json(
+                    prompt=user_prompt,
+                    system_prompt=system_prompt,
+                    temperature=0.5,
+                    max_tokens=2048
+                )
+
+                retry_translations = []
+                if isinstance(json_response, dict) and 'translations' in json_response:
+                    retry_translations = json_response['translations']
+                elif isinstance(json_response, list):
+                    retry_translations = json_response
+
+                # Apply retry results
+                for i, orig_idx in enumerate(original_indices):
+                    if i < len(retry_translations) and retry_translations[i]:
+                        subtitles[orig_idx]['translatedText'] = retry_translations[i]
+
+                filled = sum(1 for i, idx in enumerate(original_indices) if i < len(retry_translations) and retry_translations[i])
+                logger.info(f"[TRANSLATE] Empty retry filled {filled}/{len(batch_items)} translations")
+
+            except Exception as e:
+                logger.warning(f"[TRANSLATE] Empty retry batch failed: {e}")
+                continue
+
+        time.sleep(1)  # Brief pause between retry rounds
+
     # Save stats
     if batch_times:
         save_batch_time_history(batch_times)
