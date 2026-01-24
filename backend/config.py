@@ -96,7 +96,20 @@ DEEPSEEK_CONCURRENT_REQUESTS = int(os.getenv("DEEPSEEK_CONCURRENT_REQUESTS", "2"
 OLLAMA_CONCURRENT_REQUESTS = int(os.getenv("OLLAMA_CONCURRENT_REQUESTS", "1"))
 
 # Legacy Config (mapped for compatibility)
-SERVER_API_KEY = OPENAI_API_KEY
+# Determine active API key based on LLM_PROVIDER
+def _get_active_api_key():
+    provider_keys = {
+        'openai': OPENAI_API_KEY,
+        'anthropic': ANTHROPIC_API_KEY,
+        'google': GOOGLE_API_KEY,
+        'mistral': MISTRAL_API_KEY,
+        'openrouter': OPENROUTER_API_KEY,
+        'deepseek': DEEPSEEK_API_KEY,
+        'ollama': 'ollama',  # Ollama doesn't need API key
+    }
+    return provider_keys.get(LLM_PROVIDER) or OPENAI_API_KEY
+
+SERVER_API_KEY = _get_active_api_key()
 SERVER_MODEL = os.getenv('SERVER_MODEL') or OPENAI_MODEL
 SERVER_API_URL = os.getenv('SERVER_API_URL')
 
