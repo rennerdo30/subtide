@@ -17,6 +17,12 @@
 - Do NOT commit review files (CODE_REVIEW.md, REVIEW.md, etc.)
 - Review files should be deleted or added to .gitignore
 
+## Documentation
+
+- **Always use Mermaid** for diagrams in documentation
+- Mermaid is supported in the Starlight docs site
+- Avoid external diagram tools or image files when possible
+
 ## UI Positioning Guidelines
 
 ### Never Block Native Video Controls

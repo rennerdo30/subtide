@@ -18,29 +18,24 @@ The Subtide backend is a Flask-based REST API that handles:
 3. **Translation** - Translating text using LLM APIs
 4. **Streaming** - Real-time translation for Tier 4
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                     Subtide Backend                          │
-├─────────────────────────────────────────────────────────────┤
-│                                                              │
-│  ┌──────────┐    ┌──────────────┐    ┌────────────────┐    │
-│  │  Flask   │───▶│   Whisper    │───▶│   Translation  │    │
-│  │  API     │    │   Service    │    │   Service      │    │
-│  └──────────┘    └──────────────┘    └────────────────┘    │
-│       │                │                     │              │
-│       │                ▼                     ▼              │
-│       │         ┌──────────────┐    ┌────────────────┐    │
-│       │         │    MLX /     │    │   OpenAI /     │    │
-│       │         │   Faster     │    │   OpenRouter   │    │
-│       │         └──────────────┘    └────────────────┘    │
-│       │                                                     │
-│       ▼                                                     │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │                  YouTube Service                      │  │
-│  │           (yt-dlp for video/audio extraction)        │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Backend[Subtide Backend]
+        API[Flask API] --> Whisper[Whisper Service]
+        Whisper --> Translation[Translation Service]
+
+        Whisper --> MLX[MLX / Faster Whisper]
+        Translation --> LLM[OpenAI / OpenRouter]
+
+        API --> YouTube[YouTube Service<br/>yt-dlp]
+    end
+
+    style API fill:#4a90e2,stroke:#2c5aa0,color:#fff
+    style Whisper fill:#7b68ee,stroke:#5a4fcf,color:#fff
+    style Translation fill:#50c878,stroke:#3a9d5f,color:#fff
+    style MLX fill:#ffa726,stroke:#f57c00,color:#fff
+    style LLM fill:#26c6da,stroke:#00acc1,color:#fff
+    style YouTube fill:#ff6b6b,stroke:#d63031,color:#fff
 ```
 
 ---
