@@ -436,8 +436,10 @@ Return JSON with {len(batch)} translations in {t_name}: {{"translations": ["..."
             if not sub.get('translatedText'):
                 sub['translatedText'] = translations[i]
 
-    # Retry empty individual translations
+    # Retry empty individual translations with extended context
     EMPTY_RETRY_ROUNDS = 2
+    CONTEXT_WINDOW = 3  # Number of surrounding subtitles to include as context
+
     for empty_retry in range(EMPTY_RETRY_ROUNDS):
         # Collect subtitles with empty translations
         empty_subs = [(idx, sub) for idx, sub in enumerate(subtitles) if not sub.get('translatedText')]
@@ -463,22 +465,55 @@ Return JSON with {len(batch)} translations in {t_name}: {{"translations": ["..."
             batch_subs = [item[1] for item in batch_items]
             original_indices = [item[0] for item in batch_items]
 
-            numbered_subs = "\n".join([f"{i+1}. {s['text']}" for i, s in enumerate(batch_subs)])
+            # Build context-rich prompt for each subtitle
+            context_entries = []
+            for i, (orig_idx, sub) in enumerate(batch_items):
+                # Gather surrounding context (translated subtitles before and after)
+                before_context = []
+                after_context = []
+
+                # Get translated subtitles before this one
+                for j in range(max(0, orig_idx - CONTEXT_WINDOW), orig_idx):
+                    if subtitles[j].get('translatedText'):
+                        before_context.append(f"[context] {subtitles[j]['text']} → {subtitles[j]['translatedText']}")
+
+                # Get translated subtitles after this one
+                for j in range(orig_idx + 1, min(len(subtitles), orig_idx + CONTEXT_WINDOW + 1)):
+                    if subtitles[j].get('translatedText'):
+                        after_context.append(f"[context] {subtitles[j]['text']} → {subtitles[j]['translatedText']}")
+
+                # Build entry with context
+                entry_parts = []
+                if before_context:
+                    entry_parts.append("\n".join(before_context))
+                entry_parts.append(f"{i+1}. [TRANSLATE THIS] {sub['text']}")
+                if after_context:
+                    entry_parts.append("\n".join(after_context))
+
+                context_entries.append("\n".join(entry_parts))
+
+            # Join all entries with separators
+            numbered_subs_with_context = "\n---\n".join(context_entries)
 
             system_prompt = f"""You are a subtitle translator. Translate to {t_name} ({target_lang}).
+Lines marked [context] show surrounding translations for reference - DO NOT translate these.
+Only translate lines marked [TRANSLATE THIS].
 Return a JSON object with a "translations" array containing exactly {len(batch_subs)} translated strings."""
 
-            user_prompt = f"""Translate these subtitles to {t_name} ({target_lang}):
+            user_prompt = f"""Translate the marked subtitles to {t_name} ({target_lang}).
 
-{numbered_subs}
+Context lines (already translated) are shown for reference to help you understand the conversation.
+Only translate lines marked [TRANSLATE THIS].
 
-Return JSON: {{"translations": ["...", "..."]}}"""
+{numbered_subs_with_context}
+
+Return JSON with exactly {len(batch_subs)} translations: {{"translations": ["...", "..."]}}"""
 
             try:
                 json_response = provider.generate_json(
                     prompt=user_prompt,
                     system_prompt=system_prompt,
-                    temperature=0.5,
+                    temperature=0.4,
                     max_tokens=2048
                 )
 
