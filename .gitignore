@@ -21,3 +21,8 @@ node_modules/
 # Build artifacts
 dist/
 *.zip
+
+# Astro generated files
+docs/.astro
+docs/dist
+docs/node_modules
