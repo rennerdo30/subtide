@@ -237,4 +237,4 @@ if __name__ == '__main__':
     logger.info("Server marked as ready for traffic")
 
     logger.info(f"Starting SocketIO server on port {port}...")
-    socketio.run(app, host='0.0.0.0', port=port, debug=False, log_output=True)
+    socketio.run(app, host='0.0.0.0', port=port, debug=False, log_output=True, allow_unsafe_werkzeug=True)
