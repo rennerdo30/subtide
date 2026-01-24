@@ -311,10 +311,62 @@ echo "  • Hardware: $HARDWARE"
 echo "  • Whisper: $ENABLE_WHISPER (model: $WHISPER_MODEL)"
 echo "  • Whisper Backend: $WHISPER_BACKEND_NAME"
 echo "  • Diarization: $DIARIZATION_BACKEND_NAME"
-if [ -n "$SERVER_API_KEY" ]; then
+# Detect LLM provider configuration
+LLM_CONFIGURED=false
+LLM_DISPLAY_PROVIDER=""
+LLM_DISPLAY_MODEL=""
+
+if [ -n "$LLM_PROVIDER" ]; then
+    case "$LLM_PROVIDER" in
+        openai)
+            [ -n "$OPENAI_API_KEY" ] && LLM_CONFIGURED=true
+            LLM_DISPLAY_PROVIDER="OpenAI"
+            LLM_DISPLAY_MODEL="${OPENAI_MODEL:-gpt-4o-mini}"
+            ;;
+        anthropic)
+            [ -n "$ANTHROPIC_API_KEY" ] && LLM_CONFIGURED=true
+            LLM_DISPLAY_PROVIDER="Anthropic"
+            LLM_DISPLAY_MODEL="${ANTHROPIC_MODEL:-claude-3-5-sonnet-latest}"
+            ;;
+        google)
+            [ -n "$GOOGLE_API_KEY" ] && LLM_CONFIGURED=true
+            LLM_DISPLAY_PROVIDER="Google"
+            LLM_DISPLAY_MODEL="${GOOGLE_MODEL:-gemini-2.0-flash-exp}"
+            ;;
+        deepseek)
+            [ -n "$DEEPSEEK_API_KEY" ] && LLM_CONFIGURED=true
+            LLM_DISPLAY_PROVIDER="DeepSeek"
+            LLM_DISPLAY_MODEL="${DEEPSEEK_MODEL:-deepseek-chat}"
+            ;;
+        mistral)
+            [ -n "$MISTRAL_API_KEY" ] && LLM_CONFIGURED=true
+            LLM_DISPLAY_PROVIDER="Mistral"
+            LLM_DISPLAY_MODEL="${MISTRAL_MODEL:-mistral-large-latest}"
+            ;;
+        openrouter)
+            [ -n "$OPENROUTER_API_KEY" ] && LLM_CONFIGURED=true
+            LLM_DISPLAY_PROVIDER="OpenRouter"
+            LLM_DISPLAY_MODEL="${OPENROUTER_MODEL:-google/gemini-2.0-flash-exp:free}"
+            ;;
+        ollama)
+            LLM_CONFIGURED=true
+            LLM_DISPLAY_PROVIDER="Ollama"
+            LLM_DISPLAY_MODEL="${OLLAMA_MODEL:-llama3.3}"
+            ;;
+    esac
+fi
+
+# Fallback to legacy SERVER_API_KEY
+if [ "$LLM_CONFIGURED" = false ] && [ -n "$SERVER_API_KEY" ]; then
+    LLM_CONFIGURED=true
+    LLM_DISPLAY_PROVIDER="Custom"
+    LLM_DISPLAY_MODEL="${SERVER_MODEL:-gpt-4o-mini}"
+fi
+
+if [ "$LLM_CONFIGURED" = true ]; then
     echo -e "  • Tier 3: ${GREEN}Enabled${NC}"
-    echo "    └─ API URL: ${SERVER_API_URL:-https://api.openai.com/v1}"
-    echo "    └─ Model: ${SERVER_MODEL:-gpt-4o-mini}"
+    echo "    └─ Provider: $LLM_DISPLAY_PROVIDER"
+    echo "    └─ Model: $LLM_DISPLAY_MODEL"
 else
     echo "  • Tier 3: Disabled (no API key)"
 fi
