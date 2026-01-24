@@ -37,15 +37,18 @@ detect_platform() {
 
 DETECTED_PLATFORM=$(detect_platform)
 
-# Check if venv exists
-if [ ! -d "venv" ]; then
-    echo -e "${YELLOW}Creating virtual environment...${NC}"
-    python3 -m venv venv
-    source venv/bin/activate
+# Compute requirements hash for auto-update detection
+compute_requirements_hash() {
+    if [ "$DETECTED_PLATFORM" = "macos" ] && [ -f "requirements-macos.txt" ]; then
+        cat requirements.txt requirements-macos.txt 2>/dev/null | shasum -a 256 | cut -d' ' -f1
+    else
+        cat requirements.txt 2>/dev/null | shasum -a 256 | cut -d' ' -f1
+    fi
+}
 
+install_dependencies() {
     echo -e "${YELLOW}Installing dependencies for platform: ${DETECTED_PLATFORM}${NC}"
 
-    # Install platform-specific requirements
     if [ "$DETECTED_PLATFORM" = "macos" ]; then
         if [ -f "requirements-macos.txt" ]; then
             pip install -r requirements-macos.txt
@@ -54,15 +57,37 @@ if [ ! -d "venv" ]; then
             pip install mlx-whisper pyannote.audio torch torchaudio
         fi
     elif [ "$DETECTED_PLATFORM" = "linux-cuda" ]; then
-        # For local CUDA development (not RunPod)
         pip install -r requirements.txt
         pip install openai-whisper pyannote.audio torch torchaudio
     else
         pip install -r requirements.txt
         pip install openai-whisper pyannote.audio torch torchaudio
     fi
+
+    # Save requirements hash
+    compute_requirements_hash > venv/.requirements_hash
+}
+
+# Check if venv exists
+if [ ! -d "venv" ]; then
+    echo -e "${YELLOW}Creating virtual environment...${NC}"
+    python3 -m venv venv
+    source venv/bin/activate
+    install_dependencies
 else
     source venv/bin/activate
+
+    # Auto-update: check if requirements changed
+    CURRENT_HASH=$(compute_requirements_hash)
+    SAVED_HASH=""
+    if [ -f "venv/.requirements_hash" ]; then
+        SAVED_HASH=$(cat venv/.requirements_hash)
+    fi
+
+    if [ "$CURRENT_HASH" != "$SAVED_HASH" ]; then
+        echo -e "${YELLOW}Requirements changed - updating dependencies...${NC}"
+        install_dependencies
+    fi
 fi
 
 # Load .env file if it exists
