@@ -18,10 +18,10 @@ def test_whisper_backend_detection_mlx():
 
 def test_whisper_backend_detection_openai_whisper():
     reset_backend()
-    # Simulate Linux/Intel where mlx is not available
+    # Simulate Linux/Intel where mlx and faster-whisper are not available
     with patch('platform.system', return_value='Linux'), \
          patch('platform.machine', return_value='x86_64'), \
-         patch.dict(sys.modules, {'mlx_whisper': None}), \
+         patch.dict(sys.modules, {'mlx_whisper': None, 'faster_whisper': None}), \
          patch.dict(sys.modules, {'whisper': MagicMock()}):
         assert ws.get_whisper_backend() == 'openai-whisper'
 

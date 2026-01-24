@@ -61,19 +61,16 @@ def test_translation_performance():
         for i in range(20)
     ]
 
-    with patch('backend.services.translation_service.OpenAI') as mock_openai:
-        mock_client = mock_openai.return_value
+    # Mock the LLM provider factory
+    mock_provider = MagicMock()
+    mock_provider.concurrency_limit = 3
+    mock_provider.provider_name = "mock-provider"
+    mock_provider.default_model = "mock-model"
+    mock_provider.generate_json.return_value = {
+        "translations": [f"Traducción {i}" for i in range(20)]
+    }
 
-        # The translation service expects one line per segment in the response
-        mock_translation_content = "\n".join([f"Translation {i}" for i in range(20)])
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock(message=MagicMock(content=mock_translation_content))]
-        # Add usage mock to avoid MagicMock comparison issues
-        mock_response.usage.prompt_tokens = 500
-        mock_response.usage.completion_tokens = 200
-        mock_response.usage.total_tokens = 700
-        mock_client.chat.completions.create.return_value = mock_response
-
+    with patch('backend.services.llm.factory.get_llm_provider', return_value=mock_provider):
         start_time = time.time()
         result = await_translate_subtitles(segments, "Spanish")
         elapsed = time.time() - start_time
