@@ -30,7 +30,8 @@ jobs:
           cache-dependency-path: docs/package-lock.json
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        id: pages
+        uses: actions/configure-pages@v5
 
       - name: Install dependencies
         working-directory: docs
@@ -38,7 +39,7 @@ jobs:
 
       - name: Build
         working-directory: docs
-        run: npm run build
+        run: npm run build -- --site "${{ steps.pages.outputs.origin }}" --base "${{ steps.pages.outputs.base_path }}"
 
       - uses: actions/upload-pages-artifact@v3
         with:

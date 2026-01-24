@@ -3,8 +3,7 @@ import starlight from "@astrojs/starlight";
 import starlightThemeGalaxy from "starlight-theme-galaxy";
 
 export default defineConfig({
-  site: "https://rennerdo30.github.io",
-  base: "/subtide",
+  // site and base are set via CLI args in CI (from actions/configure-pages)
   integrations: [
     starlight({
       title: "Subtide",
