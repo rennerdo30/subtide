@@ -61,27 +61,36 @@ pip install -r requirements-dev.txt
 
 ## Project Structure
 
-```
-subtide/
-├── backend/                 # Python Flask server
-│   ├── app.py               # Entry point
-│   ├── config.py            # Configuration
-│   ├── routes/              # API endpoints
-│   ├── services/            # Business logic
-│   ├── utils/               # Utilities
-│   └── tests/               # Test suite
-│
-├── extension/               # Chrome Extension
-│   ├── manifest.json        # Extension manifest
-│   ├── src/
-│   │   ├── background/      # Service worker
-│   │   ├── content/         # Content scripts
-│   │   ├── popup/           # Extension popup
-│   │   └── lib/             # Shared utilities
-│   └── _locales/            # Translations
-│
-├── docs/                    # Documentation (MkDocs)
-└── .github/                 # CI/CD workflows
+```mermaid
+graph TD
+    Root[subtide/]
+
+    Root --> Backend[backend/<br/><i>Python Flask server</i>]
+    Root --> Extension[extension/<br/><i>Chrome Extension</i>]
+    Root --> Docs[docs/<br/><i>Documentation</i>]
+    Root --> GitHub[.github/<br/><i>CI/CD workflows</i>]
+
+    Backend --> AppPy[app.py<br/><i>Entry point</i>]
+    Backend --> ConfigPy[config.py<br/><i>Configuration</i>]
+    Backend --> Routes[routes/<br/><i>API endpoints</i>]
+    Backend --> Services[services/<br/><i>Business logic</i>]
+    Backend --> Utils[utils/<br/><i>Utilities</i>]
+    Backend --> Tests[tests/<br/><i>Test suite</i>]
+
+    Extension --> Manifest[manifest.json]
+    Extension --> Src[src/]
+    Extension --> Locales[_locales/<br/><i>Translations</i>]
+
+    Src --> Background[background/<br/><i>Service worker</i>]
+    Src --> Content[content/<br/><i>Content scripts</i>]
+    Src --> Popup[popup/<br/><i>Extension popup</i>]
+    Src --> Lib[lib/<br/><i>Shared utilities</i>]
+
+    style Root fill:#f97316,stroke:#ea580c,color:#fff
+    style Backend fill:#22d3ee,stroke:#0891b2,color:#000
+    style Extension fill:#22d3ee,stroke:#0891b2,color:#000
+    style Docs fill:#94a3b8,stroke:#64748b,color:#000
+    style GitHub fill:#94a3b8,stroke:#64748b,color:#000
 ```
 
 ---
