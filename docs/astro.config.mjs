@@ -9,6 +9,8 @@ export default defineConfig({
     starlight({
       title: "Subtide",
       description: "AI-powered video subtitle translation for YouTube, Twitch, and any video site",
+      logo: { src: "/logo.svg", alt: "Subtide" },
+      favicon: "/logo.svg",
       plugins: [starlightThemeGalaxy(), starlightClientMermaid()],
       customCss: ["./src/styles/custom.css"],
       social: [

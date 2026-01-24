@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <!-- Subtide: Wave with subtitle text lines -->
+  <path d="M4 18c2-3 4-3 6 0s4 3 6 0 4-3 6 0 4 3 6 0" stroke="#22d3ee" stroke-width="2.5" stroke-linecap="round" fill="none"/>
+  <path d="M4 24c2-3 4-3 6 0s4 3 6 0 4-3 6 0 4 3 6 0" stroke="#22d3ee" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.5"/>
+  <rect x="8" y="6" width="16" height="2" rx="1" fill="#f97316"/>
+  <rect x="10" y="10" width="12" height="2" rx="1" fill="#f97316" opacity="0.7"/>
+</svg>
