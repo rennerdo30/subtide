@@ -1,6 +1,8 @@
 # Subtide Backend - Core Requirements
 flask
 flask-cors
+flask-socketio
+flask-limiter
 annotated-types
 anyio
 certifi
