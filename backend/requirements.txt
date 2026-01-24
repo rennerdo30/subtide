@@ -3,26 +3,14 @@ flask
 flask-cors
 flask-socketio
 flask-limiter
-annotated-types
-anyio
-certifi
-charset-normalizer
-click
-distro
-h11
-httpcore
-httpx
-idna
-jiter
-pydantic
-pydantic_core
 python-dotenv
 requests
-sniffio
-tqdm
-typing_extensions
-urllib3
+numpy
+soundfile
+yt-dlp
 langdetect
+pydantic
+tqdm
 
 # LLM Providers
 openai>=2.15.0
