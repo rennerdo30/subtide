@@ -934,10 +934,19 @@ def get_diarization_pipeline():
             os.environ["HF_HOME"] = hf_cache
             
             from pyannote.audio import Pipeline
-            pipeline = Pipeline.from_pretrained(
-                "pyannote/speaker-diarization-3.1",
-                use_auth_token=HF_TOKEN
-            )
+            try:
+                # pyannote 4.0+ uses 'token' parameter
+                pipeline = Pipeline.from_pretrained(
+                    "pyannote/speaker-diarization-3.1",
+                    token=HF_TOKEN
+                )
+            except TypeError:
+                # Fallback for pyannote 3.x which uses 'use_auth_token'
+                logger.info("Falling back to pyannote 3.x API...")
+                pipeline = Pipeline.from_pretrained(
+                    "pyannote/speaker-diarization-3.1",
+                    use_auth_token=HF_TOKEN
+                )
 
             if pipeline is None:
                 logger.error("Diarization pipeline returned None - check your HF_TOKEN")
