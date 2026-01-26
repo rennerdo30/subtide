@@ -65,21 +65,24 @@ def test_run_whisper_process_segment_level_diarization(mock_get_whisper_model, m
         'language': 'en'
     }
     
-    # Mock diarization pipeline
+    # Mock diarization pipeline (pyannote 4.0+ structure)
     mock_pipeline = MagicMock()
-    
+
     TurnA = MagicMock()
     TurnA.start = 0.0
     TurnA.end = 1.5  # More overlap with segment
-    
+
     TurnB = MagicMock()
     TurnB.start = 1.5
     TurnB.end = 2.0
-    
-    mock_pipeline.return_value.itertracks.return_value = [
+
+    # pyannote 4.0+ returns DiarizeOutput with .speaker_diarization attribute
+    mock_annotation = MagicMock()
+    mock_annotation.itertracks.return_value = [
         (TurnA, None, "SPEAKER_A"),
         (TurnB, None, "SPEAKER_B")
     ]
+    mock_pipeline.return_value.speaker_diarization = mock_annotation
     
     with patch('backend.services.whisper_service.get_whisper_backend', return_value='openai-whisper'), \
          patch('backend.services.whisper_service.get_diarization_pipeline', return_value=mock_pipeline), \
@@ -118,15 +121,19 @@ def test_run_whisper_process_long_segment_split(mock_get_whisper_model, mock_vad
         'language': 'en'
     }
     
+    # Mock diarization pipeline (pyannote 4.0+ structure)
     mock_pipeline = MagicMock()
     TurnA = MagicMock()
     TurnA.start = 0.0
     TurnA.end = 10.0
-    
-    mock_pipeline.return_value.itertracks.return_value = [
+
+    # pyannote 4.0+ returns DiarizeOutput with .speaker_diarization attribute
+    mock_annotation = MagicMock()
+    mock_annotation.itertracks.return_value = [
         (TurnA, None, "SPEAKER_A")
     ]
-    
+    mock_pipeline.return_value.speaker_diarization = mock_annotation
+
     # Patch filter_hallucinations to return input unchanged (test focuses on segment splitting)
     with patch('backend.services.whisper_service.get_whisper_backend', return_value='openai-whisper'), \
          patch('backend.services.whisper_service.get_diarization_pipeline', return_value=mock_pipeline), \

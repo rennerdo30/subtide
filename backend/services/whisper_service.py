@@ -1341,7 +1341,7 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
         logger.info("Starting speaker diarization...")
         try:
             # Convert to WAV if needed
-            diarization_audio = audio_file
+            wav_path = audio_file
             if not audio_file.endswith('.wav'):
                 wav_path = audio_file.rsplit('.', 1)[0] + '_diarization.wav'
                 if not os.path.exists(wav_path):
@@ -1351,6 +1351,16 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
                         '-ar', '16000', '-ac', '1', '-y',
                         wav_path
                     ], capture_output=True, check=True)
+
+            # Load audio as in-memory waveform to bypass torchcodec issues in pyannote 4.0+
+            # This avoids the AudioDecoder/torchcodec dependency on system FFmpeg
+            try:
+                import torchaudio
+                waveform, sample_rate = torchaudio.load(wav_path)
+                diarization_audio = {"waveform": waveform, "sample_rate": sample_rate}
+                logger.info(f"Loaded audio for diarization: {waveform.shape}, {sample_rate}Hz")
+            except Exception as load_err:
+                logger.warning(f"Failed to load audio with torchaudio ({load_err}), falling back to file path")
                 diarization_audio = wav_path
 
             # Custom Progress Hook for Pyannote 3.1+
@@ -1430,7 +1440,16 @@ def run_whisper_process(audio_file: str, progress_callback=None, initial_prompt:
             # Match speakers using SEGMENT-LEVEL approach (more stable than word-level)
             # This preserves Whisper's natural sentence boundaries and reduces noise
 
-            diarization_turns = list(diarization.itertracks(yield_label=True))
+            # Handle pyannote 4.0+ DiarizeOutput vs legacy Annotation
+            # DiarizeOutput has .speaker_diarization attribute, Annotation has .itertracks directly
+            if hasattr(diarization, 'speaker_diarization'):
+                # pyannote 4.0+ returns DiarizeOutput
+                annotation = diarization.speaker_diarization
+                logger.info("[DIARIZATION] Using pyannote 4.0+ DiarizeOutput format")
+            else:
+                # Legacy pyannote 3.x returns Annotation directly
+                annotation = diarization
+            diarization_turns = list(annotation.itertracks(yield_label=True))
             logger.info(f"[DIARIZATION] Found {len(diarization_turns)} speaker turns")
             logger.info(f"[DIARIZATION] Processing {len(segments)} segments for speaker assignment")
 
