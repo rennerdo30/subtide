@@ -126,6 +126,12 @@ def get_video_info(url: str) -> Dict[str, Any]:
         'quiet': True,
         'no_warnings': True,
         'ignore_no_formats_error': True,
+        # Workaround for YouTube SABR streaming enforcement
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'web'],
+            }
+        },
     }
 
     # Add cookie file if available
@@ -200,6 +206,13 @@ def download_audio(url: str, custom_id: Optional[str] = None) -> Optional[str]:
             'socket_timeout': 30,
             'retries': 3,
             'fragment_retries': 3,
+            # Workaround for YouTube SABR streaming enforcement (403 errors)
+            # Try different player clients that may bypass restrictions
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios', 'web'],
+                }
+            },
         }
 
         if COOKIES_FILE and os.path.exists(COOKIES_FILE):
