@@ -1,4 +1,5 @@
 import sys
+import types
 import pytest
 from unittest.mock import MagicMock, patch
 import backend.services.whisper_service as ws
@@ -26,20 +27,26 @@ def test_whisper_backend_detection_openai_whisper():
         assert ws.get_whisper_backend() == 'openai-whisper'
 
 def test_get_whisper_device_cuda():
+    mock_torch = MagicMock()
+    mock_torch.cuda.is_available.return_value = True
     with patch('backend.services.whisper_service.get_whisper_backend', return_value='openai-whisper'), \
-         patch('torch.cuda.is_available', return_value=True):
+         patch('backend.services.whisper_service._ensure_torch', return_value=mock_torch):
         assert ws.get_whisper_device() == 'cuda'
 
 def test_get_whisper_device_cpu():
+    mock_torch = MagicMock()
+    mock_torch.cuda.is_available.return_value = False
+    mock_torch.backends.mps.is_available.return_value = False
     with patch('backend.services.whisper_service.get_whisper_backend', return_value='openai-whisper'), \
-         patch('torch.cuda.is_available', return_value=False), \
-         patch('torch.backends.mps.is_available', return_value=False):
+         patch('backend.services.whisper_service._ensure_torch', return_value=mock_torch):
         assert ws.get_whisper_device() == 'cpu'
 
 def test_get_whisper_device_mps():
+    mock_torch = MagicMock()
+    mock_torch.cuda.is_available.return_value = False
+    mock_torch.backends.mps.is_available.return_value = True
     with patch('backend.services.whisper_service.get_whisper_backend', return_value='openai-whisper'), \
-         patch('torch.cuda.is_available', return_value=False), \
-         patch('torch.backends.mps.is_available', return_value=True):
+         patch('backend.services.whisper_service._ensure_torch', return_value=mock_torch):
         assert ws.get_whisper_device() == 'mps'
 
 def test_get_diarization_pipeline_no_token():
@@ -49,8 +56,19 @@ def test_get_diarization_pipeline_no_token():
 
 def test_get_diarization_pipeline_load_fail():
     reset_backend()
+    mock_torch = MagicMock()
+    mock_torch.backends.mps.is_available.return_value = False
+    mock_torch.cuda.is_available.return_value = False
+
+    fake_pyannote = types.ModuleType('pyannote')
+    fake_pyannote_audio = types.ModuleType('pyannote.audio')
+    fake_pipeline = MagicMock()
+    fake_pipeline.from_pretrained.side_effect = Exception("Fail")
+    fake_pyannote_audio.Pipeline = fake_pipeline
+    fake_pyannote.audio = fake_pyannote_audio
+
     with patch('backend.services.whisper_service.HF_TOKEN', 'tok'), \
-         patch('backend.services.whisper_service.ENABLE_DIARIZATION', True):
-        # Patch the function that loads the pipeline
-        with patch('pyannote.audio.Pipeline.from_pretrained', side_effect=Exception("Fail")):
-            assert ws.get_diarization_pipeline() is None
+         patch('backend.services.whisper_service.ENABLE_DIARIZATION', True), \
+         patch('backend.services.whisper_service._ensure_torch', return_value=mock_torch), \
+         patch.dict(sys.modules, {'pyannote': fake_pyannote, 'pyannote.audio': fake_pyannote_audio}):
+        assert ws.get_diarization_pipeline() is None

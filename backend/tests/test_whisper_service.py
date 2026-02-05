@@ -1,4 +1,5 @@
 import pytest
+import sys
 from unittest.mock import MagicMock, patch
 from backend.services.whisper_service import (
     run_whisper_process,
@@ -153,55 +154,52 @@ def test_run_whisper_process_long_segment_split(mock_get_whisper_model, mock_vad
 
 def test_get_speech_timestamps_pipe(mock_vad):
     """Test that get_speech_timestamps uses ffmpeg pipe when torchaudio load fails."""
-    # Ensure modules are imported so we can patch them globally
-    import torchaudio
-    import torch
-    import numpy as np
     from backend.services.whisper_service import get_speech_timestamps
-    
-    with patch('backend.services.whisper_service.ENABLE_VAD', True), \
+
+    # Mock optional modules so test works even when torchaudio/numpy are not installed.
+    mock_torchaudio = MagicMock()
+    mock_torchaudio.load.side_effect = Exception("Format not supported")
+    mock_numpy = MagicMock()
+    mock_numpy.int16 = "int16"
+    mock_numpy.float32 = "float32"
+
+    mock_np_array = MagicMock()
+    mock_numpy.frombuffer.return_value.flatten.return_value.astype.return_value = mock_np_array
+    mock_np_array.__truediv__.return_value = mock_np_array
+
+    mock_torch = MagicMock()
+    mock_tensor = MagicMock()
+    mock_tensor.unsqueeze.return_value = mock_tensor
+    mock_tensor.squeeze.return_value = mock_tensor
+    mock_tensor.__len__.return_value = 16000
+    mock_tensor.__getitem__.return_value = mock_tensor
+    mock_tensor.shape = [1, 16000]
+    mock_torch.from_numpy.return_value = mock_tensor
+
+    with patch.dict(sys.modules, {'torchaudio': mock_torchaudio, 'numpy': mock_numpy}), \
+         patch('backend.services.whisper_service.ENABLE_VAD', True), \
          patch('backend.services.whisper_service.get_vad_model') as mock_get_model, \
-         patch('backend.services.whisper_service._ensure_torch'), \
-         patch('torchaudio.load') as mock_torchaudio_load, \
-         patch('backend.services.whisper_service.subprocess.run') as mock_run, \
-         patch('torch.from_numpy') as mock_from_numpy, \
-         patch('numpy.frombuffer') as mock_np_frombuffer:
-         
+         patch('backend.services.whisper_service._ensure_torch', return_value=mock_torch), \
+         patch('backend.services.whisper_service.subprocess.run') as mock_run:
+
         # Mock VAD model return
         mock_model = MagicMock()
         mock_utils = (MagicMock(),) # Tuple as in real implementation
         mock_get_model.return_value = (mock_model, mock_utils, 'cpu')
-        
-        # Mock torchaudio.load FAILURE to trigger pipe
-        mock_torchaudio_load.side_effect = Exception("Format not supported")
-        
+
         # Mock subprocess.run success
         mock_process = MagicMock()
         # Return 32k bytes (enough for 1 second of 16-bit mono 16kHz audio)
-        mock_process.stdout = b'\x00' * 32000 
+        mock_process.stdout = b'\x00' * 32000
         mock_process.returncode = 0
         mock_run.return_value = mock_process
-        
-        # Mock numpy/torch conversion
-        mock_np_array = MagicMock()
-        mock_np_frombuffer.return_value.flatten.return_value.astype.return_value = mock_np_array
-        # Division result
-        mock_np_array.__truediv__.return_value = mock_np_array 
-        
-        # Mock torch.from_numpy to return a tensor
-        mock_tensor = MagicMock()
-        mock_tensor.unsqueeze.return_value = mock_tensor
-        mock_tensor.__len__.return_value = 16000 # 1 second length
-        mock_tensor.__getitem__.return_value = mock_tensor # Chunk slicing
-        
-        mock_from_numpy.return_value = mock_tensor
-        
+
         # Run function
         get_speech_timestamps("test.m4a")
-        
+
         # Verify torchaudio.load called first
-        mock_torchaudio_load.assert_called_with("test.m4a")
-        
+        mock_torchaudio.load.assert_called_with("test.m4a")
+
         # Verify ffmpeg pipe called
         mock_run.assert_called_once()
         cmd = mock_run.call_args[0][0]
