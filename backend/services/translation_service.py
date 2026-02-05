@@ -17,6 +17,183 @@ from backend.utils.model_utils import supports_json_mode
 
 logger = logging.getLogger('subtide')
 
+
+def parse_numbered_translations(response: Any, expected_count: int) -> List[Tuple[int, str]]:
+    """
+    Parse translations with number preservation.
+
+    Handles multiple response formats:
+    - Dict with numbered string keys: {"1": "...", "2": "..."}
+    - Dict with int keys: {1: "...", 2: "..."}
+    - Array with numbered text: ["1. ...", "2. ..."]
+    - Plain array: ["...", "..."] (fallback to position)
+
+    Args:
+        response: The 'translations' value from LLM response
+        expected_count: Expected number of translations
+
+    Returns:
+        List of (number, translation) tuples, sorted by number
+    """
+    result = []
+    seen_numbers = set()
+
+    if isinstance(response, dict):
+        # Dict with numbered keys (string or int)
+        for key, value in response.items():
+            try:
+                num = int(key)
+                if num in seen_numbers:
+                    logger.warning(f"[ALIGN] Duplicate translation number {num}, keeping first")
+                    continue
+                seen_numbers.add(num)
+                result.append((num, str(value).strip() if value else ''))
+            except (ValueError, TypeError):
+                logger.warning(f"[ALIGN] Invalid key '{key}' in translations dict")
+                continue
+
+    elif isinstance(response, list):
+        numbered_pattern = re.compile(r'^(\d+)[\.\)\:]\s*(.*)$')
+        space_pattern = re.compile(r'^(\d+)\s+(.*)$')
+
+        # Array - try to extract numbers from text, fallback to position
+        for i, item in enumerate(response):
+            if not isinstance(item, str):
+                item = str(item) if item else ''
+            item = item.strip()
+
+            # Try to extract leading number (e.g., "1. text" or "1) text" or "1: text")
+            match = numbered_pattern.match(item)
+            if match:
+                num = int(match.group(1))
+                text = match.group(2).strip()
+            else:
+                # Handle bare "1 text" format only when number is plausible for this batch.
+                space_match = space_pattern.match(item)
+                if space_match:
+                    candidate_num = int(space_match.group(1))
+                    if 1 <= candidate_num <= max(expected_count, 1):
+                        num = candidate_num
+                        text = space_match.group(2).strip()
+                    else:
+                        # Avoid treating numeric-leading text (e.g., years) as line numbers.
+                        num = i + 1
+                        text = item
+                else:
+                    # Fallback to position-based numbering (1-indexed)
+                    num = i + 1
+                    text = item
+
+            if num in seen_numbers:
+                logger.warning(f"[ALIGN] Duplicate translation number {num}, keeping first")
+                continue
+            seen_numbers.add(num)
+            result.append((num, text))
+    else:
+        logger.warning(f"[ALIGN] Unexpected response type: {type(response)}")
+        return []
+
+    # Sort by number
+    result.sort(key=lambda x: x[0])
+    return result
+
+
+def align_translations_to_subtitles(
+    subtitles: List[Dict[str, Any]],
+    parsed_translations: List[Tuple[int, str]],
+    batch_offset: int = 0
+) -> Dict[int, str]:
+    """
+    Match translations to subtitles by number, with offset detection and fallback.
+
+    Args:
+        subtitles: List of subtitle dicts (the batch being translated)
+        parsed_translations: List of (number, translation) tuples
+        batch_offset: Starting index of this batch in the full subtitle list (for logging)
+
+    Returns:
+        Dict mapping batch index (0-based) -> translated text
+    """
+    result = {}
+    expected_count = len(subtitles)
+
+    if not parsed_translations:
+        logger.warning(f"[ALIGN] No parsed translations to align")
+        return result
+
+    def score_adjustment(adjustment: int) -> int:
+        score = 0
+        for num, _ in parsed_translations:
+            index = (num - adjustment) - 1
+            if 0 <= index < expected_count:
+                score += 1
+        return score
+
+    first_num = parsed_translations[0][0]
+    candidate_adjustments = [0]
+
+    # Some providers number globally (absolute subtitle index) for non-first batches.
+    if batch_offset > 0:
+        candidate_adjustments.append(batch_offset)
+
+    # Heuristic offset candidate: 5,6,7 -> 1,2,3 (adjust by 4)
+    if first_num > 1:
+        candidate_adjustments.append(first_num - 1)
+
+    # De-duplicate while preserving priority/order.
+    unique_adjustments = []
+    for adjustment in candidate_adjustments:
+        if adjustment not in unique_adjustments:
+            unique_adjustments.append(adjustment)
+
+    base_score = score_adjustment(0)
+    best_score = base_score
+    chosen_adjustment = 0
+
+    for adjustment in unique_adjustments[1:]:
+        candidate_score = score_adjustment(adjustment)
+
+        # In the first batch, avoid risky heuristic shifts unless there's meaningful gain.
+        if (
+            batch_offset == 0
+            and adjustment == (first_num - 1)
+            and (candidate_score - base_score) < max(2, math.ceil(len(parsed_translations) * 0.2))
+        ):
+            continue
+
+        if candidate_score > best_score:
+            best_score = candidate_score
+            chosen_adjustment = adjustment
+
+    if chosen_adjustment:
+        logger.info(
+            f"[ALIGN] Using offset adjustment {chosen_adjustment} "
+            f"(in-range {best_score}/{len(parsed_translations)})"
+        )
+
+    # Map translations by adjusted number
+    for num, text in parsed_translations:
+        adjusted_num = num - chosen_adjustment
+        index = adjusted_num - 1  # Convert 1-based to 0-based index
+
+        if 0 <= index < expected_count:
+            if index in result:
+                logger.warning(f"[ALIGN] Duplicate index {index} (num {num}), keeping first")
+                continue
+            result[index] = text
+        else:
+            logger.debug(f"[ALIGN] Translation number {num} (index {index}) out of range [0, {expected_count})")
+
+    # Log alignment stats
+    filled = len(result)
+    gaps = expected_count - filled
+    if gaps > 0:
+        missing_indices = [i for i in range(expected_count) if i not in result]
+        logger.warning(f"[ALIGN] {gaps} missing translations at indices: {missing_indices[:10]}{'...' if len(missing_indices) > 10 else ''}")
+
+    return result
+
+
 def get_historical_batch_time() -> float:
     """Get average batch time from history for initial ETA estimate."""
     history_path = os.path.join(CACHE_DIR, 'batch_time_history.json')
@@ -217,7 +394,8 @@ def await_translate_subtitles(
         # System Prompt
         system_prompt = f"""You are a subtitle translator. You MUST output ONLY {t_name} ({target_lang}).{terminology_str}
 CRITICAL: Every translation MUST be in {t_name}. Never output English or any other language.
-Return a JSON object with a "translations" array containing exactly {len(batch)} translated strings."""
+Return a JSON object with numbered translations: {{"translations": {{"1": "...", "2": "..."}}}}
+IMPORTANT: The number keys MUST match the input line numbers exactly (1 to {len(batch)})."""
 
         user_prompt = f"""Translate these subtitles to {t_name} ({target_lang}).
 
@@ -230,7 +408,7 @@ STRICT RULES:
 Source subtitles to translate:
 {numbered_subs}{context_str}
 
-Return JSON with {len(batch)} translations in {t_name}: {{"translations": ["...", "..."]}}"""
+Return JSON with numbered keys matching input (1 to {len(batch)}): {{"translations": {{"1": "...", "2": "..."}}}}"""
 
         translations = []
         last_failure_reason = None
@@ -254,21 +432,29 @@ Return JSON with {len(batch)} translations in {t_name}: {{"translations": ["..."
                         temperature=min(temperature, 0.7),
                         max_tokens=4096
                     )
-                    
+
+                    raw_translations = None
                     if isinstance(json_response, dict) and 'translations' in json_response:
-                        translations = json_response['translations']
+                        raw_translations = json_response['translations']
                     elif isinstance(json_response, list):
-                        translations = json_response
-                    else:
+                        raw_translations = json_response
+                    elif isinstance(json_response, dict):
                          # Fallback for loose JSON
                          for key, value in json_response.items():
-                            if isinstance(value, list) and len(value) > 0:
-                                translations = value
+                            if isinstance(value, (list, dict)) and len(value) > 0:
+                                raw_translations = value
                                 break
-                    
+                    else:
+                        logger.warning(f"[ALIGN] Unexpected JSON response type: {type(json_response)}")
+
                     # If we got here, JSON usage was mostly successful, but let's check content
-                    if not translations:
+                    if not raw_translations:
                         raise ValueError("Empty or invalid JSON structure")
+
+                    # Use numbered alignment for robustness
+                    parsed = parse_numbered_translations(raw_translations, len(batch))
+                    alignment = align_translations_to_subtitles(batch, parsed, batch_idx)
+                    translations = [alignment.get(i, '') for i in range(len(batch))]
 
                 except Exception as json_err:
                      log_with_context(logger, 'WARNING', f"[TRANSLATE] JSON generation failed ({json_err}), falling back to text generation...")
@@ -279,21 +465,18 @@ Return JSON with {len(batch)} translations in {t_name}: {{"translations": ["..."
                         temperature=min(temperature, 0.7),
                         max_tokens=4096
                      )
-                     
-                     # Parse numbered lines
-                     lines = text_response.strip().split('\n')
-                     translations = []
-                     for line in lines:
-                        cleaned = line.strip()
-                        if not cleaned: continue
-                        if cleaned[0].isdigit():
-                            match = re.search(r'^\d+[\.\)\:]\s*(.*)', cleaned)
-                            if match: cleaned = match.group(1).strip()
-                        if cleaned:
-                            translations.append(cleaned)
 
-                # Verify count
-                if len(translations) >= len(batch) * 0.8:
+                     # Parse numbered lines into list format for alignment
+                     lines = text_response.strip().split('\n')
+                     raw_lines = [line.strip() for line in lines if line.strip()]
+                     # Use alignment functions for text fallback too
+                     parsed = parse_numbered_translations(raw_lines, len(batch))
+                     alignment = align_translations_to_subtitles(batch, parsed, batch_idx)
+                     translations = [alignment.get(i, '') for i in range(len(batch))]
+
+                # Verify count - count non-empty translations since alignment pads with empty strings
+                non_empty_count = sum(1 for t in translations if t)
+                if non_empty_count >= len(batch) * 0.8:
                     batch_duration = time.time() - batch_start
 
                     # Language validation
@@ -317,12 +500,12 @@ Return JSON with {len(batch)} translations in {t_name}: {{"translations": ["..."
                             time.sleep(1)
                             continue
 
-                    log_with_context(logger, 'INFO', f"[TRANSLATE] Batch {batch_num}/{total_batches} OK ({len(translations)}/{len(batch)}) in {batch_duration:.1f}s")
+                    log_with_context(logger, 'INFO', f"[TRANSLATE] Batch {batch_num}/{total_batches} OK ({non_empty_count}/{len(batch)}) in {batch_duration:.1f}s")
                     return batch_idx, translations, True, batch_duration, usage
                 else:
-                    logger.warning(f"[TRANSLATE] Batch {batch_num} incomplete: {len(translations)}/{len(batch)}")
+                    logger.warning(f"[TRANSLATE] Batch {batch_num} incomplete: {non_empty_count}/{len(batch)}")
                     if attempt < MAX_RETRIES:
-                        last_failure_reason = f"Incomplete result. Expected {len(batch)} translations, got {len(translations)}."
+                        last_failure_reason = f"Incomplete result. Expected {len(batch)} translations, got {non_empty_count}."
                         time.sleep(1)
                         continue
 
@@ -502,7 +685,8 @@ Return JSON with {len(batch)} translations in {t_name}: {{"translations": ["..."
             system_prompt = f"""You are a subtitle translator. Translate to {t_name} ({target_lang}).
 Lines marked [context] show surrounding translations for reference - DO NOT translate these.
 Only translate lines marked [TRANSLATE THIS].
-Return a JSON object with a "translations" array containing exactly {len(batch_subs)} translated strings."""
+Return a JSON object with numbered translations: {{"translations": {{"1": "...", "2": "..."}}}}
+IMPORTANT: The number keys MUST match the input line numbers exactly (1 to {len(batch_subs)})."""
 
             user_prompt = f"""Translate the marked subtitles to {t_name} ({target_lang}).
 
@@ -511,7 +695,7 @@ Only translate lines marked [TRANSLATE THIS].
 
 {numbered_subs_with_context}
 
-Return JSON with exactly {len(batch_subs)} translations: {{"translations": ["...", "..."]}}"""
+Return JSON with numbered keys (1 to {len(batch_subs)}): {{"translations": {{"1": "...", "2": "..."}}}}"""
 
             try:
                 json_response = provider.generate_json(
@@ -521,11 +705,19 @@ Return JSON with exactly {len(batch_subs)} translations: {{"translations": ["...
                     max_tokens=2048
                 )
 
-                retry_translations = []
+                raw_translations = None
                 if isinstance(json_response, dict) and 'translations' in json_response:
-                    retry_translations = json_response['translations']
+                    raw_translations = json_response['translations']
                 elif isinstance(json_response, list):
-                    retry_translations = json_response
+                    raw_translations = json_response
+
+                # Use numbered alignment for retry translations too
+                if raw_translations:
+                    parsed = parse_numbered_translations(raw_translations, len(batch_subs))
+                    alignment = align_translations_to_subtitles(batch_subs, parsed, 0)
+                    retry_translations = [alignment.get(i, '') for i in range(len(batch_subs))]
+                else:
+                    retry_translations = []
 
                 # Apply retry results and update tracking set
                 filled = 0
@@ -603,10 +795,11 @@ def translate_subtitles_simple(
     use_json_mode = supports_json_mode(model_id)
 
     if use_json_mode:
-        # JSON mode: more reliable parsing
+        # JSON mode: more reliable parsing with numbered keys for alignment
         system_prompt = f"""You are a professional subtitle translator. You MUST output ONLY {t_name} ({target_lang}).
 CRITICAL: Every translation MUST be in {t_name}. Never output English or any other language unless that IS the target.
-Return a JSON object with a "translations" array containing exactly {len(subtitles)} translated strings."""
+Return a JSON object with numbered translations: {{"translations": {{"1": "...", "2": "..."}}}}
+IMPORTANT: The number keys MUST match the input line numbers exactly (1 to {len(subtitles)})."""
 
         user_prompt = f"""Translate these subtitles from {s_name} to {t_name} ({target_lang}).
 
@@ -620,7 +813,7 @@ STRICT RULES:
 Subtitles to translate:
 {numbered_subs}
 
-Return JSON with {len(subtitles)} translations in {t_name}: {{"translations": ["...", "..."]}}"""
+Return JSON with numbered keys matching input (1 to {len(subtitles)}): {{"translations": {{"1": "...", "2": "..."}}}}"""
     else:
         # Numbered lines mode: fallback
         system_prompt = f"""You are a professional subtitle translator. You MUST output ONLY {t_name} ({target_lang}).
@@ -675,14 +868,29 @@ All {len(subtitles)} outputs MUST be in {t_name}."""
                  temperature=0.3,
                  max_tokens=8192
              )
-             # Determine translations from JSON
+             # Determine raw translations from JSON
+             raw_translations = None
              if isinstance(json_response, dict) and 'translations' in json_response:
-                 translations = json_response['translations']
+                 raw_translations = json_response['translations']
              elif isinstance(json_response, list):
-                 translations = json_response
+                 raw_translations = json_response
+             elif isinstance(json_response, dict):
+                 # Fallback for loose JSON structure
+                 for key, value in json_response.items():
+                     if isinstance(value, (list, dict)) and len(value) > 0:
+                         raw_translations = value
+                         break
              else:
-                 translations = [] # Fallback logic below
-                 
+                 logger.warning(f"[ALIGN] Unexpected JSON response type in simple mode: {type(json_response)}")
+
+             if not raw_translations:
+                 raw_translations = []
+
+             # Use numbered alignment for robustness
+             parsed = parse_numbered_translations(raw_translations, len(subtitles))
+             alignment = align_translations_to_subtitles(subtitles, parsed, 0)
+             translations = [alignment.get(i, '') for i in range(len(subtitles))]
+
         else:
              # Text mode
              text_response = provider.generate_text(
@@ -691,32 +899,19 @@ All {len(subtitles)} outputs MUST be in {t_name}."""
                  temperature=0.3,
                  max_tokens=8192
              )
-             # Parse
+             # Parse numbered lines and use alignment
              lines = text_response.strip().split('\n')
-             translations = []
-             for line in lines:
-                cleaned = line.strip()
-                if cleaned and cleaned[0].isdigit():
-                    match = re.search(r'^\d+[\.\)]\s*(.*)', cleaned)
-                    if match: cleaned = match.group(1).strip()
-                if cleaned:
-                    translations.append(cleaned)
+             raw_lines = [line.strip() for line in lines if line.strip()]
+             parsed = parse_numbered_translations(raw_lines, len(subtitles))
+             alignment = align_translations_to_subtitles(subtitles, parsed, 0)
+             translations = [alignment.get(i, '') for i in range(len(subtitles))]
 
         elapsed = time.time() - start_time
+        non_empty_count = sum(1 for t in translations if t)
         logger.info(f"Response received in {elapsed:.2f}s")
-        logger.info(f"Received {len(translations)} translations (Expected {len(subtitles)})")
+        logger.info(f"Aligned {non_empty_count}/{len(subtitles)} translations")
 
-        # Ensure correct count
-        expected = len(subtitles)
-        if len(translations) != expected:
-            logger.warning(f"Translation count mismatch! Expected {expected}, got {len(translations)}")
-            if len(translations) < expected:
-                while len(translations) < expected:
-                    translations.append("")
-            else:
-                translations = translations[:expected]
-
-        return {'translations': translations, 'usage': None} # usage tracking abstracted away/not returned by generate_* yet
+        return {'translations': translations, 'usage': None}
 
     except Exception as e:
         logger.exception("Translation error")
