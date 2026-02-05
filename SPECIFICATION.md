@@ -49,14 +49,27 @@ A Chrome extension + Python backend that translates video subtitles in real-time
   - Subtitles are delivered batch-by-batch as they translate
   - Uses `/api/stream` endpoint instead of `/api/process`
 
-### Backend Security (v1.1.2+)
+### Backend Security (v1.1.3+)
 
 - **Tier Spoofing Prevention**: API tier is determined server-side based on whether a client API key is provided, not by client claims
-- **SSRF Protection**: URL domain whitelist prevents Server-Side Request Forgery attacks - only whitelisted video platforms (YouTube, Twitch, Vimeo, etc.) are allowed
+- **SSRF Protection**: Two layers of defense:
+  - URL domain whitelist for video downloads (YouTube, Twitch, Vimeo, etc.) in `video_loader.py`
+  - Private/internal IP blocking for user-provided API URLs (`api_url`, `video_url`, `stream_url`) in routes - blocks RFC 1918, loopback, link-local, and cloud metadata endpoints
+- **Path Traversal Prevention**: `get_cache_path()` validates video IDs with regex (`[a-zA-Z0-9_-]{1,128}`) and verifies paths stay within cache directory via `os.path.normpath` check
+- **Video ID Validation**: All routes validate `video_id` format before use (alphanumeric + hyphen/underscore, 1-64 chars, no Windows reserved names). `fetch_subtitles()` also validates early before cache access
 - **API Key Masking**: All API keys are masked in logs (shows only first/last 4 characters)
 - **Request ID Tracking**: All requests include unique IDs via `X-Request-ID` header for log correlation
-- **Rate Limiting**: Default 60 req/min with stricter limits on expensive endpoints (translate: 10/min, process: 5/min)
+- **Rate Limiting**: Default 60 req/min with endpoint-specific decorators applied:
+  - `/api/translate`: 10 req/min
+  - `/api/process`: 5 req/min
+  - `/api/stream`: 5 req/min
+  - `/api/transcribe`: 3 req/min
 - **Request Size Limit**: Maximum 10MB for POST request bodies
+- **Input Validation**: All route parameters validated (language codes, tier values, model IDs, feedback text length)
+- **Error Sanitization**: Internal error details are logged server-side but not exposed in API responses
+- **Prompt Injection Mitigation**: Subtitle text wrapped in XML tags (`<subtitles>`) with system prompts instructing models to ignore embedded instructions
+- **LLM Error Hierarchy**: Typed exceptions (`LLMRateLimitError`, `LLMAuthError`, `LLMResponseError`) preserve error type for retry logic
+- **Session Timeout**: Live WebSocket sessions are cleaned up after 10 minutes of inactivity; `session.stop()` runs outside the lock to prevent blocking
 
 ## Extension Features
 
