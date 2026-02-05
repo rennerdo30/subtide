@@ -24,9 +24,9 @@ def test_transcribe_error(client):
         # Mock validation to pass if needed.
         # usually checks video_id/url.
         res = client.get('/api/transcribe?tier=tier2&video_id=vid')
-        # Logic likely catches exception and returns 500
+        # Logic catches exception and returns generic error (no internal details)
         assert res.status_code == 500
-        assert "Fail" in res.json['error']
+        assert "Transcription failed" in res.json['error']
 
 def test_translate_simple_missing_args(client):
     # Endpoint /api/translate

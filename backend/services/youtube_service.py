@@ -1,4 +1,5 @@
 import logging
+import random
 import time
 import json
 import os
@@ -87,6 +88,9 @@ def fetch_subtitles(video_id: str, lang: str = 'en') -> Tuple[Any, int]:
     Fetch YouTube subtitles using yt-dlp.
     Returns (response_data, status_code).
     """
+    if not validate_video_id(video_id):
+        return {'error': 'Invalid video ID'}, 400
+
     # Check cache first
     cache_path = get_cache_path(video_id, f'subs_{lang}')
     if os.path.exists(cache_path):
@@ -167,7 +171,8 @@ def fetch_subtitles(video_id: str, lang: str = 'en') -> Tuple[Any, int]:
                 if res.status_code == 200:
                     break
                 elif res.status_code == 429:
-                    time.sleep((attempt + 1) * 2)
+                    wait_time = (attempt + 1) * 2 + random.uniform(0, 1)
+                    time.sleep(wait_time)
                 else:
                     return {'error': f'YouTube returned status {res.status_code}', 'retry': True}, 502
             
@@ -209,7 +214,7 @@ def fetch_subtitles(video_id: str, lang: str = 'en') -> Tuple[Any, int]:
 
     except Exception as e:
         logger.exception("Subtitle fetch error")
-        return {'error': str(e)}, 500
+        return {'error': 'Failed to fetch subtitles. Please try again.'}, 500
 
 
 def get_video_title(video_id: str) -> Optional[str]:
@@ -282,8 +287,8 @@ def await_download_subtitles(video_id: str, lang: str, tracks: List[Dict]) -> Li
             if res.status_code == 200:
                 break
             elif res.status_code == 429:
-                wait_time = (attempt + 1) * 2
-                logger.warning(f"[PROCESS] Rate limited (429), waiting {wait_time}s before retry {attempt+1}/{max_retries}")
+                wait_time = (attempt + 1) * 2 + random.uniform(0, 1)
+                logger.warning(f"[PROCESS] Rate limited (429), waiting {wait_time:.1f}s before retry {attempt+1}/{max_retries}")
                 time.sleep(wait_time)
             else:
                 logger.error(f"[PROCESS] Subtitle download failed: {res.status_code}")

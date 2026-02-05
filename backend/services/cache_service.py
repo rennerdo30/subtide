@@ -37,11 +37,17 @@ def cleanup_cache():
         files = []
         for p in Path(CACHE_DIR).rglob('*'):
             if p.is_file():
-                mtime = p.stat().st_mtime
+                try:
+                    stat = p.stat()
+                    mtime = stat.st_mtime
+                except (OSError, FileNotFoundError):
+                    continue  # File may have been deleted by another thread
                 if now - mtime > ttl_seconds:
                     try:
                         p.unlink()
                         logger.info(f"Deleted expired cache file: {p.name}")
+                    except FileNotFoundError:
+                        pass  # Already deleted by another thread
                     except Exception as e:
                         logger.warning(f"Failed to delete {p}: {e}")
                 else:
@@ -57,13 +63,17 @@ def cleanup_cache():
             
             for p, mtime in files:
                 try:
+                    if not p.exists():
+                        continue  # Already deleted
                     size_mb = p.stat().st_size / (1024 * 1024)
                     p.unlink()
                     current_size_mb -= size_mb
                     logger.info(f"Deleted to free space: {p.name}")
-                    
+
                     if current_size_mb <= CACHE_MAX_SIZE_MB:
                         break
+                except FileNotFoundError:
+                    pass  # Already deleted by another thread
                 except Exception as e:
                     logger.warning(f"Failed to delete {p}: {e}")
 

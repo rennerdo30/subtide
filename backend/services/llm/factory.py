@@ -76,7 +76,10 @@ def get_llm_provider() -> AbstractLLMProvider:
 
     elif provider_name == "deepseek":
         # DeepSeek can be used via OpenAI provider with specific base URL
-        api_key = DEEPSEEK_API_KEY or OPENAI_API_KEY # Fallback
+        api_key = DEEPSEEK_API_KEY
+        if not api_key and OPENAI_API_KEY:
+            api_key = OPENAI_API_KEY
+            logger.warning("DEEPSEEK_API_KEY not set, falling back to OPENAI_API_KEY. Set DEEPSEEK_API_KEY explicitly to avoid this warning.")
         if not api_key:
              raise ValueError("DEEPSEEK_API_KEY (or OPENAI_API_KEY) is not set")
         provider = OpenAIProvider(

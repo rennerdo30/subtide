@@ -78,7 +78,7 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL")
 
 # Model Configuration
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5.2")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-3-5-sonnet-latest")
 GOOGLE_MODEL = os.getenv("GOOGLE_MODEL", "gemini-2.0-flash-exp")
 MISTRAL_MODEL = os.getenv("MISTRAL_MODEL", "mistral-large-latest")

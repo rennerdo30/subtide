@@ -8,6 +8,7 @@ import logging
 from flask import Blueprint, request, jsonify
 
 from backend.utils.feedback_store import store_feedback, get_feedback_stats
+from backend.utils.input_validation import validate_feedback_text, MAX_FEEDBACK_TEXT_LENGTH
 
 logger = logging.getLogger('subtide')
 
@@ -42,7 +43,12 @@ def submit_feedback():
         
         if rating not in [-1, 1]:
             return jsonify({'error': 'rating must be 1 or -1'}), 400
-        
+
+        # Validate text field lengths
+        for field in ['source_text', 'translated_text', 'user_correction']:
+            if not validate_feedback_text(data.get(field)):
+                return jsonify({'error': f'{field} exceeds maximum length of {MAX_FEEDBACK_TEXT_LENGTH}'}), 400
+
         success = store_feedback(
             video_id=video_id,
             segment_index=segment_index,
@@ -60,7 +66,7 @@ def submit_feedback():
             
     except Exception as e:
         logger.error(f"[FEEDBACK] Error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Failed to submit feedback'}), 500
 
 
 @feedback_bp.route('/api/feedback/stats', methods=['GET'])
@@ -71,4 +77,4 @@ def feedback_stats():
         return jsonify(stats)
     except Exception as e:
         logger.error(f"[FEEDBACK] Stats error: {e}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Failed to retrieve feedback stats'}), 500

@@ -1,7 +1,7 @@
 from typing import Dict, Any, Optional, List, Union
 import json
-from openai import OpenAI, OpenAIError
-from .base import AbstractLLMProvider
+from openai import OpenAI, OpenAIError, RateLimitError, AuthenticationError
+from .base import AbstractLLMProvider, LLMError, LLMRateLimitError, LLMAuthError, LLMResponseError
 
 class OpenAIProvider(AbstractLLMProvider):
     def __init__(self, api_key: str, model: str, base_url: Optional[str] = None):
@@ -30,8 +30,12 @@ class OpenAIProvider(AbstractLLMProvider):
                 **kwargs
             )
             return response.choices[0].message.content or ""
+        except RateLimitError as e:
+            raise LLMRateLimitError(f"OpenAI rate limit: {str(e)}") from e
+        except AuthenticationError as e:
+            raise LLMAuthError(f"OpenAI auth error: {str(e)}") from e
         except OpenAIError as e:
-            raise Exception(f"OpenAI API Error: {str(e)}")
+            raise LLMError(f"OpenAI API Error: {str(e)}") from e
 
     def generate_json(self, prompt: str, system_prompt: Optional[str] = None, schema: Optional[Dict[str, Any]] = None, **kwargs) -> Union[Dict[str, Any], List[Any]]:
         # OpenAI supports json_object response format
@@ -53,6 +57,10 @@ class OpenAIProvider(AbstractLLMProvider):
             content = response.choices[0].message.content or "{}"
             return json.loads(content)
         except json.JSONDecodeError:
-            raise Exception("Failed to decode JSON response from OpenAI")
+            raise LLMResponseError("Failed to decode JSON response from OpenAI")
+        except RateLimitError as e:
+            raise LLMRateLimitError(f"OpenAI rate limit: {str(e)}") from e
+        except AuthenticationError as e:
+            raise LLMAuthError(f"OpenAI auth error: {str(e)}") from e
         except OpenAIError as e:
-            raise Exception(f"OpenAI API Error: {str(e)}")
+            raise LLMError(f"OpenAI API Error: {str(e)}") from e

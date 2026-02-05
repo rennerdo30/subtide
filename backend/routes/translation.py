@@ -6,18 +6,25 @@ from backend.config import (
 from backend.services.process_service import process_video_logic, stream_video_logic
 from backend.services.translation_service import translate_subtitles_simple
 from backend.utils.model_utils import get_model_context_size
+from backend.utils.url_validation import validate_api_url, validate_stream_url
+from backend.utils.input_validation import validate_lang_code, validate_model_id
+from backend.services.youtube_service import validate_video_id
 import logging
 
 translation_bp = Blueprint('translation', __name__)
 logger = logging.getLogger('subtide')
 
-# Import limiter from app (will be set after blueprint registration)
+# Rate limiter - set after blueprint registration via init_limiter()
 limiter = None
 
 def init_limiter(app_limiter):
-    """Initialize rate limiter for this blueprint."""
+    """Initialize rate limiter for this blueprint and apply endpoint-specific limits."""
     global limiter
     limiter = app_limiter
+    # Apply stricter limits to expensive endpoints
+    app_limiter.limit("10 per minute")(translate_subtitles)
+    app_limiter.limit("5 per minute")(process_video)
+    app_limiter.limit("5 per minute")(stream_video)
 
 @translation_bp.route('/api/model-info', methods=['GET'])
 def get_model_info():
@@ -68,6 +75,10 @@ def translate_subtitles():
     if not subtitles:
         return jsonify({'error': 'No subtitles provided'}), 400
 
+    # SECURITY: Validate user-provided API URL against SSRF
+    if api_url and not validate_api_url(api_url):
+        return jsonify({'error': 'Invalid API URL'}), 400
+
     # Determine tier based on whether client provides credentials
     if api_key:
         # Tier 1/2: Client provides their own API key
@@ -85,6 +96,12 @@ def translate_subtitles():
     if not model_id:
         return jsonify({'error': 'Model is required'}), 400
 
+    if not validate_model_id(model_id):
+        return jsonify({'error': 'Invalid model ID'}), 400
+
+    if not validate_lang_code(target_lang):
+        return jsonify({'error': 'Invalid target language'}), 400
+
     try:
         result = translate_subtitles_simple(
             subtitles=subtitles,
@@ -98,7 +115,7 @@ def translate_subtitles():
 
     except Exception as e:
         logger.exception("Translation API failed")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Translation failed. Please try again.'}), 500
 
 
 @translation_bp.route('/api/process', methods=['POST'])
@@ -135,6 +152,18 @@ def process_video():
         logger.warning(f"Process request missing video_id. Received data: {data}")
         return jsonify({'error': 'video_id is required'}), 400
 
+    if not validate_video_id(video_id):
+        return jsonify({'error': 'Invalid video_id format'}), 400
+
+    # SECURITY: Validate user-provided URLs against SSRF
+    if video_url and not validate_stream_url(video_url):
+        return jsonify({'error': 'Invalid video URL'}), 400
+    if stream_url and not validate_stream_url(stream_url):
+        return jsonify({'error': 'Invalid stream URL'}), 400
+
+    if not validate_lang_code(target_lang):
+        return jsonify({'error': 'Invalid target language'}), 400
+
     # Tier 3 requires server API key
     if not SERVER_API_KEY:
         return jsonify({
@@ -146,7 +175,7 @@ def process_video():
         generator = process_video_logic(video_id, target_lang, force_whisper, use_sse, video_url=video_url, stream_url=stream_url, force_refresh=force_refresh)
     except Exception as e:
         logger.exception("Failed to start processing")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Processing failed. Please try again.'}), 500
     
     if use_sse:
         return Response(generator, mimetype='text/event-stream')
@@ -163,11 +192,13 @@ def process_video():
                      result = payload['result']
                  if 'error' in payload:
                      error = payload['error']
-             except (json.JSONDecodeError, KeyError, TypeError):
-                 pass
+             except (json.JSONDecodeError, KeyError, TypeError) as parse_err:
+                 logger.warning(f"[PROCESS] Failed to parse SSE event in non-SSE mode: {parse_err}")
         
         if error:
             return jsonify({'error': error}), 500
+        if result is None:
+            return jsonify({'error': 'Processing failed to produce a result'}), 500
         return jsonify(result)
 
 
@@ -189,6 +220,18 @@ def stream_video():
     if not video_id:
         return jsonify({'error': 'video_id is required'}), 400
 
+    if not validate_video_id(video_id):
+        return jsonify({'error': 'Invalid video_id format'}), 400
+
+    # SECURITY: Validate user-provided URLs against SSRF
+    if video_url and not validate_stream_url(video_url):
+        return jsonify({'error': 'Invalid video URL'}), 400
+    if stream_url and not validate_stream_url(stream_url):
+        return jsonify({'error': 'Invalid stream URL'}), 400
+
+    if not validate_lang_code(target_lang):
+        return jsonify({'error': 'Invalid target language'}), 400
+
     # Tier 4 requires server API key
     if not SERVER_API_KEY:
         return jsonify({
@@ -200,7 +243,7 @@ def stream_video():
         generator = stream_video_logic(video_id, target_lang, force_whisper, video_url=video_url, stream_url=stream_url, force_refresh=force_refresh)
     except Exception as e:
         logger.exception("Failed to start streaming")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Streaming failed. Please try again.'}), 500
 
     # Always return SSE for streaming endpoint
     return Response(generator, mimetype='text/event-stream')

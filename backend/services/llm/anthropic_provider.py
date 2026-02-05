@@ -1,7 +1,7 @@
 from typing import Dict, Any, Optional, List, Union
 import json
-from anthropic import Anthropic, APIError
-from .base import AbstractLLMProvider
+from anthropic import Anthropic, APIError, RateLimitError, AuthenticationError
+from .base import AbstractLLMProvider, LLMError, LLMRateLimitError, LLMAuthError, LLMResponseError
 
 class AnthropicProvider(AbstractLLMProvider):
     def __init__(self, api_key: str, model: str):
@@ -32,8 +32,12 @@ class AnthropicProvider(AbstractLLMProvider):
             if response.content and len(response.content) > 0:
                 return response.content[0].text
             return ""
+        except RateLimitError as e:
+            raise LLMRateLimitError(f"Anthropic rate limit: {str(e)}") from e
+        except AuthenticationError as e:
+            raise LLMAuthError(f"Anthropic auth error: {str(e)}") from e
         except APIError as e:
-            raise Exception(f"Anthropic API Error: {str(e)}")
+            raise LLMError(f"Anthropic API Error: {str(e)}") from e
 
     def generate_json(self, prompt: str, system_prompt: Optional[str] = None, schema: Optional[Dict[str, Any]] = None, **kwargs) -> Union[Dict[str, Any], List[Any]]:
         # Anthropic doesn't enforce JSON mode strictly like OpenAI, but prompt engineering usually works.
@@ -43,6 +47,7 @@ class AnthropicProvider(AbstractLLMProvider):
         messages = [{"role": "user", "content": augmented_prompt}]
         messages.append({"role": "assistant", "content": "{"}) # Prefill
 
+        content = ""
         try:
             response = self.client.messages.create(
                 model=self._model,
@@ -51,11 +56,15 @@ class AnthropicProvider(AbstractLLMProvider):
                  max_tokens=kwargs.get("max_tokens", 4096),
                 **{k: v for k, v in kwargs.items() if k != "max_tokens"}
             )
-            
+
             content = response.content[0].text if response.content else ""
             full_content = "{" + content # Re-attach the prefill
             return json.loads(full_content)
         except json.JSONDecodeError:
-             raise Exception(f"Failed to decode JSON response from Anthropic. Raw content: {content}")
+             raise LLMResponseError(f"Failed to decode JSON response from Anthropic. Raw content: {content[:200]}")
+        except RateLimitError as e:
+            raise LLMRateLimitError(f"Anthropic rate limit: {str(e)}") from e
+        except AuthenticationError as e:
+            raise LLMAuthError(f"Anthropic auth error: {str(e)}") from e
         except APIError as e:
-            raise Exception(f"Anthropic API Error: {str(e)}")
+            raise LLMError(f"Anthropic API Error: {str(e)}") from e

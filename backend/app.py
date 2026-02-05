@@ -121,7 +121,7 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 # Register Blueprints
 from backend.routes.health import health_bp, set_models_ready
 from backend.routes.subtitles import subtitles_bp
-from backend.routes.transcribe import transcribe_bp
+from backend.routes.transcribe import transcribe_bp, init_limiter as init_transcribe_limiter
 from backend.routes.translation import translation_bp, init_limiter as init_translation_limiter
 
 app.register_blueprint(health_bp)
@@ -142,6 +142,7 @@ init_live_socketio(socketio)
 
 # Initialize rate limiter for routes that need custom limits
 init_translation_limiter(limiter)
+init_transcribe_limiter(limiter)
 
 # Startup Banner
 def print_banner():

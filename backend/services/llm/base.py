@@ -1,6 +1,27 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List, Union
 
+
+class LLMError(Exception):
+    """Base exception for LLM provider errors."""
+    pass
+
+
+class LLMRateLimitError(LLMError):
+    """Raised when the LLM API returns a rate limit error (429)."""
+    pass
+
+
+class LLMAuthError(LLMError):
+    """Raised when the LLM API returns an authentication error (401/403)."""
+    pass
+
+
+class LLMResponseError(LLMError):
+    """Raised when the LLM response cannot be parsed."""
+    pass
+
+
 class AbstractLLMProvider(ABC):
     """
     Abstract base class for LLM providers.
