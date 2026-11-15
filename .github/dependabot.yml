@@ -48,10 +48,12 @@ updates:
     commit-message:
       prefix: "deps(pip):"
     groups:
-      pip-minor-patch:
+      # pip requirements are ranges (">=x"); Dependabot cannot classify a range
+      # bump as minor/patch, so an update-types filter lets them escape the
+      # group. Group every pip version update instead.
+      pip-all:
         applies-to: version-updates
         patterns: ["*"]
-        update-types: ["minor", "patch"]
       pip-security:
         applies-to: security-updates
         patterns: ["*"]
