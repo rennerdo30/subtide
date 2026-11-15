@@ -1,113 +1,51 @@
 # Dependabot configuration.
 #
-# Weekly. Minor and patch updates are grouped into one pull request per
-# ecosystem so version-locked pairs can never be split across PRs; major
-# updates arrive individually so each gets evaluated on its own. The Astro
-# docs stack is grouped across all update types because its packages carry
-# hard peer ranges on each other. GitHub Actions and container images are
-# grouped across all update types. A short cooldown skips releases that are
-# only hours old. Security updates are grouped per ecosystem.
+# Every version update across all ecosystems lands in ONE pull request per
+# week (a multi-ecosystem group), so the review queue never holds more than
+# one dependency PR. A short cooldown skips releases that are only hours old.
+# Security updates are not delayed and arrive as soon as an advisory matches.
 version: 2
+
+multi-ecosystem-groups:
+  weekly-dependencies:
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "deps"
 
 updates:
   - package-ecosystem: "npm"
     directory: "/docs"
-    schedule:
-      interval: "weekly"
-      day: "monday"
+    patterns: ["*"]
+    multi-ecosystem-group: "weekly-dependencies"
     cooldown:
       default-days: 3
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "deps(npm):"
-    groups:
-      # Must stay ahead of the catch-all group: Dependabot uses the first match.
-      astro-docs:
-        applies-to: version-updates
-        patterns:
-          - "astro"
-          - "@astrojs/*"
-          - "starlight-*"
-          - "*/starlight-*"
-      npm-minor-patch:
-        applies-to: version-updates
-        patterns: ["*"]
-        update-types: ["minor", "patch"]
-      npm-security:
-        applies-to: security-updates
-        patterns: ["*"]
 
   - package-ecosystem: "pip"
     directory: "/backend"
-    schedule:
-      interval: "weekly"
-      day: "monday"
+    patterns: ["*"]
+    multi-ecosystem-group: "weekly-dependencies"
     cooldown:
       default-days: 3
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "deps(pip):"
-    groups:
-      # pip requirements are ranges (">=x"); Dependabot cannot classify a range
-      # bump as minor/patch, so an update-types filter lets them escape the
-      # group. Group every pip version update instead.
-      pip-all:
-        applies-to: version-updates
-        patterns: ["*"]
-      pip-security:
-        applies-to: security-updates
-        patterns: ["*"]
 
   - package-ecosystem: "docker"
     directory: "/backend"
-    schedule:
-      interval: "weekly"
-      day: "monday"
+    patterns: ["*"]
+    multi-ecosystem-group: "weekly-dependencies"
     cooldown:
       default-days: 3
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "deps(docker):"
-    groups:
-      docker-all:
-        applies-to: version-updates
-        patterns: ["*"]
-      docker-security:
-        applies-to: security-updates
-        patterns: ["*"]
 
   - package-ecosystem: "docker-compose"
     directory: "/backend"
-    schedule:
-      interval: "weekly"
-      day: "monday"
+    patterns: ["*"]
+    multi-ecosystem-group: "weekly-dependencies"
     cooldown:
       default-days: 3
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "deps(compose):"
-    groups:
-      compose-all:
-        applies-to: version-updates
-        patterns: ["*"]
-      compose-security:
-        applies-to: security-updates
-        patterns: ["*"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
+    patterns: ["*"]
+    multi-ecosystem-group: "weekly-dependencies"
     cooldown:
       default-days: 3
-    open-pull-requests-limit: 3
-    commit-message:
-      prefix: "deps(actions):"
-    groups:
-      actions-all:
-        applies-to: version-updates
-        patterns: ["*"]
-      actions-security:
-        applies-to: security-updates
-        patterns: ["*"]
