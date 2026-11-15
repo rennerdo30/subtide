@@ -4,7 +4,7 @@
 # ============================================================================
 # Base stage with Python and system dependencies
 # ============================================================================
-FROM python:3.11-slim AS base
+FROM python:3.15-slim AS base
 
 # Install uv (The Python Package Installer)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
