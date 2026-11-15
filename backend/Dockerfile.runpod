@@ -5,7 +5,7 @@
 # ============================================================================
 # Base stage with CUDA runtime + cuDNN 9 (required by faster-whisper)
 # ============================================================================
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS base
+FROM nvidia/cuda:13.5.0-cudnn-runtime-ubuntu22.04 AS base
 
 # Install uv (The Python Package Installer)
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /bin/uv
