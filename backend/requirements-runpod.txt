@@ -10,7 +10,7 @@ faster-whisper
 nemo_toolkit[asr]
 
 # Fallback diarization (if NeMo fails) - 4.0.3+ uses in-memory waveform
-pyannote.audio>=4.0.3
+pyannote.audio>=4.1.1
 
 # PyTorch with CUDA 12.1 support
 # Note: Install separately with: pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu121

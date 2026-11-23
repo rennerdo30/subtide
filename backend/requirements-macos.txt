@@ -7,7 +7,7 @@
 mlx-whisper
 
 # Speaker diarization (4.0.3+ required - uses in-memory waveform to bypass torchcodec)
-pyannote.audio>=4.0.3
+pyannote.audio>=4.1.1
 
 # PyTorch (CPU/MPS)
 torch
